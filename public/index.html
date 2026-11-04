@@ -632,7 +632,7 @@ function courseView() {
         ${teacher && S.fileCourseOpen ? `<button class="btn small" data-act="lessonState" data-id="${l.id}">${st(l) === 'fertig' ? 'Zurücksetzen' : st(l) === 'offen' ? 'Geschafft' : 'Aufgeben'}</button>` : ''}</div>`).join('')}</div></section></section>`; }).join('') : '<div class="empty">Der Kurs ist noch leer.</div>'}
   </div>`;
 }
-function lessonView() {
+function courseLessonView() {
   const c = courseOf(); const l = c && c.lessons.find((x) => x.id === S.lessonId); if (!l) return '';
   const teacher = S.role === 'teacher' && !S.preview;
   return `<div class="wrap" style="max-width:720px;align-items:stretch">
@@ -1020,7 +1020,7 @@ document.addEventListener('click', async (ev) => {
   const el = ev.target.closest('[data-act]'); if (!el) return;
   const act = el.dataset.act, id = el.dataset.id;
   if (S.preview && act === 'video') { S.videoId = id; openOverlay(videoView); return; }
-  if (S.preview && act === 'close' && [videoView, songView, partVideoView, courseView, lessonView].includes(S.overlay)) { closeOverlay(); return; }
+  if (S.preview && act === 'close' && [videoView, songView, partVideoView, courseView, courseLessonView].includes(S.overlay)) { closeOverlay(); return; }
   // In der Vorschau darf man ansehen, aber nichts ändern
   if (S.preview && !['endPreview', 'song', 'partVideo', 'backToSong', 'songLang', 'songVideos', 'sheet', 'course', 'courseLesson', 'backToCourse', 'courseBack'].includes(act) && el.tagName !== 'A') { toast('Vorschau: hier tippt ' + S.preview.data.student.first_name); return; }
   try {
@@ -1104,10 +1104,10 @@ document.addEventListener('click', async (ev) => {
       case 'course': S.fileCourseOpen = false; openOverlay(courseView); break;
       case 'courseBack': if (S.fileCourseOpen) { S.fileCourseOpen = false; openOverlay(studentFileView); } else closeOverlay(); break;
       case 'fileCourse': S.fileCourseOpen = true; openOverlay(courseView); break;
-      case 'courseLesson': S.lessonId = id; S.lessonFrom = S.overlay; openOverlay(lessonView); break;
+      case 'courseLesson': S.lessonId = id; S.lessonFrom = S.overlay; openOverlay(courseLessonView); break;
       case 'backToCourse': if (S.lessonFrom === courseView) openOverlay(courseView); else closeOverlay(); break;
-      case 'itemKind': S.itemKind = el.dataset.v; openOverlay(lessonView); break;
-      case 'itemDelete': await api('/api/t/course/item/delete', { id }); await reloadCourse(); openOverlay(lessonView); break;
+      case 'itemKind': S.itemKind = el.dataset.v; openOverlay(courseLessonView); break;
+      case 'itemDelete': await api('/api/t/course/item/delete', { id }); await reloadCourse(); openOverlay(courseLessonView); break;
       case 'lessonState': {
         const c = S.file.course, cur = c.progress[id] ? c.progress[id].status : null;
         const next = cur === 'fertig' ? null : cur === 'offen' ? 'fertig' : 'offen';
@@ -1260,7 +1260,7 @@ document.addEventListener('submit', async (ev) => {
     } else if (fid === 'itemForm') {
       const kind = S.itemKind || 'video', title = $('#it_title').value.trim(); if (!title) { toast('Titel fehlt'); return; }
       await api('/api/t/course/item/save', { lesson_id: S.lessonId, kind, title, song_title: kind === 'song' ? title : null, url: $('#it_url') ? $('#it_url').value.trim() : null, notes: $('#it_notes').value.trim() || null });
-      await reloadCourse(); openOverlay(lessonView); toast('Hinzugefügt');
+      await reloadCourse(); openOverlay(courseLessonView); toast('Hinzugefügt');
     } else if (fid === 'myGoalForm') {
       const title = $('#mg_title').value.trim(); if (!title) return;
       await api('/api/goal/add', { title }); S.data = await api('/api/home'); render(); toast('Ziel gespeichert');
