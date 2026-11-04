@@ -277,3 +277,17 @@ test('Songnamen mit Bindestrichen statt Leerzeichen', () => {
   assert.equal(parseSongName('o-praise-the-name-anastasis-C-2.pdf').title, 'O praise the name anastasis');
   assert.equal(parseSongName('After Your Heart-chords-G-2.pdf').title, 'After Your Heart');
 });
+test('Eigene Ziele erst ab 14 Jahren', async () => {
+  const w = await world(); // Anna 2013 (13 im Jahr 2026), Ben 1990
+  const year = new Date().getFullYear();
+  const annaOk = year - 2013 >= 14;
+  assert.equal((await w.call('/api/goal/add', { title: 'Mein Ziel' }, w.ta)).status, annaOk ? 200 : 403);
+  assert.equal((await w.call('/api/home', {}, w.ta)).data.canGoal, annaOk);
+  const r = await w.call('/api/goal/add', { title: 'Paradiddle auf 100' }, w.tb);
+  assert.equal(r.status, 200);
+  assert.equal((await w.call('/api/goal/toggle', { id: r.data.id }, w.tb)).data.status, 'erreicht');
+  assert.equal((await w.call('/api/goal/toggle', { id: r.data.id }, w.ta)).status, annaOk ? 404 : 403, 'fremdes Ziel nicht änderbar');
+  assert.equal((await w.call('/api/goal/add', { title: 'x' }, w.tap)).status, 403, 'Eltern nicht');
+  const g = (await w.call('/api/t/student', { id: w.b }, w.t)).data.goals;
+  assert.ok(g.some((x) => x.title === 'Paradiddle auf 100' && x.status === 'erreicht'), 'Lehrer sieht das Ziel');
+});

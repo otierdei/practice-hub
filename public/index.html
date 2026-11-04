@@ -572,7 +572,8 @@ function studentView(d = S.data, t = S.tab) {
     </div></section>
     <section class="card"><h3>Übezeit pro Woche</h3>${weeksCircles(sessions)}</section>
     ${exList.length ? `<section class="card"><h3>Tempo</h3><div class="grid2" style="grid-template-columns:repeat(auto-fill,minmax(150px,1fr))">${exList.map((e) => `<div class="col" style="align-items:center;gap:6px">${ring(e.best / e.target, 96, 8, 'var(--ring)', e.title + ': ' + e.best + ' von ' + e.target + ' BPM', String(e.best || '–'), 'von ' + e.target)}<span class="small" style="text-align:center">${esc(e.title)}</span></div>`).join('')}</div></section>` : ''}
-    <section class="card"><h3>Ziele</h3><div class="list">${d.goals.length ? d.goals.map((g) => `<div class="item"><span class="t">${esc(g.title)}</span>${g.status === 'erreicht' ? '<span class="pill">erreicht</span>' : '<span class="pill">offen</span>'}</div>`).join('') : '<p class="muted">Oti trägt deine Ziele in der Stunde ein.</p>'}</div></section>`;
+    <section class="card"><h3>Ziele</h3><div class="list">${d.goals.length ? d.goals.map((g) => `<div class="item"><span class="t">${esc(g.title)}</span>${d.canGoal && !S.preview ? `<button class="check ${g.status === 'erreicht' ? 'on' : ''}" data-act="goalToggle" data-id="${g.id}" aria-pressed="${g.status === 'erreicht'}" aria-label="Ziel erreicht">${g.status === 'erreicht' ? '✓' : ''}</button>` : g.status === 'erreicht' ? '<span class="pill">erreicht</span>' : '<span class="pill">offen</span>'}</div>`).join('') : `<p class="muted">${d.canGoal ? 'Setz dir dein erstes Ziel.' : 'Oti trägt deine Ziele in der Stunde ein.'}</p>`}</div>
+      ${d.canGoal ? `<form id="myGoalForm" class="row" style="flex-wrap:nowrap"><input id="mg_title" maxlength="160" placeholder="z. B. Paradiddle auf 100 BPM" aria-label="Neues Ziel" style="flex:1"><button class="btn primary small" type="submit">Hinzufügen</button></form>` : ''}</section>`;
   } else if (t === 'songs') {
     html = songsTab(false);
   } else if (t === 'stimmen') {
@@ -1026,6 +1027,7 @@ document.addEventListener('click', async (ev) => {
       }
       case 'metroOpen': openOverlay(metronomeView); break;
       case 'video': S.videoId = id; openOverlay(videoView); break;
+      case 'goalToggle': { const r = await api('/api/goal/toggle', { id }); const g = S.data.goals.find((x) => x.id === id); g.status = r.status; render(); if (r.status === 'erreicht') toast('Ziel erreicht!'); break; }
       case 'song': await openSong(id); break;
       case 'sheet': window.open(driveUrl(id), '_blank', 'noopener'); break;
       case 'partVideo': S.partId = id; openOverlay(partVideoView); break;
@@ -1169,6 +1171,9 @@ document.addEventListener('submit', async (ev) => {
       const ex = S.exercises.find((e) => e.id === exId);
       S.lesson.new_assignments.push({ exercise_id: exId || null, free_text: exId ? null : free, url: exId ? null : ($('#a_url').value.trim() || null), label: ex ? ex.title : free, target_bpm: Number($('#a_bpm').value) || (ex && ex.target_bpm) || null, minutes_per_day: Number($('#a_min').value) || 10 });
       saveDraft(); render();
+    } else if (fid === 'myGoalForm') {
+      const title = $('#mg_title').value.trim(); if (!title) return;
+      await api('/api/goal/add', { title }); S.data = await api('/api/home'); render(); toast('Ziel gespeichert');
     } else if (fid === 'partForm') {
       const title = $('#pt_title').value.trim(); if (!title) { toast('Titel fehlt'); return; }
       await api('/api/t/song/part/save', { song_id: S.song.song.id, title, url: $('#pt_url').value.trim() || null, notes: $('#pt_notes').value.trim() || null });

@@ -133,8 +133,11 @@ async function studentView(s, studentId, role) {
     s.all('SELECT id, date, minutes, notes_shared FROM lessons WHERE student_id = ? ORDER BY date DESC LIMIT 60', studentId),
     s.first(`SELECT given_at FROM consents WHERE student_id = ? AND kind = 'app' ORDER BY given_at DESC LIMIT 1`, studentId),
   ]);
-  return { role, student: st, assignments, sessions, goals, lessons, consent: consent ? consent.given_at : null, consentVersion: CONSENT_VERSION };
+  return { role, student: st, assignments, sessions, goals, lessons, consent: consent ? consent.given_at : null, consentVersion: CONSENT_VERSION, canGoal: role === 'student' && canSetGoals(st) };
 }
+
+// Ab 14 Jahren (laut Geburtsjahr) dürfen Schüler eigene Ziele eintragen
+export function canSetGoals(st) { return !!st.birth_year && new Date().getFullYear() - st.birth_year >= 14; }
 
 async function addSession(s, who, b) {
   const clientId = str(b.client_id, 64);
@@ -472,6 +475,24 @@ async function route(env, req, path, body) {
     if (body.on) await s.run('INSERT OR IGNORE INTO student_songs (student_id, song_id, added_at) VALUES (?, ?, ?)', who.studentId, sid, now());
     else await s.run('DELETE FROM student_songs WHERE student_id = ? AND song_id = ?', who.studentId, sid);
     return { ok: true };
+  }
+  if (path === '/api/goal/add' || path === '/api/goal/toggle') {
+    if (who.role !== 'student') throw new HttpError(403, 'Nur Schüler tragen eigene Ziele ein.');
+    const st = await s.first('SELECT birth_year FROM students WHERE id = ?', who.studentId);
+    if (!st || !canSetGoals(st)) throw new HttpError(403, 'Eigene Ziele gibt es ab 14 Jahren.');
+    if (path === '/api/goal/add') {
+      const title = str(body.title, 160); if (!title) throw new HttpError(400, 'Ziel fehlt.');
+      const n = (await s.first("SELECT COUNT(*) AS n FROM goals WHERE student_id = ? AND status = 'offen'", who.studentId)).n;
+      if (n >= 20) throw new HttpError(400, 'Höchstens 20 offene Ziele.');
+      const id = uid();
+      await s.batch([['INSERT INTO goals (id, student_id, title, status, created_at) VALUES (?, ?, ?, ?, ?)', [id, who.studentId, title, 'offen', now()]], logRow(who, 'create', 'goals', id, 'Eigenes Ziel: ' + title)]);
+      return { id };
+    }
+    const g = await s.first('SELECT id, status FROM goals WHERE id = ? AND student_id = ?', String(body.id || ''), who.studentId);
+    if (!g) throw new HttpError(404, 'Ziel nicht gefunden.');
+    const done = g.status !== 'erreicht';
+    await s.run('UPDATE goals SET status = ?, reached_at = ? WHERE id = ?', done ? 'erreicht' : 'offen', done ? now() : null, g.id);
+    return { ok: true, status: done ? 'erreicht' : 'offen' };
   }
   if (path === '/api/session/add') {
     if (who.role !== 'student') throw new HttpError(403, 'Nur Schüler können Übezeit eintragen.');
