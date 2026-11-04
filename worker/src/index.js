@@ -137,8 +137,8 @@ async function studentView(s, studentId, role) {
   return { role, student: st, assignments, sessions, goals, lessons, consent: consent ? consent.given_at : null, consentVersion: CONSENT_VERSION, canGoal: role === 'student' && canSetGoals(st) };
 }
 
-// Ab 14 Jahren (laut Geburtsjahr) dürfen Schüler eigene Ziele eintragen
-export function canSetGoals(st) { return !!st.birth_year && new Date().getFullYear() - st.birth_year >= 14; }
+// Alle Schüler dürfen eigene Ziele eintragen (Altersgrenze auf Otis Wunsch entfernt)
+export function canSetGoals(st) { return !!st; }
 
 async function addSession(s, who, b) {
   const clientId = str(b.client_id, 64);
@@ -482,7 +482,7 @@ async function route(env, req, path, body) {
   if (path === '/api/goal/add' || path === '/api/goal/toggle') {
     if (who.role !== 'student') throw new HttpError(403, 'Nur Schüler tragen eigene Ziele ein.');
     const st = await s.first('SELECT birth_year FROM students WHERE id = ?', who.studentId);
-    if (!st || !canSetGoals(st)) throw new HttpError(403, 'Eigene Ziele gibt es ab 14 Jahren.');
+    if (!st || !canSetGoals(st)) throw new HttpError(403, 'Kein Zugriff.');
     if (path === '/api/goal/add') {
       const title = str(body.title, 160); if (!title) throw new HttpError(400, 'Ziel fehlt.');
       const n = (await s.first("SELECT COUNT(*) AS n FROM goals WHERE student_id = ? AND status = 'offen'", who.studentId)).n;
