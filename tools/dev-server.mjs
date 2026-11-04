@@ -4,6 +4,7 @@ import { readFile } from 'node:fs/promises';
 import { extname, join, normalize } from 'node:path';
 import worker from '../worker/src/index.js';
 import { makeD1 } from '../worker/test/d1-shim.mjs';
+if (process.env.FAKE_DRIVE !== '0') await import('./fake-drive.mjs');
 const root = new URL('../public/', import.meta.url).pathname;
 const types = { '.html': 'text/html; charset=utf-8', '.js': 'text/javascript', '.svg': 'image/svg+xml', '.png': 'image/png', '.woff2': 'font/woff2', '.webmanifest': 'application/manifest+json' };
 const ASSETS = { async fetch(req) {

@@ -1,3 +1,4 @@
+import { SONG_SCHEMA, syncSongs, songsHome, songDetail } from './songs.js';
 // Practice Hub Worker v1 (04.11.2026)
 // Rechte werden bei jeder Anfrage aus dem Gerätetoken abgeleitet, nie aus der Anfrage.
 
@@ -205,7 +206,8 @@ async function teacherStudent(s, id) {
            FROM access a WHERE a.student_id = ? ORDER BY a.created_at`, id),
     s.all('SELECT id, access_id, kind, version_text, given_at FROM consents WHERE student_id = ? ORDER BY given_at DESC', id),
   ]);
-  return { student: st, lessons, assignments, sessions, goals, access, consents };
+  const worship = !!(await s.first('SELECT 1 AS w FROM worship_students WHERE student_id = ?', id));
+  return { student: st, lessons, assignments, sessions, goals, access, consents, worship };
 }
 
 async function saveStudent(s, who, b) {
@@ -254,6 +256,8 @@ function deleteStudentStatements(id) {
     ['DELETE FROM assignments WHERE student_id = ?', [id]],
     ['DELETE FROM goals WHERE student_id = ?', [id]],
     ['DELETE FROM lessons WHERE student_id = ?', [id]],
+    ['DELETE FROM student_songs WHERE student_id = ?', [id]],
+    ['DELETE FROM worship_students WHERE student_id = ?', [id]],
     ['DELETE FROM students WHERE id = ?', [id]],
     ['UPDATE log SET summary = NULL WHERE entity_id = ?', [id]],
   ];
@@ -459,6 +463,16 @@ async function route(env, req, path, body) {
     if (own) return studentView(s, who.studentId, who.role);
     return { role: 'teacher', ...(await teacherOverview(s)) };
   }
+  if (path === '/api/songs') return songsHome(s, who);
+  if (path === '/api/song') { const d = await songDetail(s, body.id); if (!d) throw new HttpError(404, 'Song nicht gefunden.'); return d; }
+  if (path === '/api/my/song') {
+    if (who.role !== 'student') throw new HttpError(403, 'Nur Schüler haben eine eigene Setlist.');
+    const sid = String(body.song_id || '');
+    if (!(await s.first('SELECT id FROM songs WHERE id = ?', sid))) throw new HttpError(404, 'Song nicht gefunden.');
+    if (body.on) await s.run('INSERT OR IGNORE INTO student_songs (student_id, song_id, added_at) VALUES (?, ?, ?)', who.studentId, sid, now());
+    else await s.run('DELETE FROM student_songs WHERE student_id = ? AND song_id = ?', who.studentId, sid);
+    return { ok: true };
+  }
   if (path === '/api/session/add') {
     if (who.role !== 'student') throw new HttpError(403, 'Nur Schüler können Übezeit eintragen.');
     return addSession(s, who, body);
@@ -492,6 +506,23 @@ async function route(env, req, path, body) {
   if (who.role !== 'teacher') throw new HttpError(403, 'Kein Zugriff.');
   switch (path) {
     case '/api/t/student': return teacherStudent(s, String(body.id || ''));
+    case '/api/t/songs/sync': return syncSongs(env);
+    case '/api/t/student/worship': {
+      const id = String(body.id || '');
+      if (body.on) await s.run('INSERT OR IGNORE INTO worship_students (student_id) VALUES (?)', id); else await s.run('DELETE FROM worship_students WHERE student_id = ?', id);
+      return { ok: true };
+    }
+    case '/api/t/song/part/save': {
+      const song = await s.first('SELECT id FROM songs WHERE id = ?', String(body.song_id || ''));
+      if (!song) throw new HttpError(404, 'Song nicht gefunden.');
+      const title = str(body.title, 120); if (!title) throw new HttpError(400, 'Titel fehlt.');
+      const url = cleanUrl(body.url);
+      const n = (await s.first('SELECT COUNT(*) AS n FROM song_parts WHERE song_id = ?', song.id)).n;
+      const id = uid();
+      await s.batch([['INSERT INTO song_parts (id, song_id, title, url, notes, sort, created_at) VALUES (?, ?, ?, ?, ?, ?, ?)', [id, song.id, title, url, str(body.notes, 500), n, now()]], logRow(who, 'create', 'song_parts', id, title)]);
+      return { id };
+    }
+    case '/api/t/song/part/delete': await s.run('DELETE FROM song_parts WHERE id = ?', String(body.id || '')); return { ok: true };
     case '/api/t/preview': return studentView(s, String(body.id || ''), 'student');
     case '/api/t/assignment/link': return linkAssignment(s, who, body);
     case '/api/t/student/save': return saveStudent(s, who, body);
@@ -523,7 +554,7 @@ const schemaReady = new WeakMap();
 export function ensureSchema(env) {
   let p = schemaReady.get(env.DB);
   if (!p) {
-    const stmts = SCHEMA.replace(/--[^\n]*/g, '').split(';').map((x) => x.trim()).filter(Boolean);
+    const stmts = (SCHEMA + SONG_SCHEMA).replace(/--[^\n]*/g, '').split(';').map((x) => x.trim()).filter(Boolean);
     p = env.DB.batch(stmts.map((q) => env.DB.prepare(q))).catch((e) => { schemaReady.delete(env.DB); throw e; });
     schemaReady.set(env.DB, p);
   }
@@ -555,6 +586,6 @@ export default {
     }
   },
   async scheduled(event, env, ctx) {
-    ctx.waitUntil(ensureSchema(env).then(() => cleanup(env)));
+    ctx.waitUntil(ensureSchema(env).then(() => cleanup(env)).then(() => syncSongs(env).catch((e) => console.log('Song Abgleich:', e.message))));
   },
 };

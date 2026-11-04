@@ -221,3 +221,54 @@ test('Song Chart: 16 Takte, Teile, Wiederholungen; Gitarre wird geprüft', async
   assert.equal(ge.kind, 'guitar'); assert.equal(ge.capo, 2); assert.deepEqual(ge.strum.cells, ['D', '', 'D', 'U', '', 'U', 'D', 'U']); assert.deepEqual(ge.tab.notes, [[0, 0, 3]]);
   assert.equal((await w.call('/api/t/exercise/save', { title: 'M', source_type: 'musora', url: 'https://app.musora.com/playlists/1' }, w.t)).status, 200);
 });
+
+// ---------- Songs aus Drive ----------
+import { parseSongName, LIEDER_ROOT } from '../src/songs.js';
+const entry = (id, name, folder) => `<div class="flip-entry" id="entry-${id}"><a href="https://drive.google.com/${folder ? 'drive/folders/' + id : 'file/d/' + id + '/view'}"><div class="flip-entry-title">${name}</div></a></div>`;
+const DRIVE = {
+  [LIEDER_ROOT]: entry('de', 'Deutsch', 1) + entry('en', 'English', 1) + entry('sets', 'Lieder sets', 1) + entry('x', 'Vorlage.docx'),
+  de: entry('f1', 'Der Sieg gehört dir allein - A - 81.pdf') + entry('f2', 'Der Sieg gehört dir allein - G.pdf') + entry('f3', 'Gott der Wunder - E.pdf') + entry('sub', 'Weihnachten', 1),
+  en: entry('f4', 'All Day-B 122.pdf') + entry('f5', 'Alive - C.pdf'),
+  sets: entry('s1', 'Sonntag, 08.11.2099', 1),
+  s1: entry('p1', '2. Gott der Wunder - E.pdf') + entry('p2', '1. Der Sieg gehört dir allein - A - 81.pdf') + entry('p3', '5. Tempel-A.pdf'),
+};
+function stubDrive() {
+  const orig = globalThis.fetch;
+  globalThis.fetch = async (u) => { const id = new URL(u).searchParams.get('id'); return new Response(DRIVE[id] || '', { status: DRIVE[id] ? 200 : 404 }); };
+  return () => { globalThis.fetch = orig; };
+}
+
+test('Songnamen werden zerlegt', () => {
+  assert.deepEqual(parseSongName('1. Der Sieg gehört dir allein - A - 81.pdf'), { title: 'Der Sieg gehört dir allein', key: 'A', bpm: 81, kind: 'pdf' });
+  assert.deepEqual(parseSongName('All Day-B 122.pdf'), { title: 'All Day', key: 'B', bpm: 122, kind: 'pdf' });
+  assert.equal(parseSongName('5. Schaffe Raum-A.pdf').title, 'Schaffe Raum');
+});
+
+test('Abgleich, Bibliothek, Sonntag nur für Lobpreis, Meine Setlist, Bausteine', async () => {
+  const w = await world(); const restore = stubDrive();
+  try {
+    const r = await w.call('/api/t/songs/sync', {}, w.t);
+    assert.equal(r.status, 200); assert.equal(r.data.files, 5); assert.equal(r.data.sundays, 1);
+    let home = (await w.call('/api/songs', {}, w.ta)).data;
+    assert.equal(home.songs.length, 4, 'zwei Tonarten = ein Song');
+    assert.equal(home.sunday, null, 'Anna spielt nicht im Lobpreis');
+    assert.deepEqual(home.songs.find((x) => x.title === 'Der Sieg gehört dir allein').keys.sort(), ['A', 'G']);
+    await w.call('/api/t/student/worship', { id: w.a, on: true }, w.t);
+    home = (await w.call('/api/songs', {}, w.ta)).data;
+    assert.equal(home.sunday.date, '2099-11-08');
+    assert.deepEqual(home.sunday.items.map((i) => i.title), ['Der Sieg gehört dir allein', 'Gott der Wunder', 'Tempel']);
+    assert.ok(home.sunday.items[0].song_id, 'Sonntagssong ist mit der Bibliothek verknüpft');
+    assert.equal((await w.call('/api/songs', {}, w.tb)).data.sunday, null, 'Ben sieht keinen Sonntag');
+    const sid = home.songs[0].id;
+    assert.equal((await w.call('/api/my/song', { song_id: sid, on: true }, w.ta)).status, 200);
+    assert.deepEqual((await w.call('/api/songs', {}, w.ta)).data.mine, [sid]);
+    assert.deepEqual((await w.call('/api/songs', {}, w.tb)).data.mine, [], 'Setlist ist pro Schüler');
+    assert.equal((await w.call('/api/my/song', { song_id: sid, on: true }, w.tap)).status, 403, 'Eltern bauen keine Setlist');
+    assert.equal((await w.call('/api/t/song/part/save', { song_id: sid, title: 'Groove Vers', url: 'youtu.be/abcdefghijk' }, w.ta)).status, 403);
+    await w.call('/api/t/song/part/save', { song_id: sid, title: 'Groove Vers', url: 'youtu.be/abcdefghijk' }, w.t);
+    const det = (await w.call('/api/song', { id: sid }, w.ta)).data;
+    assert.equal(det.parts[0].title, 'Groove Vers'); assert.equal(det.parts[0].url, 'https://youtu.be/abcdefghijk');
+    assert.ok(det.files.length >= 1);
+    assert.equal((await w.call('/api/t/student', { id: w.a }, w.t)).data.worship, true);
+  } finally { restore(); }
+});
