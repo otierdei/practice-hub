@@ -318,3 +318,11 @@ test('Kurs: Import, Lektion zuweisen und abhaken, Level, Rechte', async () => {
   await w.call('/api/t/course/assign', { student_id: w.a, lesson_id: l3.id, status: null }, w.t);
   assert.equal((await w.call('/api/course', {}, w.ta)).data.progress[l3.id], undefined);
 });
+
+test('App: keine doppelten Funktionsnamen in index.html', async () => {
+  const { readFileSync } = await import('node:fs');
+  const html = readFileSync(new URL('../../public/index.html', import.meta.url), 'utf8');
+  const names = [...html.matchAll(/^(?:async )?function ([A-Za-z0-9_]+)/gm)].map((m) => m[1]);
+  const dup = names.filter((n, i) => names.indexOf(n) !== i);
+  assert.deepEqual(dup, [], 'doppelt: ' + dup.join(', '));
+});
