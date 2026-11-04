@@ -52,6 +52,20 @@ a{color:var(--accent)}
 .btn.danger{color:var(--danger);border-color:var(--danger)}
 .btn.small{min-height:40px;padding:0 14px;font-size:.92rem}
 .btn.block{width:100%}
+.practice-hero{display:flex;align-items:center;gap:16px;width:100%;min-height:96px;padding:18px 22px;border:0;border-radius:28px;background:var(--accent);color:var(--accent-ink);text-align:left;font:inherit;cursor:pointer}
+.practice-hero b{font-size:1.6rem;font-family:'Young Serif',serif;font-weight:400}
+.practice-hero .ph-icon{display:grid;place-items:center;width:58px;height:58px;border-radius:50%;background:color-mix(in srgb,var(--accent-ink) 16%,transparent);flex:none}
+.task .task-title{font-size:1.08rem}
+.tiles{display:grid;grid-template-columns:repeat(auto-fit,minmax(96px,1fr));gap:10px}
+.tile{display:flex;flex-direction:column;align-items:center;gap:6px;padding:14px 8px;border:1px solid var(--line);border-radius:20px;background:var(--surface);color:var(--ink);font:inherit;font-size:.95rem;cursor:pointer}
+.thumb{position:relative;display:block;flex:none;width:118px;border-radius:12px;overflow:hidden;aspect-ratio:16/9;background:var(--track)}
+.task-icon{flex:none;display:grid;place-items:center;width:58px;height:58px;border-radius:16px;background:var(--sunk);color:var(--accent)}
+.thumb img{width:100%;height:100%;object-fit:cover;display:block}
+.thumb-play{position:absolute;inset:0;margin:auto;width:36px;height:36px;border-radius:50%;background:rgba(0,0,0,.6);color:#fff;display:grid;place-items:center}
+.thumb-play svg{width:18px;height:18px}
+.btn.video{border-color:var(--ink);font-weight:600}
+.preview-bar{position:sticky;top:0;z-index:5;display:flex;justify-content:space-between;align-items:center;gap:12px;padding:10px 16px;background:var(--ring2);color:#fff;font-weight:600}
+.preview-bar .btn{color:#fff;border-color:#fff}
 .btn:disabled{opacity:.5;cursor:default}
 .iconbtn{width:48px;height:48px;border-radius:50%;border:none;background:var(--sunk);font-size:1.4rem;display:inline-flex;align-items:center;justify-content:center}
 label{font-size:.88rem;color:var(--muted)}
@@ -200,6 +214,11 @@ const TABS = {
   studentGuitar: [['ueben', 'Üben'], ['fortschritt', 'Fortschritt'], ['stunden', 'Stunden'], ['stimmen', 'Stimmen']],
   parent: [['uebersicht', 'Übersicht'], ['stunden', 'Stunden']],
 };
+function previewNav() {
+  const tabs = /Gitarre/.test(S.preview.data.student.instrument || '') ? TABS.studentGuitar : TABS.student;
+  return `<nav class="nav" aria-label="Bereiche">${tabs.map(([id, label]) =>
+    `<button data-ptab="${id}" ${S.preview.tab === id ? 'aria-current="page"' : ''}><svg viewBox="0 0 24 24" aria-hidden="true">${ICON[id]}</svg>${label}</button>`).join('')}</nav>`;
+}
 function nav() {
   const tabs = S.role === 'student' && S.data && S.data.student && /Gitarre/.test(S.data.student.instrument || '') ? TABS.studentGuitar : TABS[S.role];
   return `<nav class="nav" aria-label="Bereiche">${tabs.map(([id, label]) =>
@@ -252,10 +271,11 @@ function render() {
   if (!S.token || !S.role) { app.innerHTML = loginView(); return; }
   let body = '';
   if (!S.data) body = `<div class="wrap"><p class="muted">${S.loadError ? esc(S.loadError) + ' <button class="btn small" data-act="reload">Nochmal</button>' : 'Lädt …'}</p></div>`;
+  else if (S.preview) body = `<div class="preview-bar"><span>Vorschau: so sieht ${esc(S.preview.data.student.first_name)} die App</span><button class="btn small" data-act="endPreview">Beenden</button></div>` + studentView(S.preview.data, S.preview.tab);
   else if (S.role === 'teacher') body = teacherView();
   else if (S.role === 'student') body = studentView();
   else body = parentView();
-  app.innerHTML = body + nav() + (S.overlay ? `<div class="sheet" role="dialog" aria-modal="true">${S.overlay()}</div>` : '');
+  app.innerHTML = body + (S.preview ? previewNav() : nav()) + (S.overlay ? `<div class="sheet" role="dialog" aria-modal="true">${S.overlay()}</div>` : '');
   document.body.style.overflow = S.overlay ? 'hidden' : '';
   if (S.afterRender) { const f = S.afterRender; S.afterRender = null; f(); }
 }
@@ -355,12 +375,13 @@ function studentFileView() {
   const f = S.file, st = f.student;
   const open = f.assignments.filter((a) => a.status === 'offen');
   return `<div class="wrap">
-    <div class="row between"><button class="btn small" data-act="close">Zurück</button><button class="btn primary small" data-act="lesson" data-id="${st.id}">Stunde starten</button></div>
+    <div class="row between"><button class="btn small" data-act="close">Zurück</button><div class="row"><button class="btn small" data-act="preview">Als Schüler ansehen</button><button class="btn primary small" data-act="lesson" data-id="${st.id}">Stunde starten</button></div></div>
     <div class="col" style="gap:4px"><h1>${esc(st.first_name)}</h1><span class="muted">${esc(st.instrument || 'Schlagzeug')} · ${st.weekday ? WD[st.weekday] + ' ' + esc(st.lesson_time || '') + ' · ' : ''}${st.lesson_minutes || 45} min${st.birth_year ? ' · Jahrgang ' + st.birth_year : ' · Jahrgang fehlt'}${st.level ? ' · ' + esc(st.level) : ''} · ${esc(st.status)}</span></div>
     ${st.profile_note ? `<details class="card"><summary>Steckbrief</summary><p style="white-space:pre-line">${esc(st.profile_note)}</p></details>` : ''}
     <section class="card"><h3>Übezeit pro Woche</h3>${weeksCircles(f.sessions)}</section>
     <div class="grid2">
-      <section class="card"><h3>Offene Hausaufgaben</h3><div class="list">${open.length ? open.map((a) => `<div class="item"><span class="t">${esc(a.title || a.free_text)}${a.target_bpm ? ' <span class="muted small">Ziel ' + a.target_bpm + '</span>' : ''}</span><span class="muted small">${practicedFor(a, f.sessions)}</span></div>`).join('') : '<p class="muted">Keine.</p>'}</div></section>
+      <section class="card"><h3>Offene Hausaufgaben</h3><div class="list">${open.length ? open.map((a) => `<div class="item" style="flex-wrap:wrap"><span class="t">${esc(a.title || a.free_text)}${a.target_bpm ? ' <span class="muted small">Ziel ' + a.target_bpm + '</span>' : ''}<br><span class="muted small">${practicedFor(a, f.sessions)}</span></span>${a.url ? `<a class="btn small" href="${esc(a.url)}" target="_blank" rel="noopener">${linkLabel(a)}</a>` : ''}<button class="btn small" data-act="addLink" data-id="${a.id}">${a.url ? 'Link ändern' : 'Link hinzufügen'}</button>
+        <div id="lk_${a.id}" class="row hidden" style="width:100%;flex-wrap:nowrap"><input id="lki_${a.id}" type="url" inputmode="url" placeholder="YouTube Link einfügen" style="flex:1"><button class="btn small primary" data-act="saveLink" data-id="${a.id}">Speichern</button></div></div>`).join('') : '<p class="muted">Keine.</p>'}</div></section>
       <section class="card"><h3>Ziele</h3><div class="list">${f.goals.length ? f.goals.map((g) => `<div class="item"><span class="t">${esc(g.title)}</span><span class="pill">${g.status === 'erreicht' ? 'erreicht' : 'offen'}</span></div>`).join('') : '<p class="muted">Noch keine Ziele.</p>'}</div></section>
     </div>
     <section class="card"><h3>Stunden <span class="muted small">(${f.lessons.length})</span></h3><div class="list">${f.lessons.length ? f.lessons.slice(0, S.allLessons ? 9999 : 10).map((l) => `<div class="item"><div class="t col" style="gap:2px"><b>${esc(fmtDate(l.date))}${l.date.slice(0, 4) !== String(new Date().getFullYear()) ? ' ' + l.date.slice(0, 4) : ''}</b>${l.notes_shared ? `<span style="white-space:pre-line">${esc(l.notes_shared)}</span>` : ''}${l.notes_teacher ? `<span class="muted small" style="white-space:pre-line">Privat: ${esc(l.notes_teacher)}</span>` : ''}</div></div>`).join('') : '<p class="muted">Noch keine Stunde.</p>'}</div>
@@ -462,6 +483,7 @@ function lessonView() {
           <form id="assignForm" class="col">
             <div class="field"><label for="a_ex">Aus der Bibliothek</label><select id="a_ex"><option value="">Freie Aufgabe</option>${exOpts}</select></div>
             <div class="field"><label for="a_free">Oder frei beschreiben</label><input id="a_free" maxlength="300" placeholder="z. B. Song Zentrum, Bridge mitspielen"></div>
+            <div class="field"><label for="a_url">Video oder Link (optional)</label><input id="a_url" type="url" inputmode="url" placeholder="YouTube Link einfügen"></div>
             <div class="row" style="flex-wrap:nowrap"><div class="field" style="flex:1"><label for="a_bpm">Ziel BPM</label><input id="a_bpm" inputmode="numeric"></div><div class="field" style="flex:1"><label for="a_min">Min pro Tag</label><input id="a_min" inputmode="numeric" placeholder="10"></div></div>
             <button class="btn" type="submit">Hausaufgabe hinzufügen</button>
           </form></section>
@@ -476,39 +498,47 @@ function lessonView() {
 
 // ---------- Schüler ----------
 function weekStart() { const d = new Date(); d.setHours(0, 0, 0, 0); d.setDate(d.getDate() - ((d.getDay() + 6) % 7)); return localDate(d); }
-function allSessions() { return (S.data.sessions || []).concat(store.get('outbox', []).filter((o) => !S.data.sessions.some((s) => s.client_id === o.client_id))); }
-function studentView() {
-  const d = S.data, t = S.tab;
-  const sessions = allSessions();
+function allSessions(d = S.data) { return (d.sessions || []).concat(S.preview ? [] : store.get('outbox', []).filter((o) => !d.sessions.some((s) => s.client_id === o.client_id))); }
+const PLAY = '<svg viewBox="0 0 24 24" width="18" height="18" aria-hidden="true"><path d="M8 5v14l11-7z" fill="currentColor"/></svg>';
+function studentView(d = S.data, t = S.tab) {
+  const sessions = allSessions(d);
   const today = localDate(), ws = weekStart();
   const todayMin = mins(sessions.filter((s) => s.local_date === today).reduce((x, s) => x + s.seconds, 0));
   const weekMin = mins(sessions.filter((s) => s.local_date >= ws).reduce((x, s) => x + s.seconds, 0));
   const open = d.assignments.filter((a) => a.status === 'offen');
   const dailyGoal = Math.max(10, open.reduce((x, a) => x + (a.minutes_per_day || 0), 0) || 20);
-  const pending = store.get('outbox', []).length;
+  const pending = S.preview ? 0 : store.get('outbox', []).length;
+  const running = !S.preview && store.get('run', null);
   let html = '';
   if (t === 'ueben') {
     const streak = weekStreak(sessions);
+    const done = d.assignments.filter((a) => a.status === 'erledigt');
     html = `<div class="col" style="gap:2px"><span class="muted">Hallo ${esc(d.student.first_name)}</span><h1>Heute üben</h1></div>
-    ${streak ? `<span class="pill">${streak} ${streak === 1 ? 'Woche' : 'Wochen'} in Folge geübt</span>` : ''}
-    ${d.student.is_minor && !d.consent ? `<div class="card small"><b>Kurzer Hinweis</b><span class="muted">Deine Eltern bekommen von Oti einen eigenen Link und stimmen dort zu, dass deine Übezeiten gespeichert werden.</span></div>` : ''}
-    ${store.get('run', null) ? `<button class="btn primary block" data-act="resumePractice">Laufende Sitzung öffnen</button>` : ''}
+    <button class="practice-hero" data-act="${running ? 'resumePractice' : 'practiceFree'}">
+      <span class="ph-icon"><svg viewBox="0 0 24 24" width="30" height="30" aria-hidden="true"><circle cx="12" cy="13" r="8" stroke="currentColor" stroke-width="2" fill="none"/><path d="M12 9v4l2.5 2M9.5 2.5h5" stroke="currentColor" stroke-width="2" fill="none" stroke-linecap="round"/></svg></span>
+      <span class="col" style="gap:2px;align-items:flex-start"><b>${running ? 'Weiter üben' : 'Üben'}</b><span>${todayMin ? 'Heute ' + todayMin + ' von ' + dailyGoal + ' min' : 'Stoppuhr starten'}</span></span>
+    </button>
+    <div class="tiles">
+      <button class="tile" data-act="metroOpen"><svg viewBox="0 0 24 24" width="28" height="28" aria-hidden="true"><path d="M9 3h6l4 18H5z" stroke="currentColor" stroke-width="2" fill="none" stroke-linejoin="round"/><path d="M12 16l5-9" stroke="currentColor" stroke-width="2" stroke-linecap="round"/></svg><span>Metronom</span></button>
+      ${/Gitarre/.test(d.student.instrument || '') ? `<button class="tile" data-ptab="stimmen" data-tab="stimmen"><svg viewBox="0 0 24 24" width="28" height="28" aria-hidden="true"><path d="M4 18a8 8 0 1 1 16 0" stroke="currentColor" stroke-width="2" fill="none"/><path d="M12 18l4-6" stroke="currentColor" stroke-width="2" stroke-linecap="round"/></svg><span>Stimmen</span></button>` : ''}
+      <button class="tile" data-ptab="fortschritt" data-tab="fortschritt"><svg viewBox="0 0 24 24" width="28" height="28" aria-hidden="true"><path d="M4 20V10M10 20V4M16 20v-7M22 20H2" stroke="currentColor" stroke-width="2" stroke-linecap="round"/></svg><span>${weekMin}′ Woche</span></button>
+    </div>
     ${pending ? `<span class="pill">${pending} Sitzung${pending > 1 ? 'en' : ''} wird gesendet, sobald Internet da ist</span>` : ''}
-    <section class="card"><div class="row" style="justify-content:space-around">
-      <div class="col" style="align-items:center;gap:4px">${ring(todayMin / dailyGoal, 120, 10, 'var(--ring)', todayMin + ' von ' + dailyGoal + ' Minuten heute', todayMin + '′', 'von ' + dailyGoal)}<span class="small muted">heute</span></div>
-      <div class="col" style="align-items:center;gap:4px">${ring(weekMin / (dailyGoal * 5), 120, 10, 'var(--ring2)', weekMin + ' Minuten diese Woche', weekMin + '′', 'Woche')}<span class="small muted">diese Woche</span></div>
-    </div></section>
-    <section class="col"><h2>Hausaufgaben</h2>
-      ${open.length ? open.map((a) => assignmentCard(a, sessions)).join('') : '<div class="empty">Keine offenen Hausaufgaben. Du kannst trotzdem frei üben.</div>'}
-      <button class="btn block" data-act="practiceFree">Frei üben</button>
+    <section class="col"><div class="row between"><h2>Deine Aufgaben</h2>${streak ? `<span class="pill">${streak} ${streak === 1 ? 'Woche' : 'Wochen'} in Folge</span>` : ''}</div>
+      ${open.length ? open.map((a) => assignmentCard(a, sessions)).join('') : '<div class="empty">Keine offenen Aufgaben. Tipp oben auf Üben und spiel frei.</div>'}
     </section>
-    ${d.assignments.filter((a) => a.status === 'erledigt').length ? `<section class="card"><h3>Erledigt</h3><div class="list">${d.assignments.filter((a) => a.status === 'erledigt').map((a) => `<div class="item"><span class="t">${esc(a.title || a.free_text)}</span><button class="check on" data-act="toggleDone" data-id="${a.id}" aria-pressed="true" aria-label="Wieder öffnen">✓</button></div>`).join('')}</div></section>` : ''}`;
+    ${done.length ? `<details class="card"><summary>Erledigt (${done.length})</summary><div class="list">${done.map((a) => `<div class="item"><span class="t">${esc(a.title || a.free_text)}</span><button class="check on" data-act="toggleDone" data-id="${a.id}" aria-pressed="true" aria-label="Wieder öffnen">✓</button></div>`).join('')}</div></details>` : ''}
+    ${d.student.is_minor && !d.consent ? `<p class="small muted">Deine Eltern bekommen von Oti einen eigenen Link und stimmen dort zu, dass deine Übezeiten gespeichert werden.</p>` : ''}`;
   } else if (t === 'fortschritt') {
     const perEx = {};
     for (const a of d.assignments) if (a.exercise_id) perEx[a.exercise_id] = { title: a.title, target: a.target_bpm, best: 0 };
     for (const s of sessions) if (s.exercise_id && perEx[s.exercise_id]) perEx[s.exercise_id].best = Math.max(perEx[s.exercise_id].best, s.bpm_reached || 0);
     const exList = Object.values(perEx).filter((e) => e.target);
     html = `<h1>Fortschritt</h1>
+    <section class="card"><div class="row" style="justify-content:space-around">
+      <div class="col" style="align-items:center;gap:4px">${ring(todayMin / dailyGoal, 120, 10, 'var(--ring)', todayMin + ' von ' + dailyGoal + ' Minuten heute', todayMin + '′', 'von ' + dailyGoal)}<span class="small muted">heute</span></div>
+      <div class="col" style="align-items:center;gap:4px">${ring(weekMin / (dailyGoal * 5), 120, 10, 'var(--ring2)', weekMin + ' Minuten diese Woche', weekMin + '′', 'Woche')}<span class="small muted">diese Woche</span></div>
+    </div></section>
     <section class="card"><h3>Übezeit pro Woche</h3>${weeksCircles(sessions)}</section>
     ${exList.length ? `<section class="card"><h3>Tempo</h3><div class="grid2" style="grid-template-columns:repeat(auto-fill,minmax(150px,1fr))">${exList.map((e) => `<div class="col" style="align-items:center;gap:6px">${ring(e.best / e.target, 96, 8, 'var(--ring)', e.title + ': ' + e.best + ' von ' + e.target + ' BPM', String(e.best || '–'), 'von ' + e.target)}<span class="small" style="text-align:center">${esc(e.title)}</span></div>`).join('')}</div></section>` : ''}
     <section class="card"><h3>Ziele</h3><div class="list">${d.goals.length ? d.goals.map((g) => `<div class="item"><span class="t">${esc(g.title)}</span>${g.status === 'erreicht' ? '<span class="pill">erreicht</span>' : '<span class="pill">offen</span>'}</div>`).join('') : '<p class="muted">Oti trägt deine Ziele in der Stunde ein.</p>'}</div></section>`;
@@ -565,18 +595,26 @@ document.addEventListener('change', (ev) => { if (ev.target.id === 'capoKey') { 
 function lessonsList(d) {
   return `<h1>Stunden</h1>${d.lessons.length ? `<section class="card"><div class="list">${d.lessons.map((l) => `<div class="item"><div class="t col" style="gap:2px"><b>${esc(fmtDate(l.date))}</b><span>${l.notes_shared ? esc(l.notes_shared) : '<span class="muted">Keine Notiz</span>'}</span></div></div>`).join('')}</div></section>` : '<div class="empty">Noch keine Stunden eingetragen.</div>'}`;
 }
+function taskIcon(a) {
+  const t = ((a.title || '') + ' ' + (a.free_text || '') + ' ' + (a.category || '')).toLowerCase();
+  if (/song|lied|worship/.test(t)) return '<svg viewBox="0 0 24 24" width="30" height="30"><path d="M9 18V5l11-2v13" stroke="currentColor" stroke-width="2" fill="none"/><circle cx="6" cy="18" r="3" fill="currentColor"/><circle cx="17" cy="16" r="3" fill="currentColor"/></svg>';
+  if (/akkord|gitarre|griff|strum|schlag/.test(t) && /gitarre|akkord|griff/.test(t)) return '<svg viewBox="0 0 24 24" width="30" height="30"><rect x="5" y="3" width="14" height="18" rx="2" stroke="currentColor" stroke-width="2" fill="none"/><path d="M5 9h14M5 15h14M10 3v18M14 3v18" stroke="currentColor" stroke-width="1.5"/></svg>';
+  if (/buch|seite|noten|lesen/.test(t)) return '<svg viewBox="0 0 24 24" width="30" height="30"><path d="M4 5a2 2 0 0 1 2-2h13v16H6a2 2 0 0 0-2 2z" stroke="currentColor" stroke-width="2" fill="none"/></svg>';
+  return '<svg viewBox="0 0 24 24" width="30" height="30"><ellipse cx="12" cy="9" rx="8" ry="3" stroke="currentColor" stroke-width="2" fill="none"/><path d="M4 9v6c0 1.7 3.6 3 8 3s8-1.3 8-3V9" stroke="currentColor" stroke-width="2" fill="none"/><path d="M15 2l-5 7" stroke="currentColor" stroke-width="2" stroke-linecap="round"/></svg>';
+}
+function ytThumb(url) { const m = /(?:youtu\.be\/|v=|shorts\/|embed\/)([A-Za-z0-9_-]{11})/.exec(url || ''); return m ? 'https://i.ytimg.com/vi/' + m[1] + '/hqdefault.jpg' : null; }
 function assignmentCard(a, sessions) {
   const list = sessions.filter((s) => s.assignment_id === a.id);
   const today = mins(list.filter((s) => s.local_date === localDate()).reduce((t, s) => t + s.seconds, 0));
   const goal = a.minutes_per_day || 10;
-  const best = Math.max(0, ...list.map((s) => s.bpm_reached || 0));
-  return `<section class="card"><div class="row" style="flex-wrap:nowrap">
-    ${ring(today / goal, 60, 6, 'var(--ring)', today + ' von ' + goal + ' Minuten heute', today + '′')}
-    <div class="col" style="gap:2px;flex:1"><b>${esc(a.title || a.free_text)}</b>
-      <span class="muted small">${a.target_bpm ? (best ? best + ' von ' : 'Ziel ') + a.target_bpm + ' BPM · ' : ''}${goal} min am Tag${a.book_ref ? ' · ' + esc(a.book_ref) : ''}</span></div>
+  const meta = [today ? today + ' von ' + goal + ' min heute' : goal + ' min am Tag', a.target_bpm ? 'Ziel ' + a.target_bpm + ' BPM' : '', a.book_ref ? esc(a.book_ref) : ''].filter(Boolean).join(' · ');
+  const th = ytThumb(a.url);
+  return `<section class="card task"><div class="row" style="flex-wrap:nowrap;align-items:center;gap:14px">
+    ${th ? `<a class="thumb" href="${esc(a.url)}" target="_blank" rel="noopener" aria-label="Video öffnen: ${esc(a.title || a.free_text)}"><img src="${th}" alt="" loading="lazy" onerror="this.remove()"><span class="thumb-play">${PLAY}</span></a>` : `<span class="task-icon" aria-hidden="true">${taskIcon(a)}</span>`}
+    <div class="col" style="gap:4px;flex:1;min-width:0"><b class="task-title">${esc(a.title || a.free_text)}</b><span class="muted small">${meta}</span></div>
     <button class="check" data-act="toggleDone" data-id="${a.id}" aria-pressed="false" aria-label="Als erledigt abhaken"></button></div>
     ${notationPreview(a.notation, 'Noten: ' + (a.title || ''))}
-    <div class="row">${a.url ? `<a class="btn small" href="${esc(a.url)}" target="_blank" rel="noopener">${linkLabel(a)}</a>` : ''}<button class="btn primary small" data-act="practice" data-id="${a.id}" style="flex:1">Üben starten</button></div>
+    <div class="row" style="flex-wrap:nowrap">${a.url && !th ? `<a class="btn video" href="${esc(a.url)}" target="_blank" rel="noopener">${PLAY}${linkLabel(a)}</a>` : ''}<button class="btn primary" data-act="practice" data-id="${a.id}" style="flex:1">Üben</button></div>
   </section>`;
 }
 
@@ -597,8 +635,10 @@ document.addEventListener('visibilitychange', () => { const r = store.get('run',
 
 function runElapsed(r) { return r.accumulated + (r.runningSince ? Date.now() - r.runningSince : 0); }
 function startPractice(assignmentId) {
-  const existing = store.get('run', null);
-  if (existing && existing.assignment_id !== (assignmentId || null) && runElapsed(existing) > 0) {
+  let existing = store.get('run', null);
+  // Unter einer Minute zählt nicht: dann darf man einfach zur anderen Aufgabe wechseln
+  if (existing && existing.assignment_id !== (assignmentId || null) && runElapsed(existing) < 60000) { store.del('run'); existing = null; releaseWake(); }
+  else if (existing && existing.assignment_id !== (assignmentId || null) && runElapsed(existing) > 0) {
     toast('Erst die laufende Sitzung beenden'); assignmentId = existing.assignment_id;
   }
   if (!existing || existing.assignment_id !== (assignmentId || null)) {
@@ -606,7 +646,9 @@ function startPractice(assignmentId) {
     const best = Math.max(0, ...allSessions().filter((s) => s.assignment_id === assignmentId).map((s) => s.bpm_reached || 0));
     store.set('run', { assignment_id: assignmentId || null, startedAt: new Date().toISOString(), accumulated: 0, runningSince: null, bpm: best || (a && (a.start_bpm || a.target_bpm && Math.round(a.target_bpm * 0.8))) || 80 });
   }
-  MET.bpm = store.get('run').bpm;
+  const run = store.get('run');
+  if (!run.runningSince && !run.accumulated) { run.runningSince = Date.now(); store.set('run', run); requestWake(); }
+  MET.bpm = run.bpm;
   openOverlay(practiceView);
   tickTimer = setInterval(updateClock, 250);
 }
@@ -630,7 +672,12 @@ function practiceView() {
         <label class="row small" style="gap:8px;color:var(--ink)"><input type="checkbox" id="beatTrainer" style="width:22px;min-height:22px" ${S.beatTrainer ? 'checked' : ''}> Tempo Trainer: alle 4 Durchläufe 5 BPM schneller${a.target_bpm ? ' bis ' + a.target_bpm : ''}</label></div>` : ''}
     <div id="clockRing" style="display:flex;justify-content:center">${clockRing(el, goal)}</div>
     <button class="btn ${r.runningSince ? '' : 'primary'} block" data-act="startStop">${r.runningSince ? 'Pause' : el ? 'Weiter' : 'Stoppuhr starten'}</button>
-    <section class="card" aria-label="Metronom">
+    ${metronomeCard(a)}
+    <button class="btn primary block" data-act="endPractice" ${el < 1000 ? 'disabled' : ''}>Sitzung beenden</button>
+  </div>`;
+}
+function metronomeCard(a) {
+  return `<section class="card" aria-label="Metronom">
       <div class="beats" id="beats" aria-hidden="true"><span></span><span></span><span></span><span></span></div>
       <div class="row" style="justify-content:center;flex-wrap:nowrap">
         <button class="iconbtn" data-act="bpm" data-d="-5" aria-label="5 BPM langsamer">−</button>
@@ -640,9 +687,10 @@ function practiceView() {
       <div class="row" style="flex-wrap:nowrap"><button class="btn small" data-act="bpm" data-d="-1" style="flex:1" aria-label="1 BPM langsamer">−1</button><button class="btn small" data-act="tap" style="flex:2">Tippen</button><button class="btn small" data-act="bpm" data-d="1" style="flex:1" aria-label="1 BPM schneller">+1</button></div>
       <button class="btn block" data-act="metronome">${MET.playing ? 'Metronom stoppen' : 'Metronom starten'}</button>
       <span class="small muted" style="text-align:center">Am iPhone muss der Stummschalter aus sein, damit du den Klick hörst.</span>
-    </section>
-    <button class="btn primary block" data-act="endPractice" ${el < 1000 ? 'disabled' : ''}>Sitzung beenden</button>
-  </div>`;
+    </section>`;
+}
+function metronomeView() {
+  return `<div class="wrap" style="max-width:560px;align-items:stretch"><div class="row between"><button class="btn small" data-act="closeMetro">Zurück</button></div><h1>Metronom</h1>${metronomeCard(null)}</div>`;
 }
 function clockRing(el, goal) {
   const v = el / (goal * 60000);
@@ -751,10 +799,13 @@ function parentView() {
 
 // ---------- Ereignisse ----------
 document.addEventListener('click', async (ev) => {
+  const ptab = ev.target.closest('[data-ptab]');
+  if (ptab && S.preview) { S.preview.tab = ptab.dataset.ptab; render(); window.scrollTo(0, 0); return; }
   const tabBtn = ev.target.closest('[data-tab]');
   if (tabBtn) { if (S.tunerOn) { Guitar.tunerStop(); S.tunerOn = false; } S.tab = tabBtn.dataset.tab; S.overlay = null; render(); window.scrollTo(0, 0); return; }
   const el = ev.target.closest('[data-act]'); if (!el) return;
   const act = el.dataset.act, id = el.dataset.id;
+  if (S.preview && act !== 'endPreview' && el.tagName !== 'A') { toast('Vorschau: hier tippt ' + S.preview.data.student.first_name); return; }
   try {
     switch (act) {
       case 'reload': load(); break;
@@ -822,6 +873,16 @@ document.addEventListener('click', async (ev) => {
         await api('/api/t/lesson/finish', { student_id: L.student_id, date: localDate(), minutes: S.file.student.lesson_minutes, notes_shared: L.notes_shared, notes_teacher: L.notes_teacher, new_assignments: L.new_assignments, close_assignments: L.close_assignments, goals_reached: L.goals_reached, new_goals: L.new_goals });
         store.del('draft_' + L.student_id); S.lesson = null; closeOverlay(); toast('Stunde gespeichert'); load(); break;
       }
+      case 'preview': { const data = await api('/api/t/preview', { id: S.file.student.id }); S.preview = { data, tab: 'ueben' }; S.overlay = null; stopTick(); render(); window.scrollTo(0, 0); break; }
+      case 'endPreview': S.preview = null; openOverlay(studentFileView); break;
+      case 'addLink': { const box = document.getElementById('lk_' + id); box.classList.toggle('hidden'); const i = box.querySelector('input'); if (i) i.focus(); break; }
+      case 'saveLink': {
+        const url = document.getElementById('lki_' + id).value.trim(); if (!url) { toast('Link einfügen'); break; }
+        el.disabled = true; await api('/api/t/assignment/link', { id, url });
+        S.file = await api('/api/t/student', { id: S.file.student.id }); openOverlay(studentFileView); toast('Link gespeichert'); break;
+      }
+      case 'metroOpen': openOverlay(metronomeView); break;
+      case 'closeMetro': metStop(); closeOverlay(); break;
       case 'practice': startPractice(id); break;
       case 'practiceFree': startPractice(null); break;
       case 'resumePractice': startPractice(store.get('run').assignment_id); break;
@@ -946,7 +1007,7 @@ document.addEventListener('submit', async (ev) => {
       const exId = $('#a_ex').value, free = $('#a_free').value.trim();
       if (!exId && !free) { toast('Übung wählen oder Aufgabe beschreiben'); return; }
       const ex = S.exercises.find((e) => e.id === exId);
-      S.lesson.new_assignments.push({ exercise_id: exId || null, free_text: exId ? null : free, label: ex ? ex.title : free, target_bpm: Number($('#a_bpm').value) || (ex && ex.target_bpm) || null, minutes_per_day: Number($('#a_min').value) || 10 });
+      S.lesson.new_assignments.push({ exercise_id: exId || null, free_text: exId ? null : free, url: exId ? null : ($('#a_url').value.trim() || null), label: ex ? ex.title : free, target_bpm: Number($('#a_bpm').value) || (ex && ex.target_bpm) || null, minutes_per_day: Number($('#a_min').value) || 10 });
       saveDraft(); render();
     } else if (fid === 'goalForm') {
       const t = $('#g_title').value.trim(); if (!t) return;

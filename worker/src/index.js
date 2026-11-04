@@ -273,6 +273,30 @@ async function createAccess(s, who, b) {
   return { id, code };
 }
 
+// Link (z. B. YouTube) an eine Hausaufgabe hängen: legt eine eigene Übung dafür an
+function sourceFor(url) { return /youtu\.?be/i.test(url) ? 'youtube' : /instagram\.com/i.test(url) ? 'instagram' : /drive\.google\.com/i.test(url) ? 'drive' : /musora\.com|drumeo\.com|guitareo\.com/i.test(url) ? 'musora' : 'link'; }
+function cleanUrl(u) {
+  let url = str(u, 500);
+  if (!url) return null;
+  if (!/^https?:\/\//i.test(url)) url = 'https://' + url;
+  url = url.replace(/^http:/i, 'https:');
+  try { new URL(url); } catch { throw new HttpError(400, 'Das sieht nicht wie ein Link aus.'); }
+  return url;
+}
+async function linkAssignment(s, who, b) {
+  const a = await s.first('SELECT a.id, a.free_text, a.exercise_id, e.title FROM assignments a LEFT JOIN exercises e ON e.id = a.exercise_id WHERE a.id = ?', String(b.id || ''));
+  if (!a) throw new HttpError(404, 'Hausaufgabe nicht gefunden.');
+  const url = cleanUrl(b.url);
+  if (!url) throw new HttpError(400, 'Link fehlt.');
+  const exId = uid();
+  await s.batch([
+    ['INSERT INTO exercises (id, title, category, source_type, url, archived, created_at) VALUES (?, ?, ?, ?, ?, 1, ?)', [exId, str(a.title || a.free_text, 120) || 'Übung', 'Hausaufgaben', sourceFor(url), url, now()]],
+    ['UPDATE assignments SET exercise_id = ? WHERE id = ?', [exId, a.id]],
+    logRow(who, 'update', 'assignments', a.id, 'Link ergänzt'),
+  ]);
+  return { ok: true, exercise_id: exId, url };
+}
+
 async function revokeAccess(s, who, id) {
   const a = await s.first('SELECT id FROM access WHERE id = ?', id);
   if (!a) throw new HttpError(404, 'Zugang nicht gefunden.');
@@ -384,6 +408,11 @@ async function finishLesson(s, who, b) {
     if (exId && !(await s.first('SELECT id FROM exercises WHERE id = ?', exId))) exId = null;
     const free = str(a.free_text, 300);
     if (!exId && !free) continue;
+    const link = cleanUrl(a.url);
+    if (!exId && link) {
+      exId = uid();
+      stmts.push(['INSERT INTO exercises (id, title, category, source_type, url, archived, created_at) VALUES (?, ?, ?, ?, ?, 1, ?)', [exId, free.slice(0, 120), 'Hausaufgaben', sourceFor(link), link, t]]);
+    }
     stmts.push(['INSERT INTO assignments (id, student_id, lesson_id, exercise_id, free_text, target_bpm, start_bpm, minutes_per_day, due_date, status, created_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)',
       [uid(), st.id, lessonId, exId, free, int(a.target_bpm, 20, 400), int(a.start_bpm, 20, 400), int(a.minutes_per_day, 1, 240), isDate(a.due_date) ? a.due_date : null, 'offen', t]]);
   }
@@ -463,6 +492,8 @@ async function route(env, req, path, body) {
   if (who.role !== 'teacher') throw new HttpError(403, 'Kein Zugriff.');
   switch (path) {
     case '/api/t/student': return teacherStudent(s, String(body.id || ''));
+    case '/api/t/preview': return studentView(s, String(body.id || ''), 'student');
+    case '/api/t/assignment/link': return linkAssignment(s, who, body);
     case '/api/t/student/save': return saveStudent(s, who, body);
     case '/api/t/student/delete': return deleteStudent(s, who, String(body.id || ''));
     case '/api/t/access/create': return createAccess(s, who, body);

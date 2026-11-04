@@ -67,7 +67,7 @@ let n = 0; const ok = (m) => console.log('ok ' + (++n) + ' ' + m);
 
   // Übungssitzung: Stoppuhr starten, 12 Minuten vorspulen, beenden
   await s.click('.card:has-text("Paradiddle Groove") [data-act=practice]');
-  await s.click('[data-act=startStop]'); await s.waitForTimeout(300);
+  await s.waitForTimeout(300); // Stoppuhr startet beim Öffnen von selbst
   await s.evaluate(() => { const r = JSON.parse(localStorage.getItem('ph_run')); r.runningSince -= 12 * 60000; localStorage.setItem('ph_run', JSON.stringify(r)); });
   await s.click('[data-act=bpm][data-d="5"]');
   await s.click('[data-act=metronome]'); await s.waitForTimeout(400); await s.click('[data-act=metronome]');
@@ -84,7 +84,7 @@ let n = 0; const ok = (m) => console.log('ok ' + (++n) + ' ' + m);
 
   // Offline üben, dann nachsenden
   await sc.setOffline(true);
-  await s.click('[data-act=practiceFree]'); await s.click('[data-act=startStop]');
+  await s.click('[data-act=practiceFree]'); await s.waitForTimeout(200);
   await s.evaluate(() => { const r = JSON.parse(localStorage.getItem('ph_run')); r.runningSince -= 5 * 60000; localStorage.setItem('ph_run', JSON.stringify(r)); });
   await s.click('[data-act=endPractice]'); await s.click('#finishForm button[type=submit]');
   await s.getByText('wird gesendet').waitFor(); ok('Offline: Sitzung wartet im Ausgang');
@@ -108,6 +108,16 @@ let n = 0; const ok = (m) => console.log('ok ' + (++n) + ' ' + m);
   await t.click('[data-tab=schueler]'); await t.reload(); await t.click('[data-tab=schueler]');
   await t.getByText('17 min seit letzter Stunde').waitFor(); ok('Lehrer sieht 17 min (12 + 5)');
   await t.screenshot({ path: OUT + '/t-schueler-1440.png' });
+  // Lehrer: Link an Hausaufgabe hängen und Schüleransicht als Vorschau
+  await t.locator('[data-act=student]').first().click(); await t.locator('[data-act=preview]').waitFor();
+  {
+    await t.locator('[data-act=addLink]').first().click();
+    await t.locator('input[id^=lki_]').first().fill('youtu.be/dQw4w9WgXcQ');
+    await t.locator('[data-act=saveLink]').first().click(); await t.getByText('Link gespeichert').waitFor(); ok('Lehrer hängt YouTube Link an Hausaufgabe');
+    await t.click('[data-act=preview]'); await t.getByText('Vorschau: so sieht').waitFor();
+    assert.ok(await t.locator('.thumb').count() >= 1); ok('Vorschau zeigt Schüleransicht mit Videobild');
+    await t.click('[data-act=endPreview]'); await t.click('[data-act=close]');
+  }
   // Import aus Datei (Beispieldaten)
   const seedPath = require('path').join(require('os').tmpdir(), 'ph-seed-test.json');
   require('fs').writeFileSync(seedPath, JSON.stringify([{ first_name: 'Testa', weekday: 2, lesson_time: '10:00', lesson_minutes: 40, instrument: 'Gitarre', profile_note: 'Beispiel', lessons: [{ date: '2025-01-01', minutes: 40, notes_teacher: 'Alt 1' }, { date: '2025-01-08', notes_teacher: 'Alt 2' }], assignments: [{ free_text: 'Akkorde G C D' }] }, { first_name: 'Jonas', lessons: [] }]));
@@ -161,7 +171,7 @@ let n = 0; const ok = (m) => console.log('ok ' + (++n) + ' ' + m);
   await t.getByText('Gitarre ·').waitFor();
   await t.click('.btn.primary[data-act=lesson]'); await t.selectOption('#a_ex', { label: 'Gitarre: Worship Pattern G' }); await t.click('#assignForm button[type=submit]'); await t.click('[data-act=finishLesson]'); await t.getByText('Stunde gespeichert').waitFor();
   await s.reload(); await s.getByRole('heading', { name: 'Heute üben' }).waitFor();
-  assert.equal(await s.locator('[data-tab=stimmen]').count(), 1, 'Gitarrenschüler hat Stimmen'); ok('Gitarrenschüler sieht Tab Stimmen');
+  assert.equal(await s.locator('nav [data-tab=stimmen]').count(), 1, 'Gitarrenschüler hat Stimmen'); ok('Gitarrenschüler sieht Tab Stimmen');
   await s.locator('.card:has-text("Worship Pattern G") [data-act=practice]').click();
   assert.ok(await s.locator('#practiceGuitar .gt-chord').count() >= 5); await s.click('[data-act=gtPlay][data-mode=strum]'); await s.waitForTimeout(400); ok('Schüler sieht Akkorde und spielt Schlagmuster');
   await s.screenshot({ path: OUT + '/s-gitarre-390-dark.png' });
