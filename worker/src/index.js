@@ -285,7 +285,7 @@ async function saveExercise(s, who, b) {
   const title = str(b.title, 120);
   if (!title) throw new HttpError(400, 'Titel fehlt.');
   const notation = cleanNotation(b.notation);
-  const sourceType = ['youtube', 'instagram', 'drive', 'buch', 'link', 'noten'].includes(b.source_type) ? b.source_type : (notation ? 'noten' : b.url ? 'link' : 'buch');
+  const sourceType = ['youtube', 'instagram', 'drive', 'buch', 'link', 'noten', 'musora'].includes(b.source_type) ? b.source_type : (notation ? 'noten' : b.url ? 'link' : 'buch');
   let url = str(b.url, 500);
   if (url && !/^https:\/\//i.test(url)) throw new HttpError(400, 'Der Link muss mit https:// beginnen.');
   const vals = [title, str(b.category, 40), sourceType, url, str(b.book_ref, 120), int(b.target_bpm, 20, 400), str(b.notes, 1000), notation];
@@ -309,17 +309,37 @@ export const DRUMS = ['cr', 'rd', 'hh', 'ho', 'sn', 'gh', 't1', 't2', 'ft', 'bd'
 export function cleanNotation(n) {
   if (n == null || n === '') return null;
   let o = n;
-  if (typeof n === 'string') { if (n.length > 20000) throw new HttpError(400, 'Beat zu groß.'); try { o = JSON.parse(n); } catch (e) { throw new HttpError(400, 'Beat ist beschädigt.'); } }
-  if (!o || typeof o !== 'object') throw new HttpError(400, 'Beat ist beschädigt.');
+  if (typeof n === 'string') { if (n.length > 40000) throw new HttpError(400, 'Noten zu groß.'); try { o = JSON.parse(n); } catch (e) { throw new HttpError(400, 'Noten sind beschädigt.'); } }
+  if (!o || typeof o !== 'object' || Array.isArray(o)) throw new HttpError(400, 'Noten sind beschädigt.');
+  if (o.kind === 'guitar') return cleanGuitar(o);
   const sig = o.sig === '6/8' ? '6/8' : '4/4';
-  const bars = int(o.bars, 1, 4) || 1;
+  const bars = int(o.bars, 1, 16) || 1;
   const steps = (sig === '6/8' ? 12 : 16) * bars;
   const tracks = {};
   for (const k of DRUMS) {
     const list = Array.isArray(o.tracks && o.tracks[k]) ? o.tracks[k] : [];
     tracks[k] = [...new Set(list.map((x) => Math.round(Number(x))).filter((x) => Number.isInteger(x) && x >= 0 && x < steps))].sort((a, b) => a - b);
   }
-  return JSON.stringify({ v: 1, sig, bars, bpm: int(o.bpm, 30, 300) || 80, tracks });
+  const marks = {};
+  for (const [k, v] of Object.entries(o.marks && typeof o.marks === 'object' ? o.marks : {})) {
+    const bar = Number(k); const t = str(v, 30);
+    if (Number.isInteger(bar) && bar >= 0 && bar < bars && t) marks[bar] = t;
+  }
+  const repeat = [...new Set((Array.isArray(o.repeat) ? o.repeat : []).map(Number).filter((x) => Number.isInteger(x) && x > 0 && x < bars))].sort((a, b) => a - b);
+  return JSON.stringify({ v: 2, sig, bars, bpm: int(o.bpm, 30, 300) || 80, tracks, marks, repeat });
+}
+// Gitarre: Akkorde, Schlagmuster, Tabs, Capo
+function cleanGuitar(o) {
+  const chords = (Array.isArray(o.chords) ? o.chords : []).slice(0, 16).map((c) => str(c, 24)).filter(Boolean);
+  const sub = o.strum && Number(o.strum.sub) === 16 ? 16 : 8;
+  const sbars = int(o.strum && o.strum.bars, 1, 4) || 1;
+  const cells = Array.from({ length: sub * sbars }, (_, i) => { const v = o.strum && Array.isArray(o.strum.cells) ? o.strum.cells[i] : ''; return ['D', 'U', 'X'].includes(v) ? v : ''; });
+  const tbars = int(o.tab && o.tab.bars, 1, 8) || 1;
+  const seen = new Set();
+  const notes = (o.tab && Array.isArray(o.tab.notes) ? o.tab.notes : []).slice(0, 2000).map((x) => (Array.isArray(x) ? x.map((y) => Math.round(Number(y))) : []))
+    .filter(([st, step, fret]) => st >= 0 && st <= 5 && step >= 0 && step < tbars * 16 && fret >= 0 && fret <= 24 && !seen.has(st + ':' + step) && seen.add(st + ':' + step));
+  return JSON.stringify({ kind: 'guitar', v: 1, bpm: int(o.bpm, 30, 300) || 80, capo: int(o.capo, 0, 12) || 0, key: str(o.key, 6), chords,
+    strum: { sub, bars: sbars, cells }, tab: { bars: tbars, notes } });
 }
 
 // Import alter Stunden aus Otis Notizen: viele Stunden auf einmal, ohne Protokollflut

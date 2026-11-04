@@ -6,9 +6,9 @@ const OUT = process.env.SHOTS || '.';
 let n = 0; const ok = (m) => console.log('ok ' + (++n) + ' ' + m);
 
 (async () => {
-  const b = await chromium.launch();
+  const b = await chromium.launch({ args: ['--use-fake-ui-for-media-stream', '--use-fake-device-for-media-stream', '--autoplay-policy=no-user-gesture-required'] });
   const errors = [];
-  const ctx = (opts) => b.newContext({ viewport: { width: 390, height: 844 }, ...opts });
+  const ctx = (opts) => b.newContext({ viewport: { width: 390, height: 844 }, permissions: ['microphone'], ...opts });
 
   // Lehrer am Mac
   const tc = await b.newContext({ viewport: { width: 1440, height: 900 } });
@@ -119,7 +119,8 @@ let n = 0; const ok = (m) => console.log('ok ' + (++n) + ' ' + m);
   assert.equal(await t.getAttribute('.nt-cell[data-k=bd][data-i="10"]', 'aria-pressed'), 'true');
   await t.click('.nt-cell[data-k=ho][data-i="14"]');
   assert.equal(await t.getAttribute('.nt-cell[data-k=hh][data-i="14"]', 'aria-pressed'), 'false', 'HiHat zu und offen schließen sich aus');
-  await t.selectOption('#ex-bars', '2'); await t.waitForSelector('.nt-cell[data-i="31"]'); ok('Editor: Schläge setzen, 2 Takte');
+  await t.selectOption('#ex-bars', '2'); await t.click('[data-nt-bar="1"]');
+  assert.equal(await t.isChecked('[data-nt-ctl=repeat]'), true, 'neuer Takt wiederholt den ersten'); ok('Editor: Schläge setzen, 2 Takte, Takt 2 wiederholt');
   await t.click('[data-nt-act=play]'); await t.waitForTimeout(500); await t.click('[data-nt-act=play]');
   await t.screenshot({ path: OUT + '/t-beat-editor-1440.png', fullPage: true });
   await t.click('#exerciseForm button[type=submit]'); await t.getByText('Rock Beat 1').waitFor();
@@ -133,6 +134,36 @@ let n = 0; const ok = (m) => console.log('ok ' + (++n) + ' ' + m);
   await s.waitForTimeout(600); assert.equal(await s.textContent('[data-act=beatPlay]'), 'Beat stoppen'); await s.click('[data-act=beatPlay]'); ok('Schüler spielt den Beat ab');
   await s.screenshot({ path: OUT + '/s-beat-390-dark.png', fullPage: true });
   await s.click('[data-act=minimize]');
+
+  // Song Chart: Teile und Wiederholungstakte
+  await t.click('[data-tab=bibliothek]'); await t.click('[data-act=newBeat]'); await t.fill('#e_title', 'Song Chart Test');
+  await t.selectOption('#ex-bars', '8'); await t.click('[data-nt-bar="4"]'); await t.fill('#ex-mark', 'Refrain'); await t.press('#ex-mark', 'Tab');
+  await t.click('[data-nt-bar="4"]'); await t.uncheck('[data-nt-ctl=repeat]'); await t.click('.nt-cell[data-k=cr][data-i="64"]');
+  assert.equal(await t.locator('#ex .nt-svg').count(), 2, 'zwei Notenzeilen bei 8 Takten');
+  await t.click('#exerciseForm button[type=submit]'); await t.getByText('Song Chart Test').waitFor(); ok('Song Chart mit Teil und Wiederholungen gespeichert');
+
+  // Gitarre: Akkorde, Schlagmuster, Tab
+  await t.click('[data-act=newGuitar]'); await t.fill('#e_title', 'Worship Pattern G');
+  await t.selectOption('#gx-add', 'Bm'); await t.click('[data-gt-act=addChord]');
+  assert.ok((await t.textContent('#gx')).includes('Bm (Hm)'));
+  await t.click('.gt-scell[data-gt-s="1"]'); await t.click('.gt-tcell[data-gt-t="5,0"]'); await t.click('[data-gt-act=fret][data-f="3"]');
+  assert.ok((await t.textContent('#gx .gt-tab')).includes('3'));
+  await t.click('[data-gt-act=playStrum]'); await t.waitForTimeout(400); await t.click('[data-gt-act=playStrum]');
+  await t.screenshot({ path: OUT + '/t-gitarre-1440.png', fullPage: true });
+  await t.click('#exerciseForm button[type=submit]'); await t.getByText('Worship Pattern G').waitFor(); ok('Gitarren Übung mit Akkorden, Muster und Tab gespeichert');
+  // Jonas auf Gitarre umstellen und Übung geben
+  await t.click('[data-tab=schueler]'); await t.click('text=Jonas'); await t.click('[data-act=editStudent]'); await t.selectOption('#f_instr', 'Gitarre'); await t.click('#studentForm button[type=submit]');
+  await t.getByText('Gitarre ·').waitFor();
+  await t.click('.btn.primary[data-act=lesson]'); await t.selectOption('#a_ex', { label: 'Gitarre: Worship Pattern G' }); await t.click('#assignForm button[type=submit]'); await t.click('[data-act=finishLesson]'); await t.getByText('Stunde gespeichert').waitFor();
+  await s.reload(); await s.getByRole('heading', { name: 'Heute üben' }).waitFor();
+  assert.equal(await s.locator('[data-tab=stimmen]').count(), 1, 'Gitarrenschüler hat Stimmen'); ok('Gitarrenschüler sieht Tab Stimmen');
+  await s.locator('.card:has-text("Worship Pattern G") [data-act=practice]').click();
+  assert.ok(await s.locator('#practiceGuitar .gt-chord').count() >= 5); await s.click('[data-act=gtPlay][data-mode=strum]'); await s.waitForTimeout(400); ok('Schüler sieht Akkorde und spielt Schlagmuster');
+  await s.screenshot({ path: OUT + '/s-gitarre-390-dark.png' });
+  await s.click('[data-act=minimize]'); await s.click('[data-tab=stimmen]'); await s.click('[data-act=tuner]'); await s.waitForTimeout(1500);
+  await s.selectOption('#capoKey', 'A'); assert.ok((await s.textContent('body')).includes('Capo 2')); ok('Stimmgerät startet, Capo Helfer rechnet A = G mit Capo 2');
+  await s.screenshot({ path: OUT + '/s-stimmen-390-dark.png', fullPage: true });
+  await s.click('[data-tab=ueben]');
 
   // Sperren
   await t.click('[data-act=student]'); await t.click('.item:has-text("Schüler") [data-act=revoke]'); await t.locator('.toast', { hasText: 'Gesperrt' }).waitFor();

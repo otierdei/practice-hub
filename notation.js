@@ -1,5 +1,6 @@
-// Practice Hub Noten Editor für Schlagzeug: Raster, Notenbild (SVG) und Wiedergabe mit Web Audio.
-// Ein Beat: { v:1, sig:'4/4'|'6/8', bars:1..4, bpm, tracks:{ cr:[schritte], ... } }, ein Schritt = eine 16tel.
+// Practice Hub Noten Editor für Schlagzeug: Raster, Notenbild (SVG), Song Chart und Wiedergabe mit Web Audio.
+// Beat: { v:2, sig:'4/4'|'6/8', bars:1..16, bpm, tracks:{ cr:[schritte], ... }, marks:{ takt: 'Refrain' }, repeat:[takt, ...] }
+// Ein Schritt ist eine 16tel. Ein Takt in repeat wiederholt den vorherigen ausgeschriebenen Takt (Prozentzeichen).
 'use strict';
 (function () {
   const ROWS = [
@@ -17,57 +18,82 @@
   ];
   const BY = Object.fromEntries(ROWS.map((r) => [r.k, r]));
   const EXCLUSIVE = { hh: 'ho', ho: 'hh', sn: 'gh', gh: 'sn' };
+  const MAX_BARS = 16;
   const perBar = (sig) => (sig === '6/8' ? 12 : 16);
   const groupSize = (sig) => (sig === '6/8' ? 6 : 4);
   const total = (n) => perBar(n.sig) * n.bars;
+  const esc = (v) => String(v == null ? '' : v).replace(/[&<>"]/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]));
 
   function empty(sig = '4/4', bars = 1, bpm = 80) {
     const tracks = {}; ROWS.forEach((r) => { tracks[r.k] = []; });
-    return { v: 1, sig, bars, bpm, tracks };
+    return { v: 2, sig, bars, bpm, tracks, marks: {}, repeat: [] };
   }
   function parse(s) {
     if (!s) return null;
-    try { const o = typeof s === 'string' ? JSON.parse(s) : s; const n = empty(o.sig === '6/8' ? '6/8' : '4/4', Math.min(4, Math.max(1, o.bars | 0 || 1)), o.bpm || 80); ROWS.forEach((r) => { n.tracks[r.k] = (o.tracks && o.tracks[r.k] || []).filter((x) => x >= 0 && x < total(n)); }); return n; }
-    catch (e) { return null; }
+    try {
+      const o = typeof s === 'string' ? JSON.parse(s) : s;
+      if (o.kind === 'guitar') return null;
+      const n = empty(o.sig === '6/8' ? '6/8' : '4/4', Math.min(MAX_BARS, Math.max(1, o.bars | 0 || 1)), o.bpm || 80);
+      ROWS.forEach((r) => { n.tracks[r.k] = (o.tracks && o.tracks[r.k] || []).filter((x) => x >= 0 && x < total(n)); });
+      for (const [k, v] of Object.entries(o.marks || {})) if (Number(k) < n.bars && v) n.marks[Number(k)] = String(v).slice(0, 30);
+      n.repeat = (o.repeat || []).map(Number).filter((b) => b > 0 && b < n.bars);
+      return n;
+    } catch (e) { return null; }
   }
-  function has(n, k, i) { return n.tracks[k].includes(i); }
+  const has = (n, k, i) => n.tracks[k].includes(i);
   function toggle(n, k, i) {
     const t = n.tracks[k];
     if (t.includes(i)) n.tracks[k] = t.filter((x) => x !== i);
     else { t.push(i); t.sort((a, b) => a - b); const ex = EXCLUSIVE[k]; if (ex) n.tracks[ex] = n.tracks[ex].filter((x) => x !== i); }
   }
   function countLabel(sig, i) {
-    const pb = perBar(sig), j = i % pb;
+    const j = i % perBar(sig);
     if (sig === '6/8') return j % 2 === 0 ? String(j / 2 + 1) : '+';
     return [String(Math.floor(j / 4) + 1), 'e', '+', 'a'][j % 4];
   }
+  // Takt, den ein Wiederholungstakt tatsächlich spielt
+  function sourceBar(n, bar) { let b = bar; while (b > 0 && n.repeat.includes(b)) b--; return b; }
+  function setBars(n, bars) {
+    n.bars = Math.max(1, Math.min(MAX_BARS, bars));
+    const max = total(n);
+    for (const k in n.tracks) n.tracks[k] = n.tracks[k].filter((i) => i < max);
+    n.repeat = n.repeat.filter((b) => b < n.bars);
+    for (const k of Object.keys(n.marks)) if (Number(k) >= n.bars) delete n.marks[k];
+  }
 
   // ---------- Notenbild ----------
-  const LINE0 = 86; // y der untersten Notenlinie
+  const LINE0 = 86;
   const yOf = (p) => LINE0 - p * 5;
-  function render(n, opt = {}) {
-    if (!n) return '';
-    const sw = opt.stepWidth || 22, x0 = 58, steps = total(n), pb = perBar(n.sig), gs = groupSize(n.sig);
-    const W = x0 + steps * sw + 14, H = 130;
-    const xOf = (i) => x0 + i * sw + 8;
-    const out = [];
-    const ink = 'currentColor';
+  // Zeichnet die Takte [from, to) als eine Notenzeile
+  function renderLine(n, from, to, opt) {
+    const sw = opt.stepWidth || 22, pb = perBar(n.sig), gs = groupSize(n.sig), first = from === 0;
+    const x0 = first ? 58 : 26, steps = (to - from) * pb;
+    const W = x0 + steps * sw + 14, H = 130, ink = 'currentColor', out = [];
+    const xOf = (i) => x0 + (i - from * pb) * sw + 8;
     for (let l = 0; l < 5; l++) out.push(`<line x1="6" x2="${W - 6}" y1="${yOf(l * 2)}" y2="${yOf(l * 2)}" stroke="${ink}" stroke-width="1" opacity=".55"/>`);
-    // Schlagzeugschlüssel und Taktart
-    out.push(`<rect x="12" y="${yOf(6)}" width="4" height="20" fill="${ink}"/><rect x="20" y="${yOf(6)}" width="4" height="20" fill="${ink}"/>`);
-    const [a, b] = n.sig.split('/');
-    out.push(`<text x="40" y="${yOf(6) + 1}" text-anchor="middle" font-size="19" font-weight="700" font-family="Georgia, serif" fill="${ink}">${a}</text><text x="40" y="${yOf(2) + 1}" text-anchor="middle" font-size="19" font-weight="700" font-family="Georgia, serif" fill="${ink}">${b}</text>`);
-    for (let bar = 1; bar <= n.bars; bar++) {
-      const bx = x0 + bar * pb * sw - 3;
-      out.push(`<line x1="${bx}" x2="${bx}" y1="${yOf(8)}" y2="${yOf(0)}" stroke="${ink}" stroke-width="${bar === n.bars ? 2.5 : 1}"/>`);
+    if (first) {
+      out.push(`<rect x="12" y="${yOf(6)}" width="4" height="20" fill="${ink}"/><rect x="20" y="${yOf(6)}" width="4" height="20" fill="${ink}"/>`);
+      const [a, b] = n.sig.split('/');
+      out.push(`<text x="40" y="${yOf(6) + 1}" text-anchor="middle" font-size="19" font-weight="700" font-family="Georgia, serif" fill="${ink}">${a}</text><text x="40" y="${yOf(2) + 1}" text-anchor="middle" font-size="19" font-weight="700" font-family="Georgia, serif" fill="${ink}">${b}</text>`);
+    } else {
+      out.push(`<text x="8" y="${yOf(8) - 6}" font-size="10" fill="${ink}" opacity=".6">${from + 1}</text>`);
     }
-    // zwei Stimmen: Hände (Hals oben) und Füße (Hals unten)
+    for (let bar = from; bar < to; bar++) {
+      const bx = x0 + (bar - from + 1) * pb * sw - 3, sx = x0 + (bar - from) * pb * sw;
+      out.push(`<line x1="${bx}" x2="${bx}" y1="${yOf(8)}" y2="${yOf(0)}" stroke="${ink}" stroke-width="${bar === n.bars - 1 ? 2.5 : 1}"/>`);
+      if (n.marks[bar]) out.push(`<text x="${sx + 4}" y="14" font-size="12" font-weight="700" fill="${ink}">${esc(n.marks[bar])}</text>`);
+      if (n.repeat.includes(bar)) {
+        const cx = sx + (pb * sw) / 2;
+        out.push(`<line x1="${cx - 9}" y1="${yOf(2)}" x2="${cx + 9}" y2="${yOf(6)}" stroke="${ink}" stroke-width="4"/><circle cx="${cx - 8}" cy="${yOf(5.4)}" r="2.6" fill="${ink}"/><circle cx="${cx + 8}" cy="${yOf(2.6)}" r="2.6" fill="${ink}"/>`);
+      }
+    }
     for (const down of [false, true]) {
       const keys = ROWS.filter((r) => !!r.down === down).map((r) => r.k);
       const onsets = [...new Set(keys.flatMap((k) => n.tracks[k]))].sort((x, y) => x - y);
-      for (let g = 0; g < steps; g += gs) {
+      for (let g = from * pb; g < to * pb; g += gs) {
+        if (n.repeat.includes(Math.floor(g / pb))) continue;
         const inG = onsets.filter((i) => i >= g && i < g + gs);
-        if (!inG.length) { if (!down) out.push(restGlyph(n.sig === '6/8' ? 6 : 4, x0 + (g + gs / 2) * sw - 4, ink)); continue; }
+        if (!inG.length) { if (!down) out.push(restGlyph(n.sig === '6/8' ? 6 : 4, xOf(g) + (gs / 2) * sw - 12, ink)); continue; }
         if (!down && inG[0] > g) out.push(restGlyph(inG[0] - g, xOf(g), ink));
         const notes = inG.map((i, idx) => {
           const end = idx + 1 < inG.length ? inG[idx + 1] : g + gs;
@@ -82,11 +108,11 @@
         for (const nt of notes) {
           for (const h of nt.hits) out.push(head(h, xOf(nt.i), ink));
           if (nt.dot) out.push(`<circle cx="${xOf(nt.i) + 10}" cy="${yOf(nt.top % 2 === 0 ? nt.top + 1 : nt.top)}" r="1.8" fill="${ink}"/>`);
-          const from = down ? yOf(nt.top) : yOf(nt.bot);
-          const to = beamed ? tipY : (down ? yOf(nt.bot) + 30 : yOf(nt.top) - 30);
-          out.push(`<line x1="${sx(nt)}" x2="${sx(nt)}" y1="${from}" y2="${to}" stroke="${ink}" stroke-width="1.3"/>`);
+          const fromY = down ? yOf(nt.top) : yOf(nt.bot);
+          const toY = beamed ? tipY : (down ? yOf(nt.bot) + 30 : yOf(nt.top) - 30);
+          out.push(`<line x1="${sx(nt)}" x2="${sx(nt)}" y1="${fromY}" y2="${toY}" stroke="${ink}" stroke-width="1.3"/>`);
           if (!beamed && nt.beams > 0) for (let f = 0; f < nt.beams; f++) {
-            const fy = to + (down ? -f * 7 : f * 7);
+            const fy = toY + (down ? -f * 7 : f * 7);
             out.push(`<path d="M${sx(nt)} ${fy} q 9 ${down ? -6 : 6} 7 ${down ? -15 : 15}" fill="none" stroke="${ink}" stroke-width="2"/>`);
           }
         }
@@ -98,16 +124,19 @@
             const y2 = tipY + dir * 7 - (down ? 4 : 0);
             const next = notes[idx + 1], prev = notes[idx - 1];
             if (next && next.beams === 2) out.push(`<rect x="${sx(nt) - 0.6}" y="${y2}" width="${sx(next) - sx(nt) + 1.2}" height="4" fill="${ink}"/>`);
-            else if (!(prev && prev.beams === 2)) {
-              const w = 8, left = next ? sx(nt) : sx(nt) - w;
-              out.push(`<rect x="${left - 0.6}" y="${y2}" width="${w + 1.2}" height="4" fill="${ink}"/>`);
-            }
+            else if (!(prev && prev.beams === 2)) { const w = 8, left = next ? sx(nt) : sx(nt) - w; out.push(`<rect x="${left - 0.6}" y="${y2}" width="${w + 1.2}" height="4" fill="${ink}"/>`); }
           });
         }
       }
     }
-    if (opt.cursor) out.push(`<rect class="nt-cursor" x="${x0 - 2}" y="6" width="${sw - 2}" height="${H - 12}" rx="4" fill="var(--ring, #5f6b3a)" opacity="0" />`);
-    return `<svg class="nt-svg" viewBox="0 0 ${W} ${H}" width="${W}" height="${H}" role="img" aria-label="${esc(opt.label || 'Schlagzeug Noten')}" data-x0="${x0}" data-sw="${sw}">${out.join('')}</svg>`;
+    if (opt.cursor) out.push(`<rect class="nt-cursor" x="0" y="20" width="${sw - 2}" height="${H - 26}" rx="4" fill="var(--ring, #5f6b3a)" opacity="0"/>`);
+    return `<svg class="nt-svg" viewBox="0 0 ${W} ${H}" width="${W}" height="${H}" role="img" aria-label="${esc(opt.label || 'Schlagzeug Noten')}${from ? ', ab Takt ' + (from + 1) : ''}" data-x0="${x0}" data-sw="${sw}" data-from="${from * pb}" data-to="${to * pb}">${out.join('')}</svg>`;
+  }
+  function render(n, opt = {}) {
+    if (!n) return '';
+    const per = opt.barsPerLine || 4, lines = [];
+    for (let b = 0; b < n.bars; b += per) lines.push(renderLine(n, b, Math.min(n.bars, b + per), opt));
+    return lines.length > 1 ? `<div class="nt-lines">${lines.join('')}</div>` : lines[0];
   }
   function head(h, x, ink) {
     const y = yOf(h.p), parts = [];
@@ -120,15 +149,14 @@
   }
   function restGlyph(steps, x, ink) {
     const y = yOf(4);
-    if (steps >= 4) { // Viertelpause (bei 6/8 mit Punkt)
-      return `<path d="M${x + 1} ${y - 14} l6 7 l-5 6 l6 7 c-5 -2 -8 1 -4 6" fill="none" stroke="${ink}" stroke-width="2.4" stroke-linejoin="round" stroke-linecap="round"/>` + (steps === 6 ? `<circle cx="${x + 12}" cy="${y - 2}" r="1.8" fill="${ink}"/>` : '');
+    if (steps >= 4) {
+      return `<path d="M${x} ${y - 13} l6 7 l-5 6 l6 7 c-5 -2 -8 1 -4 6" fill="none" stroke="${ink}" stroke-width="2.4" stroke-linejoin="round" stroke-linecap="round"/>` + (steps === 6 ? `<circle cx="${x + 12}" cy="${y - 2}" r="1.8" fill="${ink}"/>` : '');
     }
     const flags = steps === 1 ? 2 : 1;
     let d = '';
     for (let f = 0; f < flags; f++) d += `<circle cx="${x + 1 - f * 2}" cy="${y - 6 + f * 7}" r="2.6" fill="${ink}"/><path d="M${x + 2 - f * 2} ${y - 5 + f * 7} q4 1 6 -3" stroke="${ink}" stroke-width="1.5" fill="none"/>`;
     return d + `<line x1="${x + 8}" y1="${y - 8}" x2="${x + 2 - (flags - 1) * 3}" y2="${y + 10 + (flags - 1) * 5}" stroke="${ink}" stroke-width="1.5"/>` + (steps === 3 ? `<circle cx="${x + 12}" cy="${y - 6}" r="1.8" fill="${ink}"/>` : '');
   }
-  function esc(v) { return String(v).replace(/[&<>"]/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c])); }
 
   // ---------- Klang ----------
   let ctx = null, noiseBuf = null;
@@ -152,7 +180,7 @@
   const SOUND = {
     bd: (t) => tone(t, 140, 45, 0.28, 0.9),
     sn: (t) => { noise(t, 0.16, 0.5, 'highpass', 1500); tone(t, 220, 160, 0.08, 0.35); },
-    gh: (t) => { noise(t, 0.07, 0.12, 'highpass', 1800); },
+    gh: (t) => noise(t, 0.07, 0.12, 'highpass', 1800),
     hh: (t) => noise(t, 0.04, 0.25, 'highpass', 7500),
     ho: (t) => noise(t, 0.32, 0.22, 'highpass', 7000),
     hf: (t) => noise(t, 0.05, 0.18, 'bandpass', 6000),
@@ -164,24 +192,34 @@
   };
   function hit(k, t) { audio(); (SOUND[k] || SOUND.sn)(t || ctx.currentTime + 0.01); }
 
-  // Wiedergabe in Schleife mit Vorausplanung
-  const P = { playing: false, timer: null, next: 0, step: 0, n: null, bpm: 80, queue: [], onStep: null };
-  function play(n, bpm, onStep) {
+  // ---------- Wiedergabe: Schleife, Tempo Trainer, Stummschalten ----------
+  const P = { playing: false, timer: null, next: 0, step: 0, n: null, bpm: 80, queue: [], onStep: null, mute: new Set(), trainer: null, onTempo: null };
+  function play(n, bpm, onStep, opts = {}) {
     stop(); audio();
-    P.n = n; P.bpm = bpm || n.bpm || 80; P.onStep = onStep; P.playing = true; P.step = 0; P.next = ctx.currentTime + 0.08; P.queue = [];
+    Object.assign(P, { n, bpm: bpm || n.bpm || 80, onStep, playing: true, step: 0, queue: [], mute: new Set(opts.mute || []), trainer: opts.trainer || null, onTempo: opts.onTempo || null });
+    P.next = ctx.currentTime + 0.08;
     P.timer = setInterval(schedule, 25); requestAnimationFrame(draw);
   }
   function setTempo(bpm) { P.bpm = bpm; }
+  function setMute(list) { P.mute = new Set(list || []); }
+  function setTrainer(tr) { P.trainer = tr; }
   function stop() { P.playing = false; clearInterval(P.timer); P.timer = null; if (P.onStep) P.onStep(-1); }
   function schedule() {
-    const n = P.n, steps = total(n);
-    // 4/4: Viertel = 4 Schritte; 6/8: Achtel = 2 Schritte, Tempo in Achteln
-    const stepDur = n.sig === '6/8' ? 60 / P.bpm / 2 : 60 / P.bpm / 4;
+    const n = P.n, steps = total(n), pb = perBar(n.sig);
     while (P.next < ctx.currentTime + 0.12) {
       const i = P.step % steps;
-      for (const r of ROWS) if (n.tracks[r.k].includes(i)) hit(r.k, P.next);
+      if (i === 0 && P.step > 0 && P.trainer) {
+        const loops = P.step / steps;
+        if (loops % P.trainer.every === 0 && P.bpm < P.trainer.max) {
+          P.bpm = Math.min(P.trainer.max, P.bpm + P.trainer.add);
+          const b = P.bpm; if (P.onTempo) setTimeout(() => P.onTempo(b), 0);
+        }
+      }
+      const bar = Math.floor(i / pb), src = sourceBar(n, bar) * pb + (i % pb);
+      for (const r of ROWS) if (!P.mute.has(r.k) && n.tracks[r.k].includes(src)) hit(r.k, P.next);
       P.queue.push({ t: P.next, i });
-      P.next += stepDur; P.step++;
+      P.next += n.sig === '6/8' ? 60 / P.bpm / 2 : 60 / P.bpm / 4;
+      P.step++;
     }
   }
   function draw() {
@@ -191,33 +229,45 @@
     if (cur && P.onStep) P.onStep(cur.i);
     requestAnimationFrame(draw);
   }
-  // Cursor im Notenbild bewegen
-  function cursorFor(svg) {
+  // Cursor in der passenden Notenzeile bewegen
+  function cursorFor(root) {
     return (i) => {
-      if (!svg || !svg.isConnected) return;
-      const c = svg.querySelector('.nt-cursor'); if (!c) return;
-      if (i < 0) { c.setAttribute('opacity', '0'); return; }
-      c.setAttribute('x', Number(svg.dataset.x0) + i * Number(svg.dataset.sw) - 2); c.setAttribute('opacity', '.18');
+      if (!root || !root.isConnected) return;
+      root.querySelectorAll('svg.nt-svg').forEach((svg) => {
+        const c = svg.querySelector('.nt-cursor'); if (!c) return;
+        const from = Number(svg.dataset.from), to = Number(svg.dataset.to);
+        if (i < from || i >= to) { c.setAttribute('opacity', '0'); return; }
+        c.setAttribute('x', Number(svg.dataset.x0) + (i - from) * Number(svg.dataset.sw) - 2); c.setAttribute('opacity', '.18');
+      });
     };
   }
+  const usedKeys = (n) => ROWS.filter((r) => n.tracks[r.k].length).map((r) => r.k);
 
-  // ---------- Editor ----------
-  function editorHTML(n, id) {
-    const steps = total(n), pb = perBar(n.sig), gs = groupSize(n.sig);
-    const head = `<tr><th scope="col"><span class="nt-sr">Instrument</span></th>${Array.from({ length: steps }, (_, i) => `<th scope="col" class="${i % pb === 0 && i ? 'nt-bar' : ''}${i % gs === 0 ? ' nt-beat' : ''}">${countLabel(n.sig, i)}</th>`).join('')}</tr>`;
-    const rows = ROWS.map((r) => `<tr><th scope="row">${r.n}</th>${Array.from({ length: steps }, (_, i) =>
-      `<td class="${i % pb === 0 && i ? 'nt-bar' : ''}${Math.floor(i / gs) % 2 ? ' nt-alt' : ''}"><button type="button" class="nt-cell" data-nt="${id}" data-k="${r.k}" data-i="${i}" aria-pressed="${has(n, r.k, i)}" aria-label="${r.n} auf ${countLabel(n.sig, i)}, Schritt ${i + 1}"></button></td>`).join('')}</tr>`).join('');
-    return `<div class="nt-editor" id="${id}">
+  // ---------- Editor: Takt wählen, Raster für einen Takt ----------
+  function editorHTML(n, id, curBar = 0) {
+    const pb = perBar(n.sig), gs = groupSize(n.sig), from = curBar * pb, rep = n.repeat.includes(curBar);
+    const head = `<tr><th scope="col"><span class="nt-sr">Instrument</span></th>${Array.from({ length: pb }, (_, j) => `<th scope="col" class="${j % gs === 0 ? 'nt-beat' : ''}">${countLabel(n.sig, j)}</th>`).join('')}</tr>`;
+    const rows = ROWS.map((r) => `<tr><th scope="row">${r.n}</th>${Array.from({ length: pb }, (_, j) => {
+      const i = from + j;
+      return `<td class="${Math.floor(j / gs) % 2 ? 'nt-alt' : ''}"><button type="button" class="nt-cell" data-nt="${id}" data-k="${r.k}" data-i="${i}" aria-pressed="${has(n, r.k, i)}" aria-label="${r.n} auf ${countLabel(n.sig, j)}, Takt ${curBar + 1}" ${rep ? 'disabled' : ''}></button></td>`;
+    }).join('')}</tr>`).join('');
+    const tabs = Array.from({ length: n.bars }, (_, b) => `<button type="button" class="nt-bartab" data-nt-bar="${b}" data-nt-id="${id}" aria-pressed="${b === curBar}">${b + 1}${n.repeat.includes(b) ? ' %' : ''}${n.marks[b] ? ' · ' + esc(n.marks[b]) : ''}</button>`).join('');
+    return `<div class="nt-editor" id="${id}" data-bar="${curBar}">
       <div class="row" style="gap:10px">
         <div class="field" style="flex:1;min-width:90px"><label for="${id}-sig">Takt</label><select id="${id}-sig" data-nt-ctl="sig"><option ${n.sig === '4/4' ? 'selected' : ''}>4/4</option><option ${n.sig === '6/8' ? 'selected' : ''}>6/8</option></select></div>
-        <div class="field" style="flex:1;min-width:90px"><label for="${id}-bars">Takte</label><select id="${id}-bars" data-nt-ctl="bars">${[1, 2, 3, 4].map((b) => `<option ${n.bars === b ? 'selected' : ''}>${b}</option>`).join('')}</select></div>
+        <div class="field" style="flex:1;min-width:90px"><label for="${id}-bars">Takte</label><select id="${id}-bars" data-nt-ctl="bars">${Array.from({ length: MAX_BARS }, (_, i) => i + 1).map((b) => `<option ${n.bars === b ? 'selected' : ''}>${b}</option>`).join('')}</select></div>
         <div class="field" style="flex:1;min-width:90px"><label for="${id}-bpm">Tempo</label><input id="${id}-bpm" data-nt-ctl="bpm" inputmode="numeric" value="${n.bpm}"></div>
       </div>
       <div class="nt-staff">${render(n, { cursor: true })}</div>
-      <div class="row"><button type="button" class="btn small primary" data-nt-act="play" data-nt-id="${id}">Abspielen</button><button type="button" class="btn small" data-nt-act="clear" data-nt-id="${id}">Leeren</button><span class="small muted">Tippe ins Raster, um Schläge zu setzen.</span></div>
-      <div class="nt-grid-wrap"><table class="nt-grid">${head}${rows}</table></div>
+      <div class="row"><button type="button" class="btn small primary" data-nt-act="play" data-nt-id="${id}">Abspielen</button><button type="button" class="btn small" data-nt-act="clear" data-nt-id="${id}">Takt leeren</button></div>
+      ${n.bars > 1 ? `<div class="nt-bartabs" role="group" aria-label="Takt zum Bearbeiten">${tabs}</div>` : ''}
+      <div class="row" style="gap:10px">
+        <div class="field" style="flex:2;min-width:150px"><label for="${id}-mark">Teil ab Takt ${curBar + 1}</label><input id="${id}-mark" data-nt-ctl="mark" maxlength="30" placeholder="z. B. Strophe, Refrain" value="${esc(n.marks[curBar] || '')}"></div>
+        ${curBar > 0 ? `<label class="row small" style="flex:1;min-width:150px;gap:8px;color:var(--ink)"><input type="checkbox" data-nt-ctl="repeat" style="width:22px;min-height:22px" ${rep ? 'checked' : ''}> Wiederholt den Takt davor</label>` : ''}
+      </div>
+      ${rep ? '<p class="small muted">Dieser Takt wiederholt den Takt davor. Haken entfernen, um ihn auszuschreiben.</p>' : `<div class="nt-grid-wrap"><table class="nt-grid">${head}${rows}</table></div>`}
     </div>`;
   }
 
-  window.DrumNotation = { ROWS, empty, parse, render, toggle, has, play, stop, setTempo, hit, editorHTML, cursorFor, total, isPlaying: () => P.playing };
+  window.DrumNotation = { ROWS, MAX_BARS, empty, parse, render, toggle, has, play, stop, setTempo, setMute, setTrainer, hit, editorHTML, cursorFor, total, perBar, setBars, usedKeys, isPlaying: () => P.playing, audio };
 })();

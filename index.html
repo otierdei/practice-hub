@@ -99,6 +99,30 @@ textarea{min-height:80px;resize:vertical}
 .nt-grid .nt-bar{border-left:2px solid var(--line)}
 .nt-cell{width:30px;height:30px;border-radius:50%;border:1.5px solid var(--line);background:transparent;padding:0;display:block}
 .nt-cell[aria-pressed="true"]{background:var(--ring);border-color:var(--ring)}
+.nt-lines{display:flex;flex-direction:column;gap:0}
+.nt-bartabs{display:flex;gap:6px;flex-wrap:wrap}
+.nt-bartab{min-height:40px;min-width:44px;border-radius:12px;border:1px solid var(--line);background:transparent;padding:0 10px;font-size:.85rem}
+.nt-bartab[aria-pressed="true"]{background:var(--accent);color:var(--accent-ink);border-color:transparent;font-weight:600}
+.chip{min-height:40px;border-radius:999px;border:1px solid var(--line);background:transparent;padding:0 14px;font-size:.88rem}
+.chip[aria-pressed="true"]{background:var(--sunk);border-color:var(--ink);font-weight:600}
+.gt-editor,.gt-view{display:flex;flex-direction:column;gap:12px}
+.gt-h{margin:6px 0 0;font-family:var(--display);font-weight:400;font-size:1rem}
+.gt-chords{display:flex;gap:10px;flex-wrap:wrap}
+.gt-chordwrap{display:flex;flex-direction:column;align-items:center;gap:4px}
+.gt-chord{margin:0;display:flex;flex-direction:column;align-items:center;color:var(--ink);background:var(--sunk);border-radius:14px;padding:6px 8px}
+.gt-chord figcaption{font-weight:700;font-size:.9rem}
+.gt-strumwrap,.gt-tabwrap{overflow-x:auto;color:var(--ink);background:var(--sunk);border-radius:14px;padding:4px 6px}
+.gt-strumwrap svg,.gt-tabwrap svg{display:block}
+.gt-scells{display:flex;gap:4px;flex-wrap:wrap}
+.gt-scell{width:38px;height:44px;border-radius:10px;border:1px solid var(--line);background:var(--surface);font-size:1.2rem}
+.gt-tcell{width:28px;height:28px;border-radius:8px;border:1px solid var(--line);background:transparent;padding:0;font-size:.8rem;font-weight:700}
+.gt-tcell[aria-pressed="true"]{outline:2px solid var(--accent)}
+.gt-pad{display:flex;gap:6px;flex-wrap:wrap}
+.gt-tuner{display:flex;flex-direction:column;gap:10px;color:var(--ink)}
+.gt-tuner-note{display:flex;flex-direction:column;align-items:center}
+.gt-tuner-note b{font-family:var(--display);font-size:3rem;font-weight:400}
+.gt-string{width:40px;height:40px;border-radius:50%;border:1.5px solid var(--line);display:inline-flex;align-items:center;justify-content:center;font-weight:700}
+.gt-string.on{background:var(--ring);color:var(--accent-ink);border-color:var(--ring)}
 .nt-sr{position:absolute;width:1px;height:1px;overflow:hidden;clip:rect(0 0 0 0)}
 details.card summary{cursor:pointer;font-family:var(--display);font-size:1.08rem}
 @media (prefers-reduced-motion: reduce){*{transition:none!important;animation:none!important}}
@@ -107,6 +131,7 @@ details.card summary{cursor:pointer;font-family:var(--display);font-size:1.08rem
 <body>
 <div id="app"><div class="wrap"><p class="muted">Lädt …</p></div></div>
 <script src="notation.js"></script>
+<script src="guitar.js"></script>
 <script>
 'use strict';
 // ---------- Grundlagen ----------
@@ -166,15 +191,18 @@ const ICON = {
   ueben: '<circle cx="12" cy="12" r="8" stroke="currentColor" stroke-width="2" fill="none"/><path d="M12 8v4l3 2" stroke="currentColor" stroke-width="2" fill="none" stroke-linecap="round"/>',
   fortschritt: '<circle cx="12" cy="12" r="8" stroke="currentColor" stroke-width="2" fill="none"/><path d="M12 4a8 8 0 0 1 8 8h-8z" fill="currentColor"/>',
   stunden: '<rect x="4" y="5" width="16" height="15" rx="3" stroke="currentColor" stroke-width="2" fill="none"/><path d="M4 10h16M9 3v4M15 3v4" stroke="currentColor" stroke-width="2" stroke-linecap="round"/>',
+  stimmen: '<path d="M12 3v12" stroke="currentColor" stroke-width="2" stroke-linecap="round"/><circle cx="12" cy="17" r="4" stroke="currentColor" stroke-width="2" fill="none"/><path d="M7 7h2M15 7h2M7 11h2M15 11h2" stroke="currentColor" stroke-width="2" stroke-linecap="round"/>',
   uebersicht: '<circle cx="12" cy="12" r="8" stroke="currentColor" stroke-width="2" fill="none"/><circle cx="12" cy="12" r="3" fill="currentColor"/>',
 };
 const TABS = {
   teacher: [['heute', 'Heute'], ['schueler', 'Schüler'], ['bibliothek', 'Bibliothek'], ['mehr', 'Mehr']],
   student: [['ueben', 'Üben'], ['fortschritt', 'Fortschritt'], ['stunden', 'Stunden']],
+  studentGuitar: [['ueben', 'Üben'], ['fortschritt', 'Fortschritt'], ['stunden', 'Stunden'], ['stimmen', 'Stimmen']],
   parent: [['uebersicht', 'Übersicht'], ['stunden', 'Stunden']],
 };
 function nav() {
-  return `<nav class="nav" aria-label="Bereiche">${TABS[S.role].map(([id, label]) =>
+  const tabs = S.role === 'student' && S.data && S.data.student && /Gitarre/.test(S.data.student.instrument || '') ? TABS.studentGuitar : TABS[S.role];
+  return `<nav class="nav" aria-label="Bereiche">${tabs.map(([id, label]) =>
     `<button data-tab="${id}" ${S.tab === id ? 'aria-current="page"' : ''}><svg viewBox="0 0 24 24" aria-hidden="true">${ICON[id]}</svg>${label}</button>`).join('')}</nav>`;
 }
 
@@ -268,13 +296,15 @@ function teacherView() {
   } else if (t === 'bibliothek') {
     const ex = S.exercises || [];
     const cats = [...new Set(ex.map((e) => e.category || 'Ohne Kategorie'))];
-    html = `<div class="row between"><h1>Bibliothek</h1><div class="row"><button class="btn small" data-act="newBeat">Beat schreiben</button><button class="btn primary small" data-act="newExercise">Übung anlegen</button></div></div>
+    html = `<div class="row between"><h1>Bibliothek</h1><div class="row"><button class="btn small" data-act="newBeat">Beat schreiben</button><button class="btn small" data-act="newGuitar">Gitarre schreiben</button><button class="btn primary small" data-act="newExercise">Übung anlegen</button></div></div>
     ${ex.length ? cats.map((c) => `<section class="card"><h3>${esc(c)}</h3><div class="list">${ex.filter((e) => (e.category || 'Ohne Kategorie') === c).map((e) =>
-      `<div class="item" style="flex-direction:column;align-items:stretch"><button class="link t" data-act="editExercise" data-id="${e.id}"><b>${esc(e.title)}</b><br><span class="muted small">${esc(sourceLabel(e))}${e.target_bpm ? ' · Ziel ' + e.target_bpm + ' BPM' : ''}</span></button>${e.notation ? `<div class="nt-staff">${DrumNotation.render(DrumNotation.parse(e.notation), { label: e.title })}</div>` : ''}</div>`).join('')}</div></section>`).join('')
+      `<div class="item" style="flex-direction:column;align-items:stretch"><button class="link t" data-act="editExercise" data-id="${e.id}"><b>${esc(e.title)}</b><br><span class="muted small">${esc(sourceLabel(e))}${e.target_bpm ? ' · Ziel ' + e.target_bpm + ' BPM' : ''}</span></button>${notationPreview(e.notation, e.title)}</div>`).join('')}</div></section>`).join('')
       : `<div class="empty">Noch keine Übungen. Lege Grooves, Fills, Rudiments oder Worship Songs mit Link oder Buchseite an.</div>`}`;
   } else {
     html = `<h1>Mehr</h1>
     <section class="card"><div class="row between"><h3>Aktivität</h3><button class="btn small" data-act="feed">Laden</button></div><div id="feed" class="list">${S.feed ? S.feed.map((f) => `<div class="item"><span class="t">${esc(f.summary || f.action)}</span><span class="muted small">${esc(fmtDate(f.at))}</span></div>`).join('') || '<p class="muted">Noch nichts.</p>' : '<p class="muted small">Was Schüler zuletzt geübt und abgehakt haben.</p>'}</div></section>
+    <section class="card"><h3>Stimmgerät</h3>${Guitar.tunerHTML()}<button class="btn block" data-act="tuner">${S.tunerOn ? 'Stimmgerät stoppen' : 'Stimmgerät starten'}</button></section>
+    <section class="card"><h3>Capo Helfer</h3>${capoHelper()}</section>
     <section class="card"><a href="datenschutz.html">Datenschutzhinweise</a><button class="btn" data-act="logout">Auf diesem Gerät abmelden</button></section>`;
   }
   return `<main class="wrap">${html}</main>`;
@@ -291,8 +321,14 @@ function studentRow(s, withTime) {
     <span class="muted small">${withTime ? esc(s.lesson_time || '') + ' · ' : (s.weekday ? WD[s.weekday] + ' ' + esc(s.lesson_time || '') + ' · ' : '')}${s.minutes_since} min seit letzter Stunde</span></div></div></button>
     ${withTime ? `<button class="btn small" data-act="lesson" data-id="${s.id}">Starten</button>` : consentPill(s)}</div>`;
 }
+function linkLabel(a) { return a.source_type === 'drive' ? 'Noten öffnen' : a.source_type === 'musora' ? 'In Musora öffnen' : a.source_type === 'youtube' || a.source_type === 'instagram' ? 'Video öffnen' : 'Link öffnen'; }
+function notationPreview(raw, title) {
+  if (!raw) return '';
+  const g = Guitar.parse(raw); if (g) return `<div class="gt-view">${Guitar.viewHTML(g, 'pv' + Math.random().toString(36).slice(2, 7))}</div>`;
+  const n = DrumNotation.parse(raw); return n ? `<div class="nt-staff">${DrumNotation.render(n, { label: title })}</div>` : '';
+}
 function sourceLabel(e) {
-  return { youtube: 'YouTube', instagram: 'Instagram', drive: 'Google Drive', buch: e.book_ref || 'Buch', link: 'Link', noten: 'Noten in der App' }[e.source_type] || (e.book_ref || '');
+  return { youtube: 'YouTube', musora: 'Musora', instagram: 'Instagram', drive: 'Google Drive', buch: e.book_ref || 'Buch', link: 'Link', noten: 'Noten in der App' }[e.source_type] || (e.book_ref || '');
 }
 
 // Schülerakte
@@ -368,12 +404,13 @@ function exerciseForm(e) {
     <input type="hidden" name="id" value="${esc(e.id || '')}">
     <div class="field"><label for="e_title">Titel</label><input id="e_title" name="title" required maxlength="120" value="${esc(e.title || '')}"></div>
     <div class="field"><label for="e_cat">Kategorie</label><input id="e_cat" name="category" list="cats" maxlength="40" value="${esc(e.category || '')}"><datalist id="cats">${['Grooves', 'Fills', 'Rudiments', 'Worship Songs', 'Technik', 'Lesen'].map((c) => `<option value="${c}">`).join('')}</datalist></div>
-    <div class="field"><label for="e_src">Quelle</label><select id="e_src" name="source_type">${[['youtube', 'YouTube'], ['instagram', 'Instagram'], ['drive', 'Google Drive (PDF, Noten)'], ['buch', 'Buch'], ['link', 'Anderer Link'], ['noten', 'Noten in der App']].map(([v, l]) => `<option value="${v}" ${e.source_type === v ? 'selected' : ''}>${l}</option>`).join('')}</select></div>
+    <div class="field"><label for="e_src">Quelle</label><select id="e_src" name="source_type">${[['youtube', 'YouTube'], ['musora', 'Musora (Song, Lektion, Playlist)'], ['instagram', 'Instagram'], ['drive', 'Google Drive (PDF, Noten)'], ['buch', 'Buch'], ['link', 'Anderer Link'], ['noten', 'Noten in der App']].map(([v, l]) => `<option value="${v}" ${e.source_type === v ? 'selected' : ''}>${l}</option>`).join('')}</select></div>
     <div class="field"><label for="e_url">Link (https://)</label><input id="e_url" name="url" type="url" inputmode="url" value="${esc(e.url || '')}"><span class="small muted">Drive Dateien auf "Jeder mit dem Link" stellen. Nur Unterrichtsmaterial, nie Schülerdaten.</span></div>
     <div class="field"><label for="e_book">Buch und Seite</label><input id="e_book" name="book_ref" maxlength="120" value="${esc(e.book_ref || '')}" placeholder="z. B. Stick Control, S. 5"></div>
     <div class="field"><label for="e_bpm">Ziel BPM</label><input id="e_bpm" name="target_bpm" inputmode="numeric" value="${esc(e.target_bpm || '')}"></div>
     <div class="field"><label for="e_notes">Hinweise</label><textarea id="e_notes" name="notes" maxlength="1000">${esc(e.notes || '')}</textarea></div>
-    <section class="col"><h3>Schlagzeug Noten</h3>${S.nt && S.nt.ex ? DrumNotation.editorHTML(S.nt.ex, 'ex') : '<button class="btn" type="button" data-act="addBeat">Beat schreiben</button>'}</section>
+    ${S.gt && S.gt.gx ? `<section class="col"><h3>Gitarre</h3>${Guitar.editorHTML(S.gt.gx, 'gx', S.gtSel)}</section>`
+      : `<section class="col"><h3>Schlagzeug Noten</h3>${S.nt && S.nt.ex ? DrumNotation.editorHTML(S.nt.ex, 'ex') : '<div class="row"><button class="btn" type="button" data-act="addBeat">Beat schreiben</button><button class="btn" type="button" data-act="addGuitar">Gitarre schreiben</button></div>'}</section>`}
     <button class="btn primary block" type="submit">Speichern</button>
     ${e.id ? '<button class="btn danger block" type="button" data-act="archiveExercise" data-id="' + e.id + '">Aus der Bibliothek nehmen</button>' : ''}
   </form></div>`;
@@ -448,7 +485,9 @@ function studentView() {
   const pending = store.get('outbox', []).length;
   let html = '';
   if (t === 'ueben') {
+    const streak = weekStreak(sessions);
     html = `<div class="col" style="gap:2px"><span class="muted">Hallo ${esc(d.student.first_name)}</span><h1>Heute üben</h1></div>
+    ${streak ? `<span class="pill">${streak} ${streak === 1 ? 'Woche' : 'Wochen'} in Folge geübt</span>` : ''}
     ${d.student.is_minor && !d.consent ? `<div class="card small"><b>Kurzer Hinweis</b><span class="muted">Deine Eltern bekommen von Oti einen eigenen Link und stimmen dort zu, dass deine Übezeiten gespeichert werden.</span></div>` : ''}
     ${store.get('run', null) ? `<button class="btn primary block" data-act="resumePractice">Laufende Sitzung öffnen</button>` : ''}
     ${pending ? `<span class="pill">${pending} Sitzung${pending > 1 ? 'en' : ''} wird gesendet, sobald Internet da ist</span>` : ''}
@@ -470,11 +509,30 @@ function studentView() {
     <section class="card"><h3>Übezeit pro Woche</h3>${weeksCircles(sessions)}</section>
     ${exList.length ? `<section class="card"><h3>Tempo</h3><div class="grid2" style="grid-template-columns:repeat(auto-fill,minmax(150px,1fr))">${exList.map((e) => `<div class="col" style="align-items:center;gap:6px">${ring(e.best / e.target, 96, 8, 'var(--ring)', e.title + ': ' + e.best + ' von ' + e.target + ' BPM', String(e.best || '–'), 'von ' + e.target)}<span class="small" style="text-align:center">${esc(e.title)}</span></div>`).join('')}</div></section>` : ''}
     <section class="card"><h3>Ziele</h3><div class="list">${d.goals.length ? d.goals.map((g) => `<div class="item"><span class="t">${esc(g.title)}</span>${g.status === 'erreicht' ? '<span class="pill">erreicht</span>' : '<span class="pill">offen</span>'}</div>`).join('') : '<p class="muted">Oti trägt deine Ziele in der Stunde ein.</p>'}</div></section>`;
+  } else if (t === 'stimmen') {
+    html = `<h1>Stimmen</h1><section class="card">${Guitar.tunerHTML()}<button class="btn primary block" data-act="tuner">${S.tunerOn ? 'Stimmgerät stoppen' : 'Stimmgerät starten'}</button><p class="small muted">Erlaube den Zugriff aufs Mikrofon. Der Ton bleibt auf deinem Gerät und wird nicht gespeichert.</p></section>
+    <section class="card"><h3>Capo Helfer</h3>${capoHelper()}</section>`;
   } else {
     html = lessonsList(d);
   }
   return `<main class="wrap">${html}</main>`;
 }
+// Wochen Streak: eine Woche zählt bei mindestens 3 Übetagen; die laufende Woche bricht die Serie nicht
+function weekStreak(sessions) {
+  const days = {}; for (const s of sessions) { const k = weekKey(s.local_date); (days[k] = days[k] || new Set()).add(s.local_date); }
+  const d = new Date(); d.setDate(d.getDate() - ((d.getDay() + 6) % 7));
+  let count = 0; const cur = localDate(d);
+  if ((days[cur] || new Set()).size >= 3) count++;
+  for (let i = 1; i < 60; i++) { const x = new Date(d); x.setDate(d.getDate() - i * 7); if ((days[localDate(x)] || new Set()).size >= 3) count++; else break; }
+  return count;
+}
+function capoHelper() {
+  const key = S.capoKey || 'E';
+  const rows = Guitar.capoTable(key);
+  return `<div class="field"><label for="capoKey">Tonart des Songs (klingend)</label><select id="capoKey">${Guitar.NOTES_INT.map((k) => `<option ${k === key ? 'selected' : ''}>${k}</option>`).join('')}</select></div>
+    <div class="list">${rows.map((r) => `<div class="item"><span>Griffe aus <b>${r.shape}</b></span><span class="muted">${r.capo ? 'Capo ' + r.capo + '. Bund' : 'ohne Capo'}</span></div>`).join('')}</div>`;
+}
+document.addEventListener('change', (ev) => { if (ev.target.id === 'capoKey') { S.capoKey = ev.target.value; render(); } });
 function lessonsList(d) {
   return `<h1>Stunden</h1>${d.lessons.length ? `<section class="card"><div class="list">${d.lessons.map((l) => `<div class="item"><div class="t col" style="gap:2px"><b>${esc(fmtDate(l.date))}</b><span>${l.notes_shared ? esc(l.notes_shared) : '<span class="muted">Keine Notiz</span>'}</span></div></div>`).join('')}</div></section>` : '<div class="empty">Noch keine Stunden eingetragen.</div>'}`;
 }
@@ -488,15 +546,22 @@ function assignmentCard(a, sessions) {
     <div class="col" style="gap:2px;flex:1"><b>${esc(a.title || a.free_text)}</b>
       <span class="muted small">${a.target_bpm ? (best ? best + ' von ' : 'Ziel ') + a.target_bpm + ' BPM · ' : ''}${goal} min am Tag${a.book_ref ? ' · ' + esc(a.book_ref) : ''}</span></div>
     <button class="check" data-act="toggleDone" data-id="${a.id}" aria-pressed="false" aria-label="Als erledigt abhaken"></button></div>
-    ${a.notation ? `<div class="nt-staff">${DrumNotation.render(DrumNotation.parse(a.notation), { label: 'Noten: ' + (a.title || '') })}</div>` : ''}
-    <div class="row">${a.url ? `<a class="btn small" href="${esc(a.url)}" target="_blank" rel="noopener">${a.source_type === 'drive' ? 'Noten öffnen' : 'Video öffnen'}</a>` : ''}<button class="btn primary small" data-act="practice" data-id="${a.id}" style="flex:1">Üben starten</button></div>
+    ${notationPreview(a.notation, 'Noten: ' + (a.title || ''))}
+    <div class="row">${a.url ? `<a class="btn small" href="${esc(a.url)}" target="_blank" rel="noopener">${linkLabel(a)}</a>` : ''}<button class="btn primary small" data-act="practice" data-id="${a.id}" style="flex:1">Üben starten</button></div>
   </section>`;
 }
 
 // Übungssitzung mit Stoppuhr und Metronom
 let tickTimer = null, wakeLock = null;
 const MET = { ctx: null, playing: false, bpm: 80, next: 0, beat: 0, timer: null, lastBeat: -1 };
-function stopTick() { clearInterval(tickTimer); tickTimer = null; metStop(); if (window.DrumNotation) DrumNotation.stop(); releaseWake(); }
+function beatTrainerOpts(a) { return S.beatTrainer ? { every: 4, add: 5, max: (a && a.target_bpm) || MET.bpm + 40 } : null; }
+document.addEventListener('change', (ev) => {
+  if (ev.target.id !== 'beatTrainer') return;
+  S.beatTrainer = ev.target.checked;
+  const r = store.get('run', null); const a = r && S.data && S.data.assignments.find((x) => x.id === r.assignment_id);
+  DrumNotation.setTrainer(beatTrainerOpts(a));
+});
+function stopTick() { clearInterval(tickTimer); tickTimer = null; metStop(); if (window.DrumNotation) DrumNotation.stop(); if (window.Guitar) { Guitar.stop(); Guitar.tunerStop(); } releaseWake(); }
 async function requestWake() { try { if ('wakeLock' in navigator && !wakeLock) { wakeLock = await navigator.wakeLock.request('screen'); wakeLock.addEventListener('release', () => { wakeLock = null; }); } } catch (e) {} }
 function releaseWake() { try { if (wakeLock) wakeLock.release(); } catch (e) {} wakeLock = null; }
 document.addEventListener('visibilitychange', () => { const r = store.get('run', null); if (document.visibilityState === 'visible' && r && r.runningSince) requestWake(); });
@@ -526,9 +591,14 @@ function practiceView() {
     <div class="col" style="align-items:center;gap:8px;text-align:center"><h1>${esc(a ? (a.title || a.free_text) : 'Frei üben')}</h1>
       ${a && a.book_ref ? `<span class="muted">${esc(a.book_ref)}</span>` : ''}
       ${a && a.exercise_notes ? `<span class="muted small">${esc(a.exercise_notes)}</span>` : ''}
-      ${a && a.url ? `<a class="btn small" href="${esc(a.url)}" target="_blank" rel="noopener">${a.source_type === 'drive' ? 'Noten öffnen' : 'Video öffnen'}</a>` : ''}</div>
-    ${a && a.notation ? `<div class="nt-staff" id="practiceStaff">${DrumNotation.render(DrumNotation.parse(a.notation), { cursor: true, label: 'Noten: ' + (a.title || '') })}</div>
-      <button class="btn block" data-act="beatPlay">${DrumNotation.isPlaying() ? 'Beat stoppen' : 'Beat im Metronom Tempo abspielen'}</button>` : ''}
+      ${a && a.url ? `<a class="btn small" href="${esc(a.url)}" target="_blank" rel="noopener">${linkLabel(a)}</a>` : ''}</div>
+    ${a && Guitar.parse(a.notation) ? `${Guitar.viewHTML(Guitar.parse(a.notation), 'practiceGuitar')}
+      <div class="row">${Guitar.parse(a.notation).strum.cells.some(Boolean) ? `<button class="btn" data-act="gtPlay" data-mode="strum" style="flex:1">${Guitar.isPlaying() ? 'Stopp' : 'Schlagmuster abspielen'}</button>` : ''}${Guitar.parse(a.notation).tab.notes.length ? `<button class="btn" data-act="gtPlay" data-mode="tab" style="flex:1">Tabs abspielen</button>` : ''}</div>` : ''}
+    ${a && DrumNotation.parse(a.notation) ? `<div class="nt-staff" id="practiceStaff">${DrumNotation.render(DrumNotation.parse(a.notation), { cursor: true, label: 'Noten: ' + (a.title || '') })}</div>
+      <button class="btn block" data-act="beatPlay">${DrumNotation.isPlaying() ? 'Beat stoppen' : 'Beat im Metronom Tempo abspielen'}</button>
+      <div class="col" style="gap:8px"><span class="small muted">Stumm schalten und selbst spielen:</span>
+        <div class="row" style="gap:6px">${DrumNotation.usedKeys(DrumNotation.parse(a.notation)).map((k) => `<button type="button" class="chip" data-act="beatMute" data-k="${k}" aria-pressed="${(S.beatMute || []).includes(k)}">${DrumNotation.ROWS.find((r) => r.k === k).n}</button>`).join('')}</div>
+        <label class="row small" style="gap:8px;color:var(--ink)"><input type="checkbox" id="beatTrainer" style="width:22px;min-height:22px" ${S.beatTrainer ? 'checked' : ''}> Tempo Trainer: alle 4 Durchläufe 5 BPM schneller${a.target_bpm ? ' bis ' + a.target_bpm : ''}</label></div>` : ''}
     <div id="clockRing" style="display:flex;justify-content:center">${clockRing(el, goal)}</div>
     <button class="btn ${r.runningSince ? '' : 'primary'} block" data-act="startStop">${r.runningSince ? 'Pause' : el ? 'Weiter' : 'Stoppuhr starten'}</button>
     <section class="card" aria-label="Metronom">
@@ -586,6 +656,7 @@ function setBpm(v) {
   const r = store.get('run', null); if (r) { r.bpm = MET.bpm; store.set('run', r); }
   const el = $('#bpmVal'); if (el) el.textContent = MET.bpm;
   if (window.DrumNotation) DrumNotation.setTempo(MET.bpm);
+  if (window.Guitar) Guitar.setTempo(MET.bpm);
 }
 const taps = [];
 function tapTempo() {
@@ -652,7 +723,7 @@ function parentView() {
 // ---------- Ereignisse ----------
 document.addEventListener('click', async (ev) => {
   const tabBtn = ev.target.closest('[data-tab]');
-  if (tabBtn) { S.tab = tabBtn.dataset.tab; S.overlay = null; render(); window.scrollTo(0, 0); return; }
+  if (tabBtn) { if (S.tunerOn) { Guitar.tunerStop(); S.tunerOn = false; } S.tab = tabBtn.dataset.tab; S.overlay = null; render(); window.scrollTo(0, 0); return; }
   const el = ev.target.closest('[data-act]'); if (!el) return;
   const act = el.dataset.act, id = el.dataset.id;
   try {
@@ -676,16 +747,39 @@ document.addEventListener('click', async (ev) => {
       }
       case 'copyLink': try { await navigator.clipboard.writeText(S.newLink); toast('Link kopiert'); } catch (e) { const r = document.createRange(); r.selectNodeContents($('#newLink')); getSelection().removeAllRanges(); getSelection().addRange(r); toast('Link markiert, jetzt kopieren'); } break;
       case 'revoke': await api('/api/t/access/revoke', { id }); S.file = await api('/api/t/student', { id: S.file.student.id }); render(); toast('Gesperrt'); break;
-      case 'newExercise': S.nt = {}; openOverlay(() => exerciseForm()); break;
+      case 'newExercise': S.nt = {}; S.gt = {}; openOverlay(() => exerciseForm()); break;
+      case 'newGuitar': S.nt = {}; S.gt = { gx: Guitar.empty() }; S.gtSel = null; S.exDraft = { source_type: 'noten', category: 'Gitarre' }; openOverlay(() => exerciseForm(S.exDraft)); break;
+      case 'addGuitar': { const f = $('#exerciseForm'); S.exDraft = Object.fromEntries(new FormData(f)); S.exDraft.source_type = 'noten'; S.nt = {}; S.gt = { gx: Guitar.empty() }; S.gtSel = null; openOverlay(() => exerciseForm(S.exDraft)); break; }
+      case 'gtPlay': {
+        if (Guitar.isPlaying()) { Guitar.stop(); render(); break; }
+        const r = store.get('run'); const a = S.data.assignments.find((x) => x.id === r.assignment_id); const g = Guitar.parse(a.notation);
+        metStop(); const root = $('#practiceGuitar');
+        Guitar.play(g, el.dataset.mode, MET.bpm, Guitar.cursorFor(root && root.querySelector(el.dataset.mode === 'tab' ? '.gt-tab' : '.gt-strum')));
+        el.textContent = 'Stopp'; break;
+      }
+      case 'tuner': {
+        if (S.tunerOn) { Guitar.tunerStop(); S.tunerOn = false; el.textContent = 'Stimmgerät starten'; break; }
+        try {
+          await Guitar.tunerStart((r) => {
+            const n = $('#tunerNote'), c = $('#tunerCents'), d = $('#tunerDot'); if (!n) return;
+            n.textContent = r.name; c.textContent = (r.cents > 0 ? '+' : '') + r.cents + ' Cent' + (Math.abs(r.cents) <= 5 ? ', gestimmt' : r.cents < 0 ? ', etwas höher drehen' : ', etwas tiefer drehen');
+            d.setAttribute('cx', 120 + Math.max(-50, Math.min(50, r.cents)) * 2);
+            document.querySelectorAll('.gt-string').forEach((x) => x.classList.toggle('on', Number(x.dataset.s) === r.string));
+          });
+          S.tunerOn = true; el.textContent = 'Stimmgerät stoppen';
+        } catch (e) { toast('Kein Zugriff aufs Mikrofon. Bitte in den Einstellungen erlauben.'); }
+        break;
+      }
       case 'newBeat': S.nt = { ex: DrumNotation.empty() }; S.nt.ex.tracks.hh = [0, 2, 4, 6, 8, 10, 12, 14]; S.nt.ex.tracks.sn = [4, 12]; S.nt.ex.tracks.bd = [0, 8]; S.exDraft = { source_type: 'noten', category: 'Grooves' }; openOverlay(() => exerciseForm(S.exDraft)); break;
-      case 'editExercise': { const e = S.exercises.find((x) => x.id === id); S.nt = { ex: e.notation ? DrumNotation.parse(e.notation) : null }; openOverlay(() => exerciseForm(e)); break; }
+      case 'editExercise': { const e = S.exercises.find((x) => x.id === id); S.nt = { ex: DrumNotation.parse(e.notation) }; S.gt = { gx: Guitar.parse(e.notation) }; S.gtSel = null; openOverlay(() => exerciseForm(e)); break; }
       case 'addBeat': { const f = $('#exerciseForm'); S.exDraft = Object.fromEntries(new FormData(f)); S.exDraft.source_type = 'noten'; S.nt = { ex: DrumNotation.empty() }; openOverlay(() => exerciseForm(S.exDraft)); break; }
       case 'beatPlay': {
         if (DrumNotation.isPlaying()) { DrumNotation.stop(); el.textContent = 'Beat im Metronom Tempo abspielen'; break; }
         const r = store.get('run'); const a = S.data.assignments.find((x) => x.id === r.assignment_id);
         metStop(); const mb = document.querySelector('[data-act="metronome"]'); if (mb) mb.textContent = 'Metronom starten';
-        DrumNotation.play(DrumNotation.parse(a.notation), MET.bpm, DrumNotation.cursorFor($('#practiceStaff svg'))); el.textContent = 'Beat stoppen'; break;
+        DrumNotation.play(DrumNotation.parse(a.notation), MET.bpm, DrumNotation.cursorFor($('#practiceStaff')), { mute: S.beatMute || [], trainer: beatTrainerOpts(a), onTempo: (b) => setBpm(b) }); el.textContent = 'Beat stoppen'; break;
       }
+      case 'beatMute': { const k = el.dataset.k; S.beatMute = (S.beatMute || []).includes(k) ? S.beatMute.filter((x) => x !== k) : (S.beatMute || []).concat(k); el.setAttribute('aria-pressed', String(S.beatMute.includes(k))); DrumNotation.setMute(S.beatMute); break; }
       case 'archiveExercise': await api('/api/t/exercise/archive', { id }); S.exercises = (await api('/api/t/exercises')).exercises; closeOverlay(); toast('Entfernt'); break;
       case 'feed': S.feed = (await api('/api/t/feed')).feed; render(); break;
       case 'toggleClose': { const L = S.lesson; L.close_assignments = L.close_assignments.includes(id) ? L.close_assignments.filter((x) => x !== id) : L.close_assignments.concat(id); saveDraft(); render(); break; }
@@ -718,46 +812,88 @@ document.addEventListener('click', async (ev) => {
     }
   } catch (e) { toast(e.message); el.disabled = false; }
 });
-// Noten Editor: Raster, Einstellungen, Abspielen
+// Noten Editor: Raster, Takt wählen, Teile, Wiederholung, Abspielen
+const ntBar = (id) => { const ed = document.getElementById(id); return ed ? Number(ed.dataset.bar) || 0 : 0; };
 document.addEventListener('click', (ev) => {
   const cell = ev.target.closest('.nt-cell');
   const actBtn = ev.target.closest('[data-nt-act]');
-  if (!cell && !actBtn) return;
-  const id = (cell && cell.dataset.nt) || actBtn.dataset.ntId; const n = S.nt && S.nt[id]; if (!n) return;
+  const barBtn = ev.target.closest('[data-nt-bar]');
+  if (!cell && !actBtn && !barBtn) return;
+  const id = (cell && cell.dataset.nt) || (actBtn && actBtn.dataset.ntId) || barBtn.dataset.ntId; const n = S.nt && S.nt[id]; if (!n) return;
+  if (barBtn) { refreshEditor(id, true, Number(barBtn.dataset.ntBar)); return; }
   if (cell) {
     DrumNotation.toggle(n, cell.dataset.k, Number(cell.dataset.i));
     if (DrumNotation.has(n, cell.dataset.k, Number(cell.dataset.i))) { try { DrumNotation.hit(cell.dataset.k, 0); } catch (e) {} }
     refreshEditor(id, false);
   } else if (actBtn.dataset.ntAct === 'play') {
     if (DrumNotation.isPlaying()) { DrumNotation.stop(); actBtn.textContent = 'Abspielen'; }
-    else { DrumNotation.play(n, n.bpm, DrumNotation.cursorFor(document.querySelector('#' + id + ' .nt-staff svg'))); actBtn.textContent = 'Stopp'; }
-  } else if (actBtn.dataset.ntAct === 'clear') { const e = DrumNotation.empty(n.sig, n.bars, n.bpm); n.tracks = e.tracks; refreshEditor(id, true); }
+    else { DrumNotation.play(n, n.bpm, DrumNotation.cursorFor(document.querySelector('#' + id + ' .nt-staff'))); actBtn.textContent = 'Stopp'; }
+  } else if (actBtn.dataset.ntAct === 'clear') {
+    const pb = DrumNotation.perBar(n.sig), bar = ntBar(id);
+    for (const k in n.tracks) n.tracks[k] = n.tracks[k].filter((i) => i < bar * pb || i >= (bar + 1) * pb);
+    refreshEditor(id, true, bar);
+  }
 });
 document.addEventListener('change', (ev) => {
   const ctl = ev.target.dataset && ev.target.dataset.ntCtl; if (!ctl) return;
   const ed = ev.target.closest('.nt-editor'); const id = ed && ed.id; const n = S.nt && S.nt[id]; if (!n) return;
+  const bar = ntBar(id);
   if (ctl === 'bpm') { n.bpm = Math.max(30, Math.min(300, Number(ev.target.value) || 80)); DrumNotation.setTempo(n.bpm); return; }
+  if (ctl === 'mark') { const v = ev.target.value.trim(); if (v) n.marks[bar] = v.slice(0, 30); else delete n.marks[bar]; refreshEditor(id, true, bar); return; }
+  if (ctl === 'repeat') { n.repeat = ev.target.checked ? [...new Set(n.repeat.concat(bar))] : n.repeat.filter((b) => b !== bar); refreshEditor(id, true, bar); return; }
   const wasPlaying = DrumNotation.isPlaying(); DrumNotation.stop();
-  if (ctl === 'sig' && ev.target.value !== n.sig) { const e = DrumNotation.empty(ev.target.value, n.bars, n.bpm); n.sig = e.sig; n.tracks = e.tracks; }
+  if (ctl === 'sig' && ev.target.value !== n.sig) { const e = DrumNotation.empty(ev.target.value, n.bars, n.bpm); n.sig = e.sig; n.tracks = e.tracks; n.repeat = []; }
   if (ctl === 'bars') {
-    const oldBars = n.bars, pb = DrumNotation.total(n) / oldBars; n.bars = Number(ev.target.value); const max = DrumNotation.total(n);
-    for (const k in n.tracks) {
-      let t = n.tracks[k].filter((i) => i < max);
-      // neue Takte übernehmen den ersten Takt, damit man nur noch Fills ändern muss
-      if (n.bars > oldBars) { const first = n.tracks[k].filter((i) => i < pb); for (let b = oldBars; b < n.bars; b++) t = t.concat(first.map((i) => i + b * pb)); }
-      n.tracks[k] = [...new Set(t)].sort((a, b) => a - b);
-    }
+    const oldBars = n.bars, newBars = Number(ev.target.value);
+    DrumNotation.setBars(n, newBars);
+    // neue Takte wiederholen zunächst den Takt davor; ausschreiben per Haken
+    for (let b = oldBars; b < newBars; b++) if (b > 0 && !n.repeat.includes(b)) n.repeat.push(b);
   }
-  refreshEditor(id, true);
+  refreshEditor(id, true, Math.min(bar, n.bars - 1));
   if (wasPlaying) toast('Wiedergabe gestoppt');
 });
-function refreshEditor(id, full) {
+// Gitarren Editor
+document.addEventListener('click', (ev) => {
+  const sc = ev.target.closest('.gt-scell'), tc = ev.target.closest('.gt-tcell'), act = ev.target.closest('[data-gt-act]');
+  if (!sc && !tc && !act) return;
+  const id = (sc || tc || act).dataset.gt || act.dataset.gtId; const g = S.gt && S.gt[id]; if (!g) return;
+  if (sc) { const i = Number(sc.dataset.gtS); g.strum.cells[i] = Guitar.cycle(g.strum.cells[i]); if (g.strum.cells[i] && g.strum.cells[i] !== 'X') Guitar.strum(g.chords[0] || 'G', g.strum.cells[i]); return refreshGuitar(id); }
+  if (tc) { S.gtSel = tc.dataset.gtT.split(',').map(Number); return refreshGuitar(id); }
+  const a = act.dataset.gtAct;
+  if (a === 'addChord') { const v = $('#' + id + '-add').value; if (g.chords.length < 16) g.chords.push(v); }
+  if (a === 'rmChord') g.chords.splice(Number(act.dataset.i), 1);
+  if (a === 'fret' && S.gtSel) { const [st, step] = S.gtSel, f = Number(act.dataset.f); g.tab.notes = g.tab.notes.filter((x) => !(x[0] === st && x[1] === step)); if (f >= 0) g.tab.notes.push([st, step, f]); S.gtSel = null; }
+  if (a === 'playStrum' || a === 'playTab') {
+    if (Guitar.isPlaying()) { Guitar.stop(); act.textContent = a === 'playTab' ? 'Tabs abspielen' : 'Schlagmuster mit Akkorden abspielen'; return; }
+    const root = document.getElementById(id); Guitar.play(g, a === 'playTab' ? 'tab' : 'strum', g.bpm, Guitar.cursorFor(root.querySelector(a === 'playTab' ? '.gt-tab' : '.gt-strum'))); act.textContent = 'Stopp'; return;
+  }
+  refreshGuitar(id);
+});
+document.addEventListener('change', (ev) => {
+  const ctl = ev.target.dataset && ev.target.dataset.gtCtl; if (!ctl) return;
+  const ed = ev.target.closest('.gt-editor'); const g = S.gt && ed && S.gt[ed.id]; if (!g) return;
+  const v = Number(ev.target.value);
+  if (ctl === 'capo') g.capo = v;
+  if (ctl === 'bpm') { g.bpm = Math.max(30, Math.min(300, v || 80)); Guitar.setTempo(g.bpm); return; }
+  if (ctl === 'sub' || ctl === 'sbars') {
+    Guitar.stop();
+    if (ctl === 'sub') { const old = g.strum; g.strum = { sub: v, bars: old.bars, cells: Array.from({ length: v * old.bars }, (_, i) => (v === 16 ? (i % 2 ? '' : old.cells[i / 2] || '') : old.cells[i * 2] || '')) }; }
+    else { const c = g.strum.cells, sub = g.strum.sub; g.strum.bars = v; g.strum.cells = Array.from({ length: sub * v }, (_, i) => (i < c.length ? c[i] : c[i % sub]) || ''); }
+  }
+  if (ctl === 'tbars') { g.tab.bars = v; g.tab.notes = g.tab.notes.filter((x) => x[1] < v * 16); }
+  refreshGuitar(ed.id);
+});
+function refreshGuitar(id) {
+  const box = document.getElementById(id); if (!box) return;
+  const tmp = document.createElement('div'); tmp.innerHTML = Guitar.editorHTML(S.gt[id], id, S.gtSel); box.replaceWith(tmp.firstElementChild);
+}
+function refreshEditor(id, full, bar) {
   const box = document.getElementById(id); if (!box) return;
   const n = S.nt[id];
-  if (full) { const tmp = document.createElement('div'); tmp.innerHTML = DrumNotation.editorHTML(n, id); box.replaceWith(tmp.firstElementChild); return; }
+  if (full) { const tmp = document.createElement('div'); tmp.innerHTML = DrumNotation.editorHTML(n, id, bar == null ? ntBar(id) : bar); box.replaceWith(tmp.firstElementChild); return; }
   box.querySelector('.nt-staff').innerHTML = DrumNotation.render(n, { cursor: true });
   box.querySelectorAll('.nt-cell').forEach((c) => c.setAttribute('aria-pressed', String(DrumNotation.has(n, c.dataset.k, Number(c.dataset.i)))));
-  if (DrumNotation.isPlaying()) DrumNotation.play(n, n.bpm, DrumNotation.cursorFor(box.querySelector('.nt-staff svg')));
+  if (DrumNotation.isPlaying()) DrumNotation.play(n, n.bpm, DrumNotation.cursorFor(box.querySelector('.nt-staff')));
 }
 document.addEventListener('input', (ev) => {
   const k = ev.target.dataset && ev.target.dataset.draft;
@@ -775,7 +911,7 @@ document.addEventListener('submit', async (ev) => {
     } else if (fid === 'exerciseForm') {
       const data = Object.fromEntries(new FormData(f)); if (!data.id) delete data.id;
       for (const k of Object.keys(data)) if (k.startsWith('nt_')) delete data[k];
-      data.notation = S.nt && S.nt.ex ? S.nt.ex : null; DrumNotation.stop();
+      data.notation = S.gt && S.gt.gx ? S.gt.gx : S.nt && S.nt.ex ? S.nt.ex : null; DrumNotation.stop(); Guitar.stop();
       await api('/api/t/exercise/save', data); S.exercises = (await api('/api/t/exercises')).exercises; closeOverlay(); toast('Gespeichert');
     } else if (fid === 'assignForm') {
       const exId = $('#a_ex').value, free = $('#a_free').value.trim();

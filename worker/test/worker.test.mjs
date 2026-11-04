@@ -210,3 +210,15 @@ test('Import alter Stunden: nur Lehrer, privat, ohne Protokollflut', async () =>
   const feed = (await w.call('/api/t/feed', {}, w.t)).data.feed.filter((f) => f.action === 'import');
   assert.equal(feed.length, 1);
 });
+
+test('Song Chart: 16 Takte, Teile, Wiederholungen; Gitarre wird geprüft', async () => {
+  const w = await world();
+  const id = (await w.call('/api/t/exercise/save', { title: 'Song', notation: { sig: '4/4', bars: 16, tracks: { bd: [0, 255, 256] }, marks: { 0: 'Intro', 4: 'Refrain', 20: 'zu weit' }, repeat: [0, 1, 2, 99] } }, w.t)).data.id;
+  const e = (await w.call('/api/t/exercises', {}, w.t)).data.exercises.find((x) => x.id === id);
+  const n = JSON.parse(e.notation);
+  assert.equal(n.bars, 16); assert.deepEqual(n.tracks.bd, [0, 255]); assert.deepEqual(n.marks, { 0: 'Intro', 4: 'Refrain' }); assert.deepEqual(n.repeat, [1, 2]);
+  const g = (await w.call('/api/t/exercise/save', { title: 'Gitarre', notation: { kind: 'guitar', capo: 2, chords: ['G', 'D', 'Em', 'C'], strum: { sub: 8, bars: 1, cells: ['D', '', 'D', 'U', 'Z', 'U', 'D', 'U'] }, tab: { bars: 1, notes: [[0, 0, 3], [0, 0, 5], [7, 1, 1], [5, 2, 30]] } } }, w.t)).data.id;
+  const ge = JSON.parse((await w.call('/api/t/exercises', {}, w.t)).data.exercises.find((x) => x.id === g).notation);
+  assert.equal(ge.kind, 'guitar'); assert.equal(ge.capo, 2); assert.deepEqual(ge.strum.cells, ['D', '', 'D', 'U', '', 'U', 'D', 'U']); assert.deepEqual(ge.tab.notes, [[0, 0, 3]]);
+  assert.equal((await w.call('/api/t/exercise/save', { title: 'M', source_type: 'musora', url: 'https://app.musora.com/playlists/1' }, w.t)).status, 200);
+});
