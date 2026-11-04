@@ -5,7 +5,7 @@ const out = process.argv[2] || 'shot';
 (async () => {
   const api = async (tok, p, b) => { const r = await fetch(APP + p, { method: 'POST', headers: { 'Content-Type': 'application/json', Origin: APP, ...(tok ? { Authorization: 'Bearer ' + tok } : {}) }, body: JSON.stringify(b || {}) }); const j = await r.json(); if (!r.ok) throw new Error(p + ' ' + JSON.stringify(j)); return j; };
   const t = (await api(null, '/api/login', { code: 'LEHRER2345XY', device: 'shot' })).token;
-  const { id } = await api(t, '/api/t/student/save', { first_name: 'Max', weekday: 3, lesson_time: '16:20', lesson_minutes: 40, instrument: 'Schlagzeug' });
+  const { id } = await api(t, '/api/t/student/save', { first_name: process.env.ADULT ? 'Lena' : 'Max', birth_year: process.env.ADULT ? 1994 : undefined, weekday: 3, lesson_time: '16:20', lesson_minutes: 40, instrument: 'Schlagzeug' });
   const ex1 = await api(t, '/api/t/exercise/save', { title: 'Paradiddle Groove', category: 'Technik', source_type: 'youtube', url: 'https://www.youtube.com/watch?v=dQw4w9WgXcQ', target_bpm: 90 });
   const ex2 = await api(t, '/api/t/exercise/save', { title: 'Song: Way Maker Intro', category: 'Song', source_type: 'youtube', url: 'https://www.youtube.com/watch?v=dQw4w9WgXcQ' });
   await api(t, '/api/t/lesson/finish', { student_id: id, minutes: 40, notes_shared: 'Gut gemacht. Achte auf lockere Handgelenke.', new_assignments: [{ exercise_id: ex1.id, target_bpm: 90, start_bpm: 70, minutes_per_day: 10 }, { exercise_id: ex2.id, minutes_per_day: 10 }, { free_text: 'Ghost Notes auf der Snare, ganz leise', minutes_per_day: 5 }, { free_text: 'Rudiment: Single Stroke Roll', url: 'youtu.be/dQw4w9WgXcQ', minutes_per_day: 5 }] });
@@ -24,6 +24,8 @@ const out = process.argv[2] || 'shot';
   const consent = p.getByRole('button', { name: /zustimm|Einverstanden|Weiter/i }).first();
   if (await consent.count()) { await consent.click().catch(() => {}); await p.waitForTimeout(800); }
   await p.screenshot({ path: out + '-home.png', fullPage: true });
+  await p.click('.task .thumb'); await p.waitForTimeout(500); await p.screenshot({ path: out + '-video.png' });
+  console.log('iframe:', await p.getAttribute('.yt iframe', 'src')); await p.click('[data-act=close]');
   if (process.argv[3]) {
     await p.click('.tile[data-act="metroOpen"]'); await p.waitForTimeout(400);
     await p.check('#ma_on'); await p.fill('#ma_bars', '1'); await p.fill('#ma_add', '10'); await p.fill('#ma_max', '100'); await p.locator('#ma_max').dispatchEvent('change');
