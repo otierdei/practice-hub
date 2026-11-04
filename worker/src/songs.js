@@ -59,9 +59,16 @@ const KEY = /^[A-H](#|b)?m?$/;
 export function parseSongName(name) {
   const ext = (/\.([a-z0-9]+)$/i.exec(name) || [])[1] || '';
   let base = name.replace(/\.[a-z0-9]+$/i, '').replace(/^\s*\d+\s*[.)]\s*/, '');
-  const m = /^(.*?)\s*-\s*(.+)$/.exec(base);
   let title = base, rest = '';
-  if (m) { title = m[1]; rest = m[2]; }
+  if (!/\s/.test(base) && base.includes('-')) {
+    // "Du-allein-rettest-mich-E": Bindestriche statt Leerzeichen, Tonart und Zahlen hinten abschneiden
+    const tk = base.split('-'); const tail = [];
+    while (tk.length > 1 && (KEY.test(tk[tk.length - 1]) || /^\d+$/.test(tk[tk.length - 1]) || /^chords$/i.test(tk[tk.length - 1]))) tail.unshift(tk.pop());
+    title = tk.join(' '); title = title.charAt(0).toUpperCase() + title.slice(1); rest = tail.join(' ');
+  } else {
+    const m = /^(.*?)\s*-\s*(.+)$/.exec(base);
+    if (m) { title = m[1]; rest = m[2]; }
+  }
   let key = null, bpm = null;
   for (const t of rest.split(/[\s-]+/)) {
     if (!key && KEY.test(t)) key = t;

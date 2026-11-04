@@ -272,3 +272,8 @@ test('Abgleich, Bibliothek, Sonntag nur für Lobpreis, Meine Setlist, Bausteine'
     assert.equal((await w.call('/api/t/student', { id: w.a }, w.t)).data.worship, true);
   } finally { restore(); }
 });
+test('Songnamen mit Bindestrichen statt Leerzeichen', () => {
+  assert.deepEqual(parseSongName('Du-allein-rettest-mich-E.pdf'), { title: 'Du allein rettest mich', key: 'E', bpm: null, kind: 'pdf' });
+  assert.equal(parseSongName('o-praise-the-name-anastasis-C-2.pdf').title, 'O praise the name anastasis');
+  assert.equal(parseSongName('After Your Heart-chords-G-2.pdf').title, 'After Your Heart');
+});
