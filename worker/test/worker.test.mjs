@@ -291,3 +291,30 @@ test('Eigene Ziele erst ab 14 Jahren', async () => {
   const g = (await w.call('/api/t/student', { id: w.b }, w.t)).data.goals;
   assert.ok(g.some((x) => x.title === 'Paradiddle auf 100' && x.status === 'erreicht'), 'Lehrer sieht das Ziel');
 });
+
+test('Kurs: Import, Lektion zuweisen und abhaken, Level, Rechte', async () => {
+  const w = await world();
+  const seed = { course: 'drums', levels: [{ level: 1, name: 'Starter' }, { level: 2, name: 'Beat Builder' }],
+    lessons: [{ num: 1, level: 1, title: 'Namen des Drumsets', items: [{ kind: 'text', title: 'Bassdrum, Snare, Hi Hat' }] },
+      { num: 2, level: 1, title: 'Beat 1', items: [{ kind: 'video', title: 'Beat 1 erklärt', url: 'https://youtu.be/abcdefghijk' }] },
+      { num: 3, level: 2, title: 'Fill 1', items: [{ kind: 'song', title: 'Yellow', song_title: 'Yellow' }] }] };
+  assert.equal((await w.call('/api/t/course/import', seed, w.ta)).status, 403, 'Schüler darf nicht importieren');
+  assert.equal((await w.call('/api/t/course/import', seed, w.t)).data.lessons, 3);
+  assert.equal((await w.call('/api/t/course/import', seed, w.t)).status, 409, 'kein doppelter Import');
+  let c = (await w.call('/api/course', {}, w.ta)).data;
+  assert.equal(c.lessons.length, 3); assert.equal(c.level.level, 1); assert.equal(c.level.done, 0);
+  const [l1, l2, l3] = c.lessons;
+  assert.equal((await w.call('/api/t/course/assign', { student_id: w.a, lesson_id: l1.id, status: 'offen' }, w.ta)).status, 403);
+  await w.call('/api/t/course/assign', { student_id: w.a, lesson_id: l1.id, status: 'fertig' }, w.t);
+  await w.call('/api/t/course/assign', { student_id: w.a, lesson_id: l2.id, status: 'fertig' }, w.t);
+  await w.call('/api/t/course/assign', { student_id: w.a, lesson_id: l3.id, status: 'offen' }, w.t);
+  c = (await w.call('/api/course', {}, w.ta)).data;
+  assert.equal(c.level.level, 2, 'Level 1 komplett, jetzt Level 2'); assert.equal(c.progress[l3.id].status, 'offen');
+  assert.deepEqual((await w.call('/api/course', {}, w.tb)).data.progress, {}, 'Fortschritt ist pro Schüler');
+  assert.equal((await w.call('/api/course', { student_id: w.a }, w.t)).data.level.level, 2, 'Lehrer sieht Annas Level');
+  const it = await w.call('/api/t/course/item/save', { lesson_id: l3.id, kind: 'video', title: 'Fill 1 langsam', url: 'youtu.be/abcdefghijk' }, w.t);
+  assert.equal(it.status, 200);
+  assert.equal((await w.call('/api/course', {}, w.ta)).data.lessons[2].items.length, 2);
+  await w.call('/api/t/course/assign', { student_id: w.a, lesson_id: l3.id, status: null }, w.t);
+  assert.equal((await w.call('/api/course', {}, w.ta)).data.progress[l3.id], undefined);
+});

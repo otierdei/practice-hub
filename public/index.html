@@ -79,6 +79,15 @@ body.kid{--bg:#fbf3e4;--surface:#ffffff;--sunk:#f6ead3;--ink:#23241f;--muted:#4a
 .num{width:22px;flex:none;font-weight:700;opacity:.8}
 .iconbtn.add{font-size:1.3rem;font-weight:700}.iconbtn.add.on{background:var(--accent);color:var(--accent-ink)}
 .kid .sunday-card{border:3px solid #23241f}
+.level-card{display:flex;align-items:center;gap:14px;width:100%;padding:14px 16px;border:1px solid var(--line);border-radius:22px;background:var(--surface);color:var(--ink);font:inherit;cursor:pointer}
+.lv-badge{display:grid;place-items:center;width:48px;height:48px;border-radius:50%;background:var(--ring2);color:#fff;font-weight:800;font-size:1.3rem;flex:none}
+.small-badge{width:32px;height:32px;font-size:1rem}
+.lv-head{display:flex;align-items:center;gap:10px}
+.bar{display:block;height:8px;border-radius:4px;background:var(--track);overflow:hidden}.bar span{display:block;height:8px;background:var(--accent)}
+.lesson-dot{display:grid;place-items:center;width:32px;height:32px;border-radius:50%;border:2px solid var(--line);flex:none;font-weight:700;font-size:.9rem}
+.lesson-dot.fertig{background:var(--accent);color:var(--accent-ink);border-color:var(--accent)}
+.lesson-dot.offen{border-color:var(--ring2);color:var(--ring2)}
+.kid .level-card{border:3px solid #23241f;background:#fff}.kid .lv-badge{background:#2e86ab;border:3px solid #23241f}
 .tiles{display:grid;grid-template-columns:repeat(auto-fit,minmax(96px,1fr));gap:10px}
 .tile{display:flex;flex-direction:column;align-items:center;gap:6px;padding:14px 8px;border:1px solid var(--line);border-radius:20px;background:var(--surface);color:var(--ink);font:inherit;font-size:.95rem;cursor:pointer}
 .thumb{position:relative;display:block;flex:none;width:118px;border-radius:12px;overflow:hidden;aspect-ratio:16/9;background:var(--track)}
@@ -283,7 +292,10 @@ function loginView() {
 async function load() {
   try {
     S.data = await api('/api/home');
-    if (S.role === 'student' || S.role === 'teacher') { try { S.songs = await api('/api/songs'); } catch (e) { S.songs = null; } }
+    if (S.role === 'student' || S.role === 'teacher') {
+      try { S.songs = await api('/api/songs'); } catch (e) { S.songs = null; }
+      try { S.course = await api('/api/course'); } catch (e) { S.course = null; }
+    }
     if (S.role === 'teacher' && !S.exercises) S.exercises = (await api('/api/t/exercises')).exercises;
     S.loadError = null;
   } catch (e) { S.loadError = e.message; }
@@ -344,7 +356,7 @@ function teacherView() {
   } else if (t === 'bibliothek') {
     const ex = S.exercises || [];
     const cats = [...new Set(ex.map((e) => e.category || 'Ohne Kategorie'))];
-    html = `<div class="row between"><h1>Bibliothek</h1><div class="row"><button class="btn small" data-act="newBeat">Beat schreiben</button><button class="btn small" data-act="newGuitar">Gitarre schreiben</button><button class="btn primary small" data-act="newExercise">Übung anlegen</button></div></div>
+    html = `<div class="row between"><h1>Bibliothek</h1><div class="row"><button class="btn primary small" data-act="course">Schlagzeug Kurs</button><button class="btn small" data-act="newBeat">Beat schreiben</button><button class="btn small" data-act="newGuitar">Gitarre schreiben</button><button class="btn primary small" data-act="newExercise">Übung anlegen</button></div></div>
     ${ex.length ? cats.map((c) => `<section class="card"><h3>${esc(c)}</h3><div class="list">${ex.filter((e) => (e.category || 'Ohne Kategorie') === c).map((e) =>
       `<div class="item" style="flex-direction:column;align-items:stretch"><button class="link t" data-act="editExercise" data-id="${e.id}"><b>${esc(e.title)}</b><br><span class="muted small">${esc(sourceLabel(e))}${e.target_bpm ? ' · Ziel ' + e.target_bpm + ' BPM' : ''}</span></button>${notationPreview(e.notation, e.title)}</div>`).join('')}</div></section>`).join('')
       : `<div class="empty">Noch keine Übungen. Lege Grooves, Fills, Rudiments oder Worship Songs mit Link oder Buchseite an.</div>`}`;
@@ -386,6 +398,7 @@ function sourceLabel(e) {
 async function openStudent(id) {
   try {
     const f = await api('/api/t/student', { id });
+    try { f.course = await api('/api/course', { student_id: id }); } catch (e) { f.course = null; }
     S.file = f;
     openOverlay(studentFileView);
   } catch (e) { toast(e.message); }
@@ -415,6 +428,7 @@ function studentFileView() {
     </div>
     <section class="card"><h3>Stunden <span class="muted small">(${f.lessons.length})</span></h3><div class="list">${f.lessons.length ? f.lessons.slice(0, S.allLessons ? 9999 : 10).map((l) => `<div class="item"><div class="t col" style="gap:2px"><b>${esc(fmtDate(l.date))}${l.date.slice(0, 4) !== String(new Date().getFullYear()) ? ' ' + l.date.slice(0, 4) : ''}</b>${l.notes_shared ? `<span style="white-space:pre-line">${esc(l.notes_shared)}</span>` : ''}${l.notes_teacher ? `<span class="muted small" style="white-space:pre-line">Privat: ${esc(l.notes_teacher)}</span>` : ''}</div></div>`).join('') : '<p class="muted">Noch keine Stunde.</p>'}</div>
       ${f.lessons.length > 10 && !S.allLessons ? '<button class="btn small" data-act="allLessons">Alle ' + f.lessons.length + ' Stunden anzeigen</button>' : ''}</section>
+    ${fileCourseCard(f)}
     <section class="card"><div class="row between"><h3>Zugänge</h3><div class="row"><button class="btn small" data-act="newAccess" data-role="student">Schülerlink</button><button class="btn small" data-act="newAccess" data-role="parent">Elternlink</button></div></div>
       ${S.newLink ? `<div class="col"><span class="small muted">Neuer Link, nur jetzt sichtbar. Schick ihn per Nachricht weiter:</span><div class="code" id="newLink">${esc(S.newLink)}</div><button class="btn small" data-act="copyLink">Link kopieren</button></div>` : ''}
       <div class="list">${f.access.length ? f.access.map((a) => `<div class="item"><span class="t">${a.role === 'parent' ? 'Eltern' + (a.label ? ' (' + esc(a.label) + ')' : '') : 'Schüler'}<br><span class="muted small">${a.revoked_at ? 'gesperrt' : a.last_seen ? 'zuletzt ' + esc(fmtDate(a.last_seen)) : 'noch nicht geöffnet'}</span></span>${a.revoked_at ? '' : `<button class="btn small danger" data-act="revoke" data-id="${a.id}">Sperren</button>`}</div>`).join('') : '<p class="muted">Noch kein Link erzeugt.</p>'}</div>
@@ -554,9 +568,11 @@ function studentView(d = S.data, t = S.tab) {
       <button class="tile" data-ptab="fortschritt" data-tab="fortschritt"><svg viewBox="0 0 24 24" width="28" height="28" aria-hidden="true"><path d="M4 20V10M10 20V4M16 20v-7M22 20H2" stroke="currentColor" stroke-width="2" stroke-linecap="round"/></svg><span>${weekMin}′ Woche</span></button>
     </div>
     ${!S.preview && S.songs && S.songs.sunday ? `<button class="sunday-card" data-tab="songs"><span class="col" style="gap:2px;align-items:flex-start"><span class="small">${esc(fmtSunday(S.songs.sunday.date))} · Du spielst</span><b>Setlist Gottesdienst</b><span class="small">${S.songs.sunday.items.map((i) => esc(i.title)).join(' · ')}</span></span>${ICON_NOTE}</button>` : ''}
+    ${!S.preview && S.course && S.course.lessons.length && S.course.level ? levelCard(S.course) : ''}
     ${pending ? `<span class="pill">${pending} Sitzung${pending > 1 ? 'en' : ''} wird gesendet, sobald Internet da ist</span>` : ''}
     <section class="col"><div class="row between"><h2>Deine Aufgaben</h2>${streak ? `<span class="pill">${streak} ${streak === 1 ? 'Woche' : 'Wochen'} in Folge</span>` : ''}</div>
-      ${open.length ? open.map((a) => assignmentCard(a, sessions)).join('') : '<div class="empty">Keine offenen Aufgaben. Tipp oben auf Üben und spiel frei.</div>'}
+      ${openLessonCards()}
+      ${open.length ? open.map((a) => assignmentCard(a, sessions)).join('') : openLessonCards() ? '' : '<div class="empty">Keine offenen Aufgaben. Tipp oben auf Üben und spiel frei.</div>'}
     </section>
     ${done.length ? `<details class="card"><summary>Erledigt (${done.length})</summary><div class="list">${done.map((a) => `<div class="item"><span class="t">${esc(a.title || a.free_text)}</span><button class="check on" data-act="toggleDone" data-id="${a.id}" aria-pressed="true" aria-label="Wieder öffnen">✓</button></div>`).join('')}</div></details>` : ''}
     ${d.student.is_minor && !d.consent ? `<p class="small muted">Deine Eltern bekommen von Oti einen eigenen Link und stimmen dort zu, dass deine Übezeiten gespeichert werden.</p>` : ''}`;
@@ -590,6 +606,63 @@ function studentView(d = S.data, t = S.tab) {
 function isKid(st) { return !st.birth_year || new Date().getFullYear() - st.birth_year < 13; }
 const DRUM_FACE = '<svg class="mascot" viewBox="0 0 76 76" width="64" height="64" role="img" aria-label="Lachende Trommel"><ellipse cx="38" cy="26" rx="28" ry="10" fill="#f2c14e" stroke="#23241f" stroke-width="3"/><path d="M10 26v26c0 6 12.5 11 28 11s28-5 28-11V26" fill="#e4572e" stroke="#23241f" stroke-width="3"/><circle cx="29" cy="42" r="3" fill="#23241f"/><circle cx="47" cy="42" r="3" fill="#23241f"/><path d="M30 50q8 7 16 0" stroke="#23241f" stroke-width="3" fill="none" stroke-linecap="round"/><path d="M54 4l-8 18M66 8l-14 16" stroke="#23241f" stroke-width="4" stroke-linecap="round"/></svg>';
 const GUITAR_FACE = '<svg class="mascot" viewBox="0 0 76 76" width="64" height="64" role="img" aria-label="Lachende Gitarre"><path d="M50 6l14 14-14 12" stroke="#23241f" stroke-width="5" stroke-linecap="round"/><path d="M30 30c-6-6-18-4-22 4s-2 22 8 28 24 6 30-2 2-18-4-22c4-6 0-10-4-8z" fill="#f2c14e" stroke="#23241f" stroke-width="3"/><circle cx="26" cy="46" r="7" fill="#e4572e" stroke="#23241f" stroke-width="3"/><path d="M46 28L62 12" stroke="#23241f" stroke-width="4"/><circle cx="20" cy="36" r="2.5" fill="#23241f"/><circle cx="34" cy="36" r="2.5" fill="#23241f"/></svg>';
+// ---------- Kurs: Level und Lektionen ----------
+function levelCard(c) {
+  const lv = c.level, pct = lv.total ? Math.round(lv.done / lv.total * 100) : 0;
+  return `<button class="level-card" data-act="course"><span class="lv-badge">${lv.level}</span><span class="col" style="gap:4px;flex:1;align-items:stretch;text-align:left"><b>Level ${lv.level} · ${esc(lv.name)}</b>
+    <span class="bar"><span style="width:${pct}%"></span></span><span class="small muted">${lv.complete ? 'Alle Level geschafft!' : lv.done + ' von ' + lv.total + ' Lektionen geschafft'}</span></span></button>`;
+}
+function openLessonCards() {
+  const c = S.course; if (!c || S.preview) return '';
+  return c.lessons.filter((l) => c.progress[l.id] && c.progress[l.id].status === 'offen').map((l) => `<section class="card task lesson-task"><div class="row" style="flex-wrap:nowrap;align-items:center;gap:14px">
+    <span class="task-icon" aria-hidden="true"><b>${l.num}</b></span><div class="col" style="gap:2px;flex:1;min-width:0"><span class="small muted">Lektion ${l.num} · Level ${l.level}</span><b class="task-title">${esc(l.title)}</b><span class="muted small">${lessonSummary(l)}</span></div></div>
+    <button class="btn primary" data-act="courseLesson" data-id="${l.id}">Lektion öffnen</button></section>`).join('');
+}
+function lessonSummary(l) { const v = l.items.filter((i) => i.kind === 'video').length, so = l.items.filter((i) => i.kind === 'song').length; return [v ? v + ' Video' + (v > 1 ? 's' : '') : '', so ? so + ' Song' + (so > 1 ? 's' : '') : ''].filter(Boolean).join(' · ') || 'Mit Oti in der Stunde'; }
+function courseOf() { return S.role === 'teacher' && S.fileCourseOpen && S.file ? S.file.course : S.course; }
+function courseView() {
+  const c = courseOf(); if (!c) return '';
+  const teacher = S.role === 'teacher';
+  const st = (l) => c.progress[l.id] ? c.progress[l.id].status : null;
+  return `<div class="wrap" style="max-width:720px;align-items:stretch">
+    <div class="row between"><button class="btn small" data-act="courseBack">Zurück</button>${c.level ? `<span class="pill">Level ${c.level.level} · ${esc(c.level.name)}</span>` : ''}</div>
+    <h1>${teacher && S.fileCourseOpen ? esc(S.file.student.first_name) + 's Weg' : teacher ? 'Schlagzeug Kurs' : 'Dein Weg'}</h1>
+    ${c.lessons.length ? c.levels.map((lv) => { const ls = c.lessons.filter((l) => l.level === lv.level); return `<section class="col"><h2 class="lv-head"><span class="lv-badge small-badge">${lv.level}</span>${esc(lv.name)}</h2>
+      <section class="card"><div class="list">${ls.map((l) => `<div class="item"><span class="lesson-dot ${st(l) || ''}" aria-label="${st(l) === 'fertig' ? 'geschafft' : st(l) === 'offen' ? 'aufgegeben' : 'noch nicht dran'}">${st(l) === 'fertig' ? '✓' : l.num}</span><button class="t song-open" data-act="courseLesson" data-id="${l.id}"><b>${esc(l.title)}</b><span class="small muted">${lessonSummary(l)}${st(l) === 'offen' ? ' · Hausaufgabe' : ''}</span></button>
+        ${teacher && S.fileCourseOpen ? `<button class="btn small" data-act="lessonState" data-id="${l.id}">${st(l) === 'fertig' ? 'Zurücksetzen' : st(l) === 'offen' ? 'Geschafft' : 'Aufgeben'}</button>` : ''}</div>`).join('')}</div></section></section>`; }).join('') : '<div class="empty">Der Kurs ist noch leer.</div>'}
+  </div>`;
+}
+function lessonView() {
+  const c = courseOf(); const l = c && c.lessons.find((x) => x.id === S.lessonId); if (!l) return '';
+  const teacher = S.role === 'teacher' && !S.preview;
+  return `<div class="wrap" style="max-width:720px;align-items:stretch">
+    <div class="row between"><button class="btn small" data-act="backToCourse">Zurück</button><span class="pill">Level ${l.level} · Lektion ${l.num}</span></div>
+    <h1>${esc(l.title)}</h1>
+    ${l.body ? `<p style="white-space:pre-line">${esc(l.body)}</p>` : ''}
+    ${l.items.map((it) => it.kind === 'video' ? `<section class="card col"><b>${esc(it.title)}</b>${ytEmbed(it.url) || `<a class="btn small" href="${esc(it.url)}" target="_blank" rel="noopener">Link öffnen</a>`}${it.notes ? `<span class="small muted">${esc(it.notes)}</span>` : ''}${teacher ? `<button class="btn small danger" data-act="itemDelete" data-id="${it.id}">Entfernen</button>` : ''}</section>`
+      : it.kind === 'song' ? `<section class="card"><div class="row" style="flex-wrap:nowrap;gap:12px;align-items:center"><span class="task-icon" aria-hidden="true">${ICON_NOTE}</span><div class="col" style="gap:0;flex:1;min-width:0"><span class="small muted">Song</span><b>${esc(it.title)}</b>${it.notes ? `<span class="small muted">${esc(it.notes)}</span>` : ''}</div>${it.song_id ? `<button class="btn small" data-act="song" data-id="${esc(it.song_id)}">Öffnen</button>` : ''}${teacher ? `<button class="btn small danger" data-act="itemDelete" data-id="${it.id}">Entfernen</button>` : ''}</div></section>`
+      : `<section class="card"><div class="row between" style="flex-wrap:nowrap"><span style="white-space:pre-line">${esc(it.title)}${it.notes ? '\n' + esc(it.notes) : ''}</span>${teacher ? `<button class="btn small danger" data-act="itemDelete" data-id="${it.id}">Entfernen</button>` : ''}</div></section>`).join('')}
+    ${!l.items.length ? `<div class="empty">${teacher ? 'Noch kein Inhalt. Füg unten Videos, Songs oder Text hinzu.' : 'Diese Lektion machst du mit Oti in der Stunde.'}</div>` : ''}
+    ${S.role === 'student' && !S.preview ? '<button class="btn primary block" data-act="practiceFree">Jetzt üben</button>' : ''}
+    ${teacher ? `<form id="itemForm" class="card col"><b>Inhalt hinzufügen</b>
+      <div class="row" style="gap:6px">${[['video', 'Video'], ['song', 'Song'], ['text', 'Text']].map(([k, n]) => `<button type="button" class="chip" data-act="itemKind" data-v="${k}" aria-pressed="${(S.itemKind || 'video') === k}">${n}</button>`).join('')}</div>
+      <div class="field"><label for="it_title">${(S.itemKind || 'video') === 'song' ? 'Songtitel (wie im Lieder Ordner)' : (S.itemKind || 'video') === 'text' ? 'Text' : 'Titel'}</label><input id="it_title" maxlength="160"></div>
+      ${(S.itemKind || 'video') === 'video' ? '<div class="field"><label for="it_url">YouTube Link</label><input id="it_url" type="url" inputmode="url" placeholder="Link einfügen"></div>' : ''}
+      <div class="field"><label for="it_notes">Hinweis (optional)</label><input id="it_notes" maxlength="500"></div>
+      <button class="btn primary" type="submit">Hinzufügen</button></form>` : ''}
+  </div>`;
+}
+function fileCourseCard(f) {
+  const c = f.course; if (!c || !c.lessons.length) return '';
+  const open = c.lessons.filter((l) => c.progress[l.id] && c.progress[l.id].status === 'offen');
+  return `<section class="card"><div class="row between"><h3>Kurs · Level ${c.level ? c.level.level + ' ' + esc(c.level.name) : ''}</h3><button class="btn small primary" data-act="fileCourse">Lektionen</button></div>
+    <span class="small muted">${c.level ? c.level.done + ' von ' + c.level.total + ' Lektionen im Level geschafft' : ''}${open.length ? ' · Aufgegeben: ' + open.map((l) => 'L' + l.num).join(', ') : ''}</span></section>`;
+}
+async function reloadCourse() {
+  if (S.fileCourseOpen && S.file) S.file.course = await api('/api/course', { student_id: S.file.student.id });
+  else S.course = await api('/api/course');
+}
+
 // ---------- Songs: Sonntag, Meine Setlist, Bibliothek, Bausteine ----------
 const ICON_NOTE = '<svg viewBox="0 0 24 24" width="30" height="30" aria-hidden="true"><path d="M9 18V5l11-2v13" stroke="currentColor" stroke-width="2" fill="none"/><circle cx="6" cy="18" r="3" fill="currentColor"/><circle cx="17" cy="16" r="3" fill="currentColor"/></svg>';
 function fmtSunday(d) { return new Date(d + 'T12:00:00').toLocaleDateString('de-DE', { weekday: 'long', day: 'numeric', month: 'long' }); }
@@ -947,9 +1020,9 @@ document.addEventListener('click', async (ev) => {
   const el = ev.target.closest('[data-act]'); if (!el) return;
   const act = el.dataset.act, id = el.dataset.id;
   if (S.preview && act === 'video') { S.videoId = id; openOverlay(videoView); return; }
-  if (S.preview && act === 'close' && [videoView, songView, partVideoView].includes(S.overlay)) { closeOverlay(); return; }
+  if (S.preview && act === 'close' && [videoView, songView, partVideoView, courseView, lessonView].includes(S.overlay)) { closeOverlay(); return; }
   // In der Vorschau darf man ansehen, aber nichts ändern
-  if (S.preview && !['endPreview', 'song', 'partVideo', 'backToSong', 'songLang', 'songVideos', 'sheet'].includes(act) && el.tagName !== 'A') { toast('Vorschau: hier tippt ' + S.preview.data.student.first_name); return; }
+  if (S.preview && !['endPreview', 'song', 'partVideo', 'backToSong', 'songLang', 'songVideos', 'sheet', 'course', 'courseLesson', 'backToCourse', 'courseBack'].includes(act) && el.tagName !== 'A') { toast('Vorschau: hier tippt ' + S.preview.data.student.first_name); return; }
   try {
     switch (act) {
       case 'reload': load(); break;
@@ -1028,6 +1101,19 @@ document.addEventListener('click', async (ev) => {
       case 'metroOpen': openOverlay(metronomeView); break;
       case 'video': S.videoId = id; openOverlay(videoView); break;
       case 'goalToggle': { const r = await api('/api/goal/toggle', { id }); const g = S.data.goals.find((x) => x.id === id); g.status = r.status; render(); if (r.status === 'erreicht') toast('Ziel erreicht!'); break; }
+      case 'course': S.fileCourseOpen = false; openOverlay(courseView); break;
+      case 'courseBack': if (S.fileCourseOpen) { S.fileCourseOpen = false; openOverlay(studentFileView); } else closeOverlay(); break;
+      case 'fileCourse': S.fileCourseOpen = true; openOverlay(courseView); break;
+      case 'courseLesson': S.lessonId = id; S.lessonFrom = S.overlay; openOverlay(lessonView); break;
+      case 'backToCourse': if (S.lessonFrom === courseView) openOverlay(courseView); else closeOverlay(); break;
+      case 'itemKind': S.itemKind = el.dataset.v; openOverlay(lessonView); break;
+      case 'itemDelete': await api('/api/t/course/item/delete', { id }); await reloadCourse(); openOverlay(lessonView); break;
+      case 'lessonState': {
+        const c = S.file.course, cur = c.progress[id] ? c.progress[id].status : null;
+        const next = cur === 'fertig' ? null : cur === 'offen' ? 'fertig' : 'offen';
+        await api('/api/t/course/assign', { student_id: S.file.student.id, lesson_id: id, status: next });
+        await reloadCourse(); openOverlay(courseView); toast(next === 'offen' ? 'Als Hausaufgabe aufgegeben' : next === 'fertig' ? 'Geschafft' : 'Zurückgesetzt'); break;
+      }
       case 'song': await openSong(id); break;
       case 'sheet': window.open(driveUrl(id), '_blank', 'noopener'); break;
       case 'partVideo': S.partId = id; openOverlay(partVideoView); break;
@@ -1171,6 +1257,10 @@ document.addEventListener('submit', async (ev) => {
       const ex = S.exercises.find((e) => e.id === exId);
       S.lesson.new_assignments.push({ exercise_id: exId || null, free_text: exId ? null : free, url: exId ? null : ($('#a_url').value.trim() || null), label: ex ? ex.title : free, target_bpm: Number($('#a_bpm').value) || (ex && ex.target_bpm) || null, minutes_per_day: Number($('#a_min').value) || 10 });
       saveDraft(); render();
+    } else if (fid === 'itemForm') {
+      const kind = S.itemKind || 'video', title = $('#it_title').value.trim(); if (!title) { toast('Titel fehlt'); return; }
+      await api('/api/t/course/item/save', { lesson_id: S.lessonId, kind, title, song_title: kind === 'song' ? title : null, url: $('#it_url') ? $('#it_url').value.trim() : null, notes: $('#it_notes').value.trim() || null });
+      await reloadCourse(); openOverlay(lessonView); toast('Hinzugefügt');
     } else if (fid === 'myGoalForm') {
       const title = $('#mg_title').value.trim(); if (!title) return;
       await api('/api/goal/add', { title }); S.data = await api('/api/home'); render(); toast('Ziel gespeichert');
