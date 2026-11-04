@@ -56,6 +56,8 @@ a{color:var(--accent)}
 .practice-hero b{font-size:1.6rem;font-family:'Young Serif',serif;font-weight:400}
 .practice-hero .ph-icon{display:grid;place-items:center;width:58px;height:58px;border-radius:50%;background:color-mix(in srgb,var(--accent-ink) 16%,transparent);flex:none}
 .task .task-title{font-size:1.08rem}
+input[type=checkbox]{accent-color:var(--accent)}
+.met-auto{display:flex;flex-direction:column;gap:8px;padding:12px;border-radius:16px;background:var(--sunk)}
 .tiles{display:grid;grid-template-columns:repeat(auto-fit,minmax(96px,1fr));gap:10px}
 .tile{display:flex;flex-direction:column;align-items:center;gap:6px;padding:14px 8px;border:1px solid var(--line);border-radius:20px;background:var(--surface);color:var(--ink);font:inherit;font-size:.95rem;cursor:pointer}
 .thumb{position:relative;display:block;flex:none;width:118px;border-radius:12px;overflow:hidden;aspect-ratio:16/9;background:var(--track)}
@@ -676,6 +678,26 @@ function practiceView() {
     <button class="btn primary block" data-act="endPractice" ${el < 1000 ? 'disabled' : ''}>Sitzung beenden</button>
   </div>`;
 }
+// Automatik: alle X Takte um Y BPM schneller, bis Z
+function metAuto() { return Object.assign({ on: false, bars: 4, add: 5, max: 140 }, store.get('metauto', {})); }
+function metAutoHTML(a) {
+  const m = metAuto(); const max = a && a.target_bpm && !store.get('metauto', null) ? a.target_bpm : m.max;
+  const num = (id, v, lbl, w) => `<input id="${id}" type="number" inputmode="numeric" value="${v}" aria-label="${lbl}" style="width:${w}px;min-height:40px;text-align:center;padding:0 4px">`;
+  return `<div class="met-auto">
+    <label class="row" style="gap:10px;font-weight:600"><input type="checkbox" id="ma_on" ${m.on ? 'checked' : ''} style="width:22px;min-height:22px"> Automatisch schneller</label>
+    <div class="row small" style="gap:6px;align-items:center;${m.on ? '' : 'opacity:.55'}">alle ${num('ma_bars', m.bars, 'Anzahl Takte', 56)} Takte um ${num('ma_add', m.add, 'BPM mehr', 56)} BPM, bis ${num('ma_max', max, 'Höchsttempo', 68)}</div>
+    <span class="small muted" id="maInfo">${MET.playing && m.on ? 'Takt ' + (Math.floor(MET.beat / 4) + 1) : ''}</span>
+  </div>`;
+}
+document.addEventListener('change', (ev) => {
+  if (!/^ma_/.test(ev.target.id || '')) return;
+  const m = metAuto();
+  m.on = $('#ma_on').checked;
+  const n = (id, lo, hi, d) => { const v = Math.round(Number($(id).value)); return v >= lo && v <= hi ? v : d; };
+  m.bars = n('#ma_bars', 1, 64, 4); m.add = n('#ma_add', 1, 40, 5); m.max = n('#ma_max', 40, 300, 140);
+  store.set('metauto', m); MET.autoStartBeat = MET.beat;
+  const row = ev.target.closest('.met-auto'); if (row) row.children[1].style.opacity = m.on ? '' : '.55';
+});
 function metronomeCard(a) {
   return `<section class="card" aria-label="Metronom">
       <div class="beats" id="beats" aria-hidden="true"><span></span><span></span><span></span><span></span></div>
@@ -685,6 +707,7 @@ function metronomeCard(a) {
         <button class="iconbtn" data-act="bpm" data-d="5" aria-label="5 BPM schneller">+</button>
       </div>
       <div class="row" style="flex-wrap:nowrap"><button class="btn small" data-act="bpm" data-d="-1" style="flex:1" aria-label="1 BPM langsamer">−1</button><button class="btn small" data-act="tap" style="flex:2">Tippen</button><button class="btn small" data-act="bpm" data-d="1" style="flex:1" aria-label="1 BPM schneller">+1</button></div>
+      ${metAutoHTML(a)}
       <button class="btn block" data-act="metronome">${MET.playing ? 'Metronom stoppen' : 'Metronom starten'}</button>
       <span class="small muted" style="text-align:center">Am iPhone muss der Stummschalter aus sein, damit du den Klick hörst.</span>
     </section>`;
@@ -707,7 +730,7 @@ function updateClock() {
 function metStart() {
   MET.ctx = MET.ctx || new (window.AudioContext || window.webkitAudioContext)();
   if (MET.ctx.state === 'suspended') MET.ctx.resume();
-  MET.playing = true; MET.beat = 0; MET.next = MET.ctx.currentTime + 0.08;
+  MET.playing = true; MET.beat = 0; MET.autoStartBeat = 0; MET.next = MET.ctx.currentTime + 0.08;
   MET.timer = setInterval(metSchedule, 25); metDraw();
 }
 function metStop() { MET.playing = false; clearInterval(MET.timer); MET.timer = null; }
@@ -719,6 +742,9 @@ function metSchedule() {
     o.connect(g).connect(MET.ctx.destination); o.start(MET.next); o.stop(MET.next + 0.06);
     MET.queue = (MET.queue || []).concat([{ t: MET.next, b: MET.beat % 4 }]);
     MET.next += 60 / MET.bpm; MET.beat++;
+    const m = metAuto(), since = MET.beat - (MET.autoStartBeat || 0);
+    if (m.on && since > 0 && since % (4 * m.bars) === 0 && MET.bpm < m.max) { setBpm(Math.min(m.max, MET.bpm + m.add)); toast('Tempo ' + MET.bpm); }
+    if (MET.beat % 4 === 0) { const i = $('#maInfo'); if (i) i.textContent = m.on ? 'Takt ' + (Math.floor(since / 4) + 1) + (MET.bpm >= m.max ? ' · Ziel erreicht' : '') : ''; }
   }
 }
 function metDraw() {

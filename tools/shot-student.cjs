@@ -26,6 +26,12 @@ const out = process.argv[2] || 'shot';
   await p.screenshot({ path: out + '-home.png', fullPage: true });
   if (process.argv[3]) {
     await p.click('.tile[data-act="metroOpen"]'); await p.waitForTimeout(400);
+    await p.check('#ma_on'); await p.fill('#ma_bars', '1'); await p.fill('#ma_add', '10'); await p.fill('#ma_max', '100'); await p.locator('#ma_max').dispatchEvent('change');
+    await p.click('[data-act=metronome]'); await p.waitForTimeout(3500);
+    const bpm = await p.textContent('#bpmVal'); console.log('BPM nach 3,5 s (1 Takt bei 80 = 3 s):', bpm);
+    if (bpm !== '90') throw new Error('Automatik hat nicht erhöht: ' + bpm);
+    await p.waitForTimeout(6000); const bpm2 = await p.textContent('#bpmVal'); console.log('nach weiteren 6 s:', bpm2, await p.textContent('#maInfo'));
+    if (bpm2 !== '100') throw new Error('Obergrenze falsch: ' + bpm2);
     await p.screenshot({ path: out + '-metronom.png' });
     await p.click('[data-act="closeMetro"]'); await p.click('.task [data-act="practice"]'); await p.waitForTimeout(1600);
     await p.screenshot({ path: out + '-ueben.png' });
