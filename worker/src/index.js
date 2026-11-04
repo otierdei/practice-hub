@@ -531,6 +531,18 @@ async function route(env, req, path, body) {
   switch (path) {
     case '/api/t/student': return teacherStudent(s, String(body.id || ''));
     case '/api/t/songs/sync': return syncSongs(env);
+    case '/api/t/consent': {
+      // Einwilligung der Eltern, die Oti außerhalb der App bekommen hat (schriftlich oder per Nachricht)
+      const st = await s.first('SELECT id, first_name FROM students WHERE id = ?', String(body.student_id || ''));
+      if (!st) throw new HttpError(404, 'Schüler nicht gefunden.');
+      const how = str(body.how, 120) || 'den Eltern eingeholt';
+      const id = uid();
+      await s.batch([
+        ["INSERT INTO consents (id, student_id, access_id, kind, version_text, given_at) VALUES (?, ?, 'lehrer', 'app', ?, ?)", [id, st.id, CONSENT_VERSION + ' · von Oti bestätigt: ' + how, now()]],
+        logRow(who, 'consent', 'consents', id, 'Einwilligung von Oti eingetragen für ' + st.first_name),
+      ]);
+      return { ok: true };
+    }
     case '/api/t/course/import':
       try { return await courseImport(s, body, now, uid); } catch (e) { if (e.status) throw new HttpError(e.status, e.message); throw e; }
     case '/api/t/course/lesson/save': {

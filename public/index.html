@@ -432,7 +432,7 @@ function studentFileView() {
     <section class="card"><div class="row between"><h3>Zugänge</h3><div class="row"><button class="btn small" data-act="newAccess" data-role="student">Schülerlink</button><button class="btn small" data-act="newAccess" data-role="parent">Elternlink</button></div></div>
       ${S.newLink ? `<div class="col"><span class="small muted">Neuer Link, nur jetzt sichtbar. Schick ihn per Nachricht weiter:</span><div class="code" id="newLink">${esc(S.newLink)}</div><button class="btn small" data-act="copyLink">Link kopieren</button></div>` : ''}
       <div class="list">${f.access.length ? f.access.map((a) => `<div class="item"><span class="t">${a.role === 'parent' ? 'Eltern' + (a.label ? ' (' + esc(a.label) + ')' : '') : 'Schüler'}<br><span class="muted small">${a.revoked_at ? 'gesperrt' : a.last_seen ? 'zuletzt ' + esc(fmtDate(a.last_seen)) : 'noch nicht geöffnet'}</span></span>${a.revoked_at ? '' : `<button class="btn small danger" data-act="revoke" data-id="${a.id}">Sperren</button>`}</div>`).join('') : '<p class="muted">Noch kein Link erzeugt.</p>'}</div>
-      ${st.is_minor ? `<p class="small muted">${f.consents.length ? 'Einwilligung gegeben am ' + esc(fmtDate(f.consents[0].given_at)) : 'Unter 16: Die Eltern geben die Einwilligung über ihren Link.'}</p>` : ''}
+      ${st.is_minor ? (f.consents.length ? `<p class="small muted">Einwilligung gegeben am ${esc(fmtDate(f.consents[0].given_at))}${f.consents[0].access_id === 'lehrer' ? ' (von dir eingetragen)' : ''}</p>` : `<p class="small muted">Unter 16: Die Eltern geben die Einwilligung über ihren Link.</p><button class="btn small" data-act="teacherConsent">Einwilligung liegt mir schon vor</button>`) : ''}
     </section>
     <section class="card"><div class="row"><button class="btn" data-act="editStudent">Daten bearbeiten</button><button class="btn danger" data-act="deleteStudent">Löschen</button></div>
       <div id="confirmDelete" class="col hidden"><p>Alle Daten von ${esc(st.first_name)} werden sofort und endgültig gelöscht.</p><div class="row"><button class="btn danger" data-act="deleteStudentYes">Endgültig löschen</button><button class="btn" data-act="deleteStudentNo">Abbrechen</button></div></div></section>
@@ -1114,6 +1114,7 @@ document.addEventListener('click', async (ev) => {
         await api('/api/t/course/assign', { student_id: S.file.student.id, lesson_id: id, status: next });
         await reloadCourse(); openOverlay(courseView); toast(next === 'offen' ? 'Als Hausaufgabe aufgegeben' : next === 'fertig' ? 'Geschafft' : 'Zurückgesetzt'); break;
       }
+      case 'teacherConsent': await api('/api/t/consent', { student_id: S.file.student.id, how: 'liegt Oti vor' }); S.file = Object.assign(await api('/api/t/student', { id: S.file.student.id }), { course: S.file.course }); openOverlay(studentFileView); toast('Einwilligung eingetragen'); break;
       case 'song': await openSong(id); break;
       case 'sheet': window.open(driveUrl(id), '_blank', 'noopener'); break;
       case 'partVideo': S.partId = id; openOverlay(partVideoView); break;

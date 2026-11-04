@@ -323,3 +323,11 @@ test('App: keine doppelten Funktionsnamen in index.html', async () => {
   const dup = names.filter((n, i) => names.indexOf(n) !== i);
   assert.deepEqual(dup, [], 'doppelt: ' + dup.join(', '));
 });
+test('Lehrer trägt Einwilligung der Eltern ein', async () => {
+  const w = await world();
+  assert.equal((await w.call('/api/t/consent', { student_id: w.a }, w.ta)).status, 403);
+  assert.equal((await w.call('/api/t/consent', { student_id: w.a, how: 'schriftlich' }, w.t)).status, 200);
+  assert.ok((await w.call('/api/home', {}, w.ta)).data.consent, 'Anna gilt als eingewilligt');
+  const c = (await w.call('/api/t/student', { id: w.a }, w.t)).data.consents[0];
+  assert.equal(c.access_id, 'lehrer'); assert.match(c.version_text, /von Oti bestätigt: schriftlich/);
+});
