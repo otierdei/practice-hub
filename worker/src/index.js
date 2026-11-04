@@ -1,6 +1,8 @@
 // Practice Hub Worker v1 (04.11.2026)
 // Rechte werden bei jeder Anfrage aus dem Gerätetoken abgeleitet, nie aus der Anfrage.
 
+import { SCHEMA } from './schema.js';
+
 const DAY = 86400000;
 const TOKEN_DAYS = 180;
 const CODE_ALPHABET = 'ABCDEFGHJKMNPQRSTUVWXYZ23456789';
@@ -73,7 +75,8 @@ async function login(env, s, body, ip) {
   if (code.length < 8) throw new HttpError(400, 'Der Code ist zu kurz.');
   const hash = await sha256(code);
   let accessId = null, role = null, name = null;
-  if (env.TEACHER_CODE && hash === (await sha256(String(env.TEACHER_CODE).toUpperCase()))) {
+  const teacherHash = env.TEACHER_CODE_HASH || (env.TEACHER_CODE ? await sha256(String(env.TEACHER_CODE).toUpperCase()) : null);
+  if (teacherHash && hash === teacherHash) {
     accessId = 'teacher'; role = 'teacher'; name = 'Oti';
   } else {
     const a = await s.first(
@@ -484,8 +487,24 @@ async function route(env, req, path, body) {
   throw new HttpError(404, 'Unbekannte Aktion.');
 }
 
+// Schema einmal pro Instanz anlegen (CREATE ... IF NOT EXISTS)
+const schemaReady = new WeakMap();
+export function ensureSchema(env) {
+  let p = schemaReady.get(env.DB);
+  if (!p) {
+    const stmts = SCHEMA.replace(/--[^\n]*/g, '').split(';').map((x) => x.trim()).filter(Boolean);
+    p = env.DB.batch(stmts.map((q) => env.DB.prepare(q))).catch((e) => { schemaReady.delete(env.DB); throw e; });
+    schemaReady.set(env.DB, p);
+  }
+  return p;
+}
+
 export default {
   async fetch(req, env) {
+    const url0 = new URL(req.url);
+    // Alles außer /api liefert die App aus (Cloudflare Assets)
+    if (!url0.pathname.startsWith('/api/') && env.ASSETS) return env.ASSETS.fetch(req);
+    await ensureSchema(env);
     const cors = corsHeaders(env, req);
     if (req.method === 'OPTIONS') return new Response(null, { status: 204, headers: cors });
     const url = new URL(req.url);
@@ -505,6 +524,6 @@ export default {
     }
   },
   async scheduled(event, env, ctx) {
-    ctx.waitUntil(cleanup(env));
+    ctx.waitUntil(ensureSchema(env).then(() => cleanup(env)));
   },
 };

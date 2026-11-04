@@ -1,0 +1,22 @@
+name = "practice-hub"
+main = "worker/src/index.js"
+compatibility_date = "2025-09-01"
+workers_dev = true
+
+# App (public/) und API (/api/*) aus einem Worker
+[assets]
+directory = "./public"
+binding = "ASSETS"
+
+[vars]
+ALLOWED_ORIGINS = "https://practice-hub.othniel-erdei.workers.dev"
+# SHA-256 des Lehrer Codes. Der Code selbst steht nirgends im Repo.
+TEACHER_CODE_HASH = "83e0530d670b9fbfecf0dd5a0ef0071b4229271b5068a57a3def9c143bff0d8d"
+
+[triggers]
+crons = ["17 3 * * *"]
+
+[[d1_databases]]
+binding = "DB"
+database_name = "practice-hub"
+database_id = "WIRD_NACH_SETUP_EINGETRAGEN"

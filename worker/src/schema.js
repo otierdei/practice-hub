@@ -1,4 +1,5 @@
--- Practice Hub D1 Schema v1 (04.11.2026)
+// Datenbankschema, wird beim ersten Aufruf automatisch angelegt (idempotent)
+export const SCHEMA = `-- Practice Hub D1 Schema v1 (04.11.2026)
 CREATE TABLE IF NOT EXISTS students (
   id TEXT PRIMARY KEY,
   first_name TEXT NOT NULL,
@@ -118,3 +119,4 @@ CREATE INDEX IF NOT EXISTS i_assign_student ON assignments(student_id, status);
 CREATE INDEX IF NOT EXISTS i_sessions_student ON practice_sessions(student_id, started_at);
 CREATE INDEX IF NOT EXISTS i_goals_student ON goals(student_id);
 CREATE INDEX IF NOT EXISTS i_attempts ON attempts(ip, at);
+`;

@@ -1,7 +1,7 @@
 // End to end Test: Lehrer legt an, Schüler übt, Eltern willigen ein. Läuft gegen tools/dev-server.mjs
 const { chromium } = require('playwright');
 const assert = require('node:assert/strict');
-const APP = 'http://localhost:8080/?api=http://localhost:8787';
+const APP = 'http://localhost:8080/';
 const OUT = process.env.SHOTS || '.';
 let n = 0; const ok = (m) => console.log('ok ' + (++n) + ' ' + m);
 
@@ -57,7 +57,7 @@ let n = 0; const ok = (m) => console.log('ok ' + (++n) + ' ' + m);
 
   // Schüler am iPhone öffnet Link
   const sc = await ctx({ colorScheme: 'dark' }); const s = await sc.newPage(); s.on('pageerror', (e) => errors.push('Schüler: ' + e.message));
-  await s.goto(studentLink.replace('http://localhost:8080/', APP));
+  await s.goto(studentLink);
   await s.getByRole('heading', { name: 'Heute üben' }).waitFor(); ok('Schüler Login per Link');
   assert.equal(new URL(s.url()).hash, '', 'Code aus der Adresse entfernt'); ok('Code aus Adresszeile entfernt');
   const body = await s.textContent('body');
@@ -97,7 +97,7 @@ let n = 0; const ok = (m) => console.log('ok ' + (++n) + ' ' + m);
 
   // Eltern
   const pc = await ctx({ colorScheme: 'light' }); const p = await pc.newPage(); p.on('pageerror', (e) => errors.push('Eltern: ' + e.message));
-  await p.goto(parentLink.replace('http://localhost:8080/', APP));
+  await p.goto(parentLink);
   await p.getByText('Elternansicht').waitFor();
   assert.ok(!(await p.textContent('body')).includes('Wirkte müde'));
   await p.screenshot({ path: OUT + '/p-390-light.png', fullPage: true });
@@ -108,6 +108,11 @@ let n = 0; const ok = (m) => console.log('ok ' + (++n) + ' ' + m);
   await t.click('[data-tab=schueler]'); await t.reload(); await t.click('[data-tab=schueler]');
   await t.getByText('17 min seit letzter Stunde').waitFor(); ok('Lehrer sieht 17 min (12 + 5)');
   await t.screenshot({ path: OUT + '/t-schueler-1440.png' });
+  // Import aus Datei (Beispieldaten)
+  const seedPath = require('path').join(require('os').tmpdir(), 'ph-seed-test.json');
+  require('fs').writeFileSync(seedPath, JSON.stringify([{ first_name: 'Testa', weekday: 2, lesson_time: '10:00', lesson_minutes: 40, instrument: 'Gitarre', profile_note: 'Beispiel', lessons: [{ date: '2025-01-01', minutes: 40, notes_teacher: 'Alt 1' }, { date: '2025-01-08', notes_teacher: 'Alt 2' }], assignments: [{ free_text: 'Akkorde G C D' }] }, { first_name: 'Jonas', lessons: [] }]));
+  await t.click('[data-tab=mehr]'); await t.setInputFiles('#importFile', seedPath);
+  await t.getByText('Fertig: 1 Schüler, 2 Stunden, 1 Hausaufgaben importiert.').waitFor(); ok('Import aus Datei, vorhandene Schüler übersprungen');
   const tm = await b.newContext({ viewport: { width: 390, height: 844 }, colorScheme: 'light' }); const tp = await tm.newPage();
   await tp.goto(APP); await tp.fill('#code', 'LEHRER2345XY'); await tp.click('button[type=submit]'); await tp.getByRole('heading', { name: 'Heute', exact: true }).waitFor();
   await tp.screenshot({ path: OUT + '/t-heute-390-light.png', fullPage: true });
@@ -166,7 +171,7 @@ let n = 0; const ok = (m) => console.log('ok ' + (++n) + ' ' + m);
   await s.click('[data-tab=ueben]');
 
   // Sperren
-  await t.click('[data-act=student]'); await t.click('.item:has-text("Schüler") [data-act=revoke]'); await t.locator('.toast', { hasText: 'Gesperrt' }).waitFor();
+  await t.click('[data-tab=schueler]'); await t.click('[data-act=student]:has-text("Jonas")'); await t.click('.item:has-text("Schüler") [data-act=revoke]'); await t.locator('.toast', { hasText: 'Gesperrt' }).waitFor();
   await s.reload(); await s.getByText('Anmelden').waitFor(); ok('Gesperrter Schüler fliegt raus');
 
   // Horizontaler Überlauf am iPhone

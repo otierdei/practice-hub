@@ -2,9 +2,8 @@
 import { DatabaseSync } from 'node:sqlite';
 import { readFileSync } from 'node:fs';
 
-export function makeD1(schemaPath) {
+export function makeD1() {
   const db = new DatabaseSync(':memory:');
-  db.exec(readFileSync(schemaPath, 'utf8'));
   const norm = (rows) => rows.map((r) => ({ ...r }));
   class Stmt {
     constructor(sql, args = []) { this.sql = sql; this.args = args; }

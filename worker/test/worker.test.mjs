@@ -4,11 +4,10 @@ import { fileURLToPath } from 'node:url';
 import worker, { cleanup, isMinor } from '../src/index.js';
 import { makeD1 } from './d1-shim.mjs';
 
-const schema = fileURLToPath(new URL('../schema.sql', import.meta.url));
 const ORIGIN = 'https://otierdei.github.io';
 
 function setup() {
-  const env = { DB: makeD1(schema), TEACHER_CODE: 'LEHRER2345XY', ALLOWED_ORIGINS: ORIGIN };
+  const env = { DB: makeD1(), TEACHER_CODE: 'LEHRER2345XY', ALLOWED_ORIGINS: ORIGIN };
   const call = async (path, body, token, ip = '1.1.1.1', origin = ORIGIN) => {
     const headers = { 'Content-Type': 'application/json', Origin: origin, 'CF-Connecting-IP': ip };
     if (token) headers.Authorization = 'Bearer ' + token;

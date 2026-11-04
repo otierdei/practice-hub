@@ -137,7 +137,7 @@ details.card summary{cursor:pointer;font-family:var(--display);font-size:1.08rem
 // ---------- Grundlagen ----------
 const qs = new URLSearchParams(location.search);
 const LOCAL = /^(localhost|127\.0\.0\.1)$/.test(location.hostname);
-const API = (LOCAL && qs.get('api')) || 'https://practice-hub.othniel-erdei.workers.dev';
+const API = (LOCAL && qs.get('api')) || ''; // App und API laufen auf derselben Adresse
 const CONSENT_TEXT = 'Ich bin einverstanden, dass Oti (Schlagzeugunterricht) in Practice Hub den Vornamen, das Geburtsjahr, Unterrichtsnotizen, Hausaufgaben und Übezeiten meines Kindes speichert, um den Unterricht zu begleiten. Die Daten liegen bei Cloudflare in der EU, werden nicht weitergegeben und spätestens 12 Monate nach Ende des Unterrichts gelöscht. Ich kann die Einwilligung jederzeit bei Oti widerrufen.';
 const store = {
   get(k, d) { try { const v = localStorage.getItem('ph_' + k); return v == null ? d : JSON.parse(v); } catch (e) { return d; } },
@@ -303,6 +303,9 @@ function teacherView() {
   } else {
     html = `<h1>Mehr</h1>
     <section class="card"><div class="row between"><h3>Aktivität</h3><button class="btn small" data-act="feed">Laden</button></div><div id="feed" class="list">${S.feed ? S.feed.map((f) => `<div class="item"><span class="t">${esc(f.summary || f.action)}</span><span class="muted small">${esc(fmtDate(f.at))}</span></div>`).join('') || '<p class="muted">Noch nichts.</p>' : '<p class="muted small">Was Schüler zuletzt geübt und abgehakt haben.</p>'}</div></section>
+    <section class="card"><h3>Alte Notizen importieren</h3><p class="small muted">Datei "practice-hub-import" von deinem Mac wählen. Schüler, die es schon gibt, werden übersprungen.</p>
+      <label class="btn" for="importFile" style="cursor:pointer">Importdatei wählen</label><input type="file" id="importFile" accept=".json,.tgz,application/json" class="hidden">
+      <p id="importStatus" class="small" aria-live="polite">${esc(S.importMsg || '')}</p></section>
     <section class="card"><h3>Stimmgerät</h3>${Guitar.tunerHTML()}<button class="btn block" data-act="tuner">${S.tunerOn ? 'Stimmgerät stoppen' : 'Stimmgerät starten'}</button></section>
     <section class="card"><h3>Capo Helfer</h3>${capoHelper()}</section>
     <section class="card"><a href="datenschutz.html">Datenschutzhinweise</a><button class="btn" data-act="logout">Auf diesem Gerät abmelden</button></section>`;
@@ -532,6 +535,32 @@ function capoHelper() {
   return `<div class="field"><label for="capoKey">Tonart des Songs (klingend)</label><select id="capoKey">${Guitar.NOTES_INT.map((k) => `<option ${k === key ? 'selected' : ''}>${k}</option>`).join('')}</select></div>
     <div class="list">${rows.map((r) => `<div class="item"><span>Griffe aus <b>${r.shape}</b></span><span class="muted">${r.capo ? 'Capo ' + r.capo + '. Bund' : 'ohne Capo'}</span></div>`).join('')}</div>`;
 }
+// Import alter Notizen aus einer JSON Datei (Schüler, Stunden, Start Hausaufgaben)
+document.addEventListener('change', async (ev) => {
+  if (ev.target.id !== 'importFile' || !ev.target.files[0]) return;
+  const say = (t) => { S.importMsg = t; const out = $('#importStatus'); if (out) out.textContent = t; };
+  try {
+    const seed = JSON.parse(await ev.target.files[0].text());
+    if (!Array.isArray(seed)) throw new Error('Die Datei hat nicht das erwartete Format.');
+    const existing = (await api('/api/home')).students.map((x) => x.first_name);
+    let n = 0, lessons = 0, tasks = 0;
+    for (const st of seed) {
+      if (existing.includes(st.first_name)) continue;
+      say(`Importiere ${st.first_name} …`);
+      const { id } = await api('/api/t/student/save', { first_name: st.first_name, weekday: st.weekday, lesson_time: st.lesson_time, lesson_minutes: st.lesson_minutes, instrument: st.instrument, profile_note: st.profile_note });
+      const L = st.lessons || [];
+      for (let i = 0; i < L.length || i === 0; i += 150) {
+        const r = await api('/api/t/import/lessons', { student_id: id, lessons: L.slice(i, i + 150), assignments: i + 150 >= L.length ? (st.assignments || []) : [] });
+        lessons += r.imported; tasks += r.assignments;
+        if (!L.length) break;
+      }
+      n++;
+    }
+    say(`Fertig: ${n} Schüler, ${lessons} Stunden, ${tasks} Hausaufgaben importiert.`);
+    await load();
+  } catch (e) { say('Import gestoppt: ' + e.message); }
+  ev.target.value = '';
+});
 document.addEventListener('change', (ev) => { if (ev.target.id === 'capoKey') { S.capoKey = ev.target.value; render(); } });
 function lessonsList(d) {
   return `<h1>Stunden</h1>${d.lessons.length ? `<section class="card"><div class="list">${d.lessons.map((l) => `<div class="item"><div class="t col" style="gap:2px"><b>${esc(fmtDate(l.date))}</b><span>${l.notes_shared ? esc(l.notes_shared) : '<span class="muted">Keine Notiz</span>'}</span></div></div>`).join('')}</div></section>` : '<div class="empty">Noch keine Stunden eingetragen.</div>'}`;
