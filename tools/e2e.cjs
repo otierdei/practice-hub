@@ -112,6 +112,28 @@ let n = 0; const ok = (m) => console.log('ok ' + (++n) + ' ' + m);
   await tp.goto(APP); await tp.fill('#code', 'LEHRER2345XY'); await tp.click('button[type=submit]'); await tp.getByRole('heading', { name: 'Heute', exact: true }).waitFor();
   await tp.screenshot({ path: OUT + '/t-heute-390-light.png', fullPage: true });
 
+  // Noten Editor: Lehrer schreibt einen Beat, gibt ihn als Hausaufgabe, Schüler sieht und spielt ihn
+  await t.click('[data-tab=bibliothek]'); await t.click('[data-act=newBeat]');
+  await t.fill('#e_title', 'Rock Beat 1');
+  await t.click('.nt-cell[data-k=bd][data-i="10"]');
+  assert.equal(await t.getAttribute('.nt-cell[data-k=bd][data-i="10"]', 'aria-pressed'), 'true');
+  await t.click('.nt-cell[data-k=ho][data-i="14"]');
+  assert.equal(await t.getAttribute('.nt-cell[data-k=hh][data-i="14"]', 'aria-pressed'), 'false', 'HiHat zu und offen schließen sich aus');
+  await t.selectOption('#ex-bars', '2'); await t.waitForSelector('.nt-cell[data-i="31"]'); ok('Editor: Schläge setzen, 2 Takte');
+  await t.click('[data-nt-act=play]'); await t.waitForTimeout(500); await t.click('[data-nt-act=play]');
+  await t.screenshot({ path: OUT + '/t-beat-editor-1440.png', fullPage: true });
+  await t.click('#exerciseForm button[type=submit]'); await t.getByText('Rock Beat 1').waitFor();
+  assert.ok(await t.locator('.item:has-text("Rock Beat 1") .nt-svg').count() === 1); ok('Beat gespeichert, Notenbild in der Bibliothek');
+  await t.click('[data-tab=heute]'); await t.click('section[aria-label="Gerade dran"] [data-act=lesson]');
+  await t.selectOption('#a_ex', { label: 'Grooves: Rock Beat 1' }); await t.click('#assignForm button[type=submit]');
+  await t.click('[data-act=finishLesson]'); await t.getByText('Stunde gespeichert').waitFor();
+  await s.reload(); await s.getByRole('heading', { name: 'Heute üben' }).waitFor();
+  const card = s.locator('.card:has-text("Rock Beat 1")'); assert.equal(await card.locator('.nt-svg').count(), 1); ok('Schüler sieht die Noten');
+  await card.locator('[data-act=practice]').click(); await s.click('[data-act=beatPlay]');
+  await s.waitForTimeout(600); assert.equal(await s.textContent('[data-act=beatPlay]'), 'Beat stoppen'); await s.click('[data-act=beatPlay]'); ok('Schüler spielt den Beat ab');
+  await s.screenshot({ path: OUT + '/s-beat-390-dark.png', fullPage: true });
+  await s.click('[data-act=minimize]');
+
   // Sperren
   await t.click('[data-act=student]'); await t.click('.item:has-text("Schüler") [data-act=revoke]'); await t.locator('.toast', { hasText: 'Gesperrt' }).waitFor();
   await s.reload(); await s.getByText('Anmelden').waitFor(); ok('Gesperrter Schüler fliegt raus');

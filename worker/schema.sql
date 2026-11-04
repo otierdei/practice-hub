@@ -8,6 +8,8 @@ CREATE TABLE IF NOT EXISTS students (
   lesson_time TEXT,           -- "16:00"
   lesson_minutes INTEGER DEFAULT 45,
   level TEXT,
+  instrument TEXT DEFAULT 'Schlagzeug',
+  profile_note TEXT,          -- Steckbrief, nur Lehrer
   status TEXT NOT NULL DEFAULT 'aktiv', -- aktiv, pausiert, archiviert
   created_at TEXT NOT NULL,
   archived_at TEXT
@@ -46,6 +48,7 @@ CREATE TABLE IF NOT EXISTS exercises (
   book_ref TEXT,
   target_bpm INTEGER,
   notes TEXT,
+  notation TEXT,              -- JSON eines Beats aus dem Noten Editor
   archived INTEGER NOT NULL DEFAULT 0,
   created_at TEXT NOT NULL
 );

@@ -115,12 +115,12 @@ const logRow = (who, action, entity, id, summary) => [
 
 // ---------- Lesen für Schüler und Eltern ----------
 async function studentView(s, studentId, role) {
-  const st = await s.first('SELECT id, first_name, birth_year, is_minor, weekday, lesson_time, lesson_minutes, level FROM students WHERE id = ?', studentId);
+  const st = await s.first('SELECT id, first_name, birth_year, is_minor, weekday, lesson_time, lesson_minutes, level, instrument FROM students WHERE id = ?', studentId);
   if (!st) throw new HttpError(404, 'Schüler nicht gefunden.');
   const since = new Date(Date.now() - 90 * DAY).toISOString();
   const [assignments, sessions, goals, lessons, consent] = await Promise.all([
     s.all(`SELECT a.id, a.exercise_id, a.free_text, a.target_bpm, a.start_bpm, a.minutes_per_day, a.due_date, a.status, a.done_at, a.created_at,
-             e.title, e.category, e.source_type, e.url, e.book_ref, e.notes AS exercise_notes
+             e.title, e.category, e.source_type, e.url, e.book_ref, e.notes AS exercise_notes, e.notation
            FROM assignments a LEFT JOIN exercises e ON e.id = a.exercise_id
            WHERE a.student_id = ? AND (a.status = 'offen' OR a.done_at > ?) ORDER BY a.created_at DESC`, studentId, new Date(Date.now() - 21 * DAY).toISOString()),
     s.all(`SELECT id, client_id, assignment_id, exercise_id, started_at, local_date, seconds, bpm_reached, feeling, note
@@ -166,7 +166,7 @@ async function addSession(s, who, b) {
 
 // ---------- Lehrer ----------
 async function teacherOverview(s) {
-  const students = await s.all(`SELECT id, first_name, birth_year, is_minor, weekday, lesson_time, lesson_minutes, level, status FROM students WHERE status != 'archiviert' ORDER BY weekday, lesson_time, first_name`);
+  const students = await s.all(`SELECT id, first_name, birth_year, is_minor, weekday, lesson_time, lesson_minutes, level, instrument, status FROM students WHERE status != 'archiviert' ORDER BY weekday, lesson_time, first_name`);
   const weekAgo = new Date(Date.now() - 7 * DAY);
   const weekAgoDate = weekAgo.toISOString().slice(0, 10);
   const lastLessons = await s.all('SELECT student_id, MAX(date) AS last FROM lessons GROUP BY student_id');
@@ -193,7 +193,7 @@ async function teacherStudent(s, id) {
   if (!st) throw new HttpError(404, 'Schüler nicht gefunden.');
   const [lessons, assignments, sessions, goals, access, consents] = await Promise.all([
     s.all('SELECT * FROM lessons WHERE student_id = ? ORDER BY date DESC', id),
-    s.all(`SELECT a.*, e.title, e.category, e.source_type, e.url, e.book_ref FROM assignments a LEFT JOIN exercises e ON e.id = a.exercise_id
+    s.all(`SELECT a.*, e.title, e.category, e.source_type, e.url, e.book_ref, e.notation FROM assignments a LEFT JOIN exercises e ON e.id = a.exercise_id
            WHERE a.student_id = ? ORDER BY a.created_at DESC LIMIT 200`, id),
     s.all('SELECT id, assignment_id, exercise_id, started_at, local_date, seconds, bpm_reached, feeling, note FROM practice_sessions WHERE student_id = ? ORDER BY started_at DESC LIMIT 400', id),
     s.all('SELECT * FROM goals WHERE student_id = ? ORDER BY created_at', id),
@@ -214,21 +214,23 @@ async function saveStudent(s, who, b) {
   const minutes = int(b.lesson_minutes, 15, 180) || 45;
   const status = ['aktiv', 'pausiert', 'archiviert'].includes(b.status) ? b.status : 'aktiv';
   const level = str(b.level, 60);
+  const instrument = str(b.instrument, 60) || 'Schlagzeug';
+  const profile = str(b.profile_note, 4000);
   if (b.id) {
     const old = await s.first('SELECT id, status, archived_at FROM students WHERE id = ?', b.id);
     if (!old) throw new HttpError(404, 'Schüler nicht gefunden.');
     const archivedAt = status === 'archiviert' ? (old.archived_at || now()) : null;
     await s.batch([
-      ['UPDATE students SET first_name=?, birth_year=?, is_minor=?, weekday=?, lesson_time=?, lesson_minutes=?, level=?, status=?, archived_at=? WHERE id=?',
-        [first, birth, isMinor(birth), weekday, time, minutes, level, status, archivedAt, b.id]],
+      ['UPDATE students SET first_name=?, birth_year=?, is_minor=?, weekday=?, lesson_time=?, lesson_minutes=?, level=?, instrument=?, profile_note=?, status=?, archived_at=? WHERE id=?',
+        [first, birth, isMinor(birth), weekday, time, minutes, level, instrument, profile, status, archivedAt, b.id]],
       logRow(who, 'update', 'students', b.id, first),
     ]);
     return { id: b.id };
   }
   const id = uid();
   await s.batch([
-    ['INSERT INTO students (id, first_name, birth_year, is_minor, weekday, lesson_time, lesson_minutes, level, status, created_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)',
-      [id, first, birth, isMinor(birth), weekday, time, minutes, level, status, now()]],
+    ['INSERT INTO students (id, first_name, birth_year, is_minor, weekday, lesson_time, lesson_minutes, level, instrument, profile_note, status, created_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)',
+      [id, first, birth, isMinor(birth), weekday, time, minutes, level, instrument, profile, status, now()]],
     logRow(who, 'create', 'students', id, first),
   ]);
   return { id };
@@ -282,23 +284,66 @@ async function revokeAccess(s, who, id) {
 async function saveExercise(s, who, b) {
   const title = str(b.title, 120);
   if (!title) throw new HttpError(400, 'Titel fehlt.');
-  const sourceType = ['youtube', 'instagram', 'drive', 'buch', 'link'].includes(b.source_type) ? b.source_type : (b.url ? 'link' : 'buch');
+  const notation = cleanNotation(b.notation);
+  const sourceType = ['youtube', 'instagram', 'drive', 'buch', 'link', 'noten'].includes(b.source_type) ? b.source_type : (notation ? 'noten' : b.url ? 'link' : 'buch');
   let url = str(b.url, 500);
   if (url && !/^https:\/\//i.test(url)) throw new HttpError(400, 'Der Link muss mit https:// beginnen.');
-  const vals = [title, str(b.category, 40), sourceType, url, str(b.book_ref, 120), int(b.target_bpm, 20, 400), str(b.notes, 1000)];
+  const vals = [title, str(b.category, 40), sourceType, url, str(b.book_ref, 120), int(b.target_bpm, 20, 400), str(b.notes, 1000), notation];
   if (b.id) {
     await s.batch([
-      ['UPDATE exercises SET title=?, category=?, source_type=?, url=?, book_ref=?, target_bpm=?, notes=? WHERE id=?', [...vals, b.id]],
+      ['UPDATE exercises SET title=?, category=?, source_type=?, url=?, book_ref=?, target_bpm=?, notes=?, notation=? WHERE id=?', [...vals, b.id]],
       logRow(who, 'update', 'exercises', b.id, title),
     ]);
     return { id: b.id };
   }
   const id = uid();
   await s.batch([
-    ['INSERT INTO exercises (id, title, category, source_type, url, book_ref, target_bpm, notes, created_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)', [id, ...vals, now()]],
+    ['INSERT INTO exercises (id, title, category, source_type, url, book_ref, target_bpm, notes, notation, created_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)', [id, ...vals, now()]],
     logRow(who, 'create', 'exercises', id, title),
   ]);
   return { id };
+}
+
+// Beat aus dem Noten Editor prüfen und normalisieren
+export const DRUMS = ['cr', 'rd', 'hh', 'ho', 'sn', 'gh', 't1', 't2', 'ft', 'bd', 'hf'];
+export function cleanNotation(n) {
+  if (n == null || n === '') return null;
+  let o = n;
+  if (typeof n === 'string') { if (n.length > 20000) throw new HttpError(400, 'Beat zu groß.'); try { o = JSON.parse(n); } catch (e) { throw new HttpError(400, 'Beat ist beschädigt.'); } }
+  if (!o || typeof o !== 'object') throw new HttpError(400, 'Beat ist beschädigt.');
+  const sig = o.sig === '6/8' ? '6/8' : '4/4';
+  const bars = int(o.bars, 1, 4) || 1;
+  const steps = (sig === '6/8' ? 12 : 16) * bars;
+  const tracks = {};
+  for (const k of DRUMS) {
+    const list = Array.isArray(o.tracks && o.tracks[k]) ? o.tracks[k] : [];
+    tracks[k] = [...new Set(list.map((x) => Math.round(Number(x))).filter((x) => Number.isInteger(x) && x >= 0 && x < steps))].sort((a, b) => a - b);
+  }
+  return JSON.stringify({ v: 1, sig, bars, bpm: int(o.bpm, 30, 300) || 80, tracks });
+}
+
+// Import alter Stunden aus Otis Notizen: viele Stunden auf einmal, ohne Protokollflut
+async function importLessons(s, who, b) {
+  const st = await s.first('SELECT id, first_name FROM students WHERE id = ?', String(b.student_id || ''));
+  if (!st) throw new HttpError(404, 'Schüler nicht gefunden.');
+  const list = (Array.isArray(b.lessons) ? b.lessons : []).slice(0, 200);
+  const t = now();
+  const stmts = [];
+  for (const l of list) {
+    if (!isDate(l.date)) continue;
+    stmts.push(['INSERT INTO lessons (id, student_id, date, minutes, notes_teacher, notes_shared, created_at) VALUES (?, ?, ?, ?, ?, ?, ?)',
+      [uid(), st.id, l.date, int(l.minutes, 5, 240), str(l.notes_teacher, 6000), str(l.notes_shared, 3000), t]]);
+  }
+  const n = stmts.length;
+  for (const a of (Array.isArray(b.assignments) ? b.assignments : []).slice(0, 20)) {
+    const free = str(a.free_text, 300);
+    if (free) stmts.push(["INSERT INTO assignments (id, student_id, free_text, target_bpm, minutes_per_day, status, created_at) VALUES (?, ?, ?, ?, ?, 'offen', ?)", [uid(), st.id, free, int(a.target_bpm, 20, 400), int(a.minutes_per_day, 1, 240), t]]);
+  }
+  if (stmts.length) {
+    stmts.push(logRow(who, 'import', 'lessons', st.id, `${n} alte Stunden für ${st.first_name} importiert`));
+    await s.batch(stmts);
+  }
+  return { imported: n, assignments: stmts.length ? stmts.length - 1 - n : 0 };
 }
 
 async function finishLesson(s, who, b) {
@@ -405,6 +450,7 @@ async function route(env, req, path, body) {
       await s.batch([['UPDATE exercises SET archived = 1 WHERE id = ?', [String(body.id || '')]], logRow(who, 'archive', 'exercises', String(body.id || ''), 'archiviert')]);
       return { ok: true };
     case '/api/t/lesson/finish': return finishLesson(s, who, body);
+    case '/api/t/import/lessons': return importLessons(s, who, body);
     case '/api/t/assignment/status': {
       const status = body.status === 'erledigt' ? 'erledigt' : 'offen';
       await s.run('UPDATE assignments SET status = ?, done_at = ? WHERE id = ?', status, status === 'erledigt' ? now() : null, String(body.id || ''));

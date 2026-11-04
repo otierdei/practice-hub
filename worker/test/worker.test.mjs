@@ -173,3 +173,40 @@ test('Kaputtes JSON gibt 400, unbekannte Aktion 404', async () => {
   const w = await world();
   assert.equal((await w.call('/api/t/gibtsnicht', {}, w.t)).status, 404);
 });
+
+test('Steckbrief nur für Lehrer, Instrument für Schüler sichtbar', async () => {
+  const w = await world();
+  await w.call('/api/t/student/save', { id: w.a, first_name: 'Anna', birth_year: 2013, instrument: 'Gitarre', profile_note: 'GEHEIMER STECKBRIEF' }, w.t);
+  const home = (await w.call('/api/home', {}, w.ta)).data;
+  assert.equal(home.student.instrument, 'Gitarre');
+  assert.equal(JSON.stringify(home).includes('GEHEIMER'), false);
+  assert.equal(JSON.stringify((await w.call('/api/home', {}, w.tap)).data).includes('GEHEIMER'), false);
+  assert.equal((await w.call('/api/t/student', { id: w.a }, w.t)).data.student.profile_note, 'GEHEIMER STECKBRIEF');
+});
+
+test('Beat wird geprüft und kommt beim Schüler an', async () => {
+  const w = await world();
+  assert.equal((await w.call('/api/t/exercise/save', { title: 'Kaputt', notation: '{nein' }, w.t)).status, 400);
+  const ex = (await w.call('/api/t/exercise/save', { title: 'Rock Beat', notation: { sig: '4/4', bars: 1, bpm: 90, tracks: { hh: [0, 2, 4, 6, 8, 10, 12, 14, 99, -1], sn: [4, 12], bd: [0, 8, 8], xx: [1] } } }, w.t)).data.id;
+  const list = (await w.call('/api/t/exercises', {}, w.t)).data.exercises;
+  const e = list.find((x) => x.id === ex);
+  assert.equal(e.source_type, 'noten');
+  const n = JSON.parse(e.notation);
+  assert.deepEqual(n.tracks.hh, [0, 2, 4, 6, 8, 10, 12, 14]);
+  assert.deepEqual(n.tracks.bd, [0, 8]);
+  assert.equal(n.tracks.xx, undefined);
+  await w.call('/api/t/lesson/finish', { student_id: w.a, new_assignments: [{ exercise_id: ex }] }, w.t);
+  const home = (await w.call('/api/home', {}, w.ta)).data;
+  assert.ok(home.assignments.some((a) => a.notation && JSON.parse(a.notation).bpm === 90));
+});
+
+test('Import alter Stunden: nur Lehrer, privat, ohne Protokollflut', async () => {
+  const w = await world();
+  const lessons = [{ date: '2023-02-02', notes_teacher: 'Sticks halten' }, { date: 'kaputt', notes_teacher: 'x' }, { date: '2023-02-09', notes_teacher: 'Metronom' }];
+  assert.equal((await w.call('/api/t/import/lessons', { student_id: w.a, lessons }, w.ta)).status, 403);
+  assert.equal((await w.call('/api/t/import/lessons', { student_id: w.a, lessons }, w.t)).data.imported, 2);
+  const home = (await w.call('/api/home', {}, w.ta)).data;
+  assert.equal(JSON.stringify(home).includes('Sticks halten'), false);
+  const feed = (await w.call('/api/t/feed', {}, w.t)).data.feed.filter((f) => f.action === 'import');
+  assert.equal(feed.length, 1);
+});

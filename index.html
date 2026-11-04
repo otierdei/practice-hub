@@ -87,11 +87,26 @@ textarea{min-height:80px;resize:vertical}
 .weeks{display:flex;gap:8px;justify-content:space-between;flex-wrap:wrap}
 .weeks .w{display:flex;flex-direction:column;align-items:center;gap:4px;font-size:.75rem;color:var(--muted)}
 .hidden{display:none!important}
+.nt-staff{overflow-x:auto;color:var(--ink);background:var(--sunk);border-radius:14px;padding:4px 6px}
+.nt-staff svg{display:block}
+.nt-editor{display:flex;flex-direction:column;gap:12px}
+.nt-grid-wrap{overflow-x:auto;border:1px solid var(--line);border-radius:14px;background:var(--surface)}
+.nt-grid{border-collapse:separate;border-spacing:0;font-size:.78rem}
+.nt-grid th{font-weight:600;color:var(--muted);padding:4px 6px;text-align:center;white-space:nowrap}
+.nt-grid th[scope=row]{text-align:left;position:sticky;left:0;background:var(--surface);z-index:1;font-size:.8rem}
+.nt-grid td{padding:2px}
+.nt-grid td.nt-alt{background:var(--sunk)}
+.nt-grid .nt-bar{border-left:2px solid var(--line)}
+.nt-cell{width:30px;height:30px;border-radius:50%;border:1.5px solid var(--line);background:transparent;padding:0;display:block}
+.nt-cell[aria-pressed="true"]{background:var(--ring);border-color:var(--ring)}
+.nt-sr{position:absolute;width:1px;height:1px;overflow:hidden;clip:rect(0 0 0 0)}
+details.card summary{cursor:pointer;font-family:var(--display);font-size:1.08rem}
 @media (prefers-reduced-motion: reduce){*{transition:none!important;animation:none!important}}
 </style>
 </head>
 <body>
 <div id="app"><div class="wrap"><p class="muted">Lädt …</p></div></div>
+<script src="notation.js"></script>
 <script>
 'use strict';
 // ---------- Grundlagen ----------
@@ -253,9 +268,9 @@ function teacherView() {
   } else if (t === 'bibliothek') {
     const ex = S.exercises || [];
     const cats = [...new Set(ex.map((e) => e.category || 'Ohne Kategorie'))];
-    html = `<div class="row between"><h1>Bibliothek</h1><button class="btn primary small" data-act="newExercise">Übung anlegen</button></div>
+    html = `<div class="row between"><h1>Bibliothek</h1><div class="row"><button class="btn small" data-act="newBeat">Beat schreiben</button><button class="btn primary small" data-act="newExercise">Übung anlegen</button></div></div>
     ${ex.length ? cats.map((c) => `<section class="card"><h3>${esc(c)}</h3><div class="list">${ex.filter((e) => (e.category || 'Ohne Kategorie') === c).map((e) =>
-      `<div class="item"><button class="link t" data-act="editExercise" data-id="${e.id}"><b>${esc(e.title)}</b><br><span class="muted small">${esc(sourceLabel(e))}${e.target_bpm ? ' · Ziel ' + e.target_bpm + ' BPM' : ''}</span></button></div>`).join('')}</div></section>`).join('')
+      `<div class="item" style="flex-direction:column;align-items:stretch"><button class="link t" data-act="editExercise" data-id="${e.id}"><b>${esc(e.title)}</b><br><span class="muted small">${esc(sourceLabel(e))}${e.target_bpm ? ' · Ziel ' + e.target_bpm + ' BPM' : ''}</span></button>${e.notation ? `<div class="nt-staff">${DrumNotation.render(DrumNotation.parse(e.notation), { label: e.title })}</div>` : ''}</div>`).join('')}</div></section>`).join('')
       : `<div class="empty">Noch keine Übungen. Lege Grooves, Fills, Rudiments oder Worship Songs mit Link oder Buchseite an.</div>`}`;
   } else {
     html = `<h1>Mehr</h1>
@@ -272,12 +287,12 @@ function consentPill(s) {
 function studentRow(s, withTime) {
   return `<div class="item"><button class="link t" data-act="student" data-id="${s.id}">
     <div class="row" style="flex-wrap:nowrap">${ring(s.days_7 / 7, 44, 5, 'var(--ring)', s.days_7 + ' von 7 Tagen geübt')}
-    <div class="col" style="gap:0"><b>${esc(s.first_name)}${s.status !== 'aktiv' ? ' <span class="muted small">(' + esc(s.status) + ')</span>' : ''}</b>
+    <div class="col" style="gap:0"><b>${esc(s.first_name)}${s.instrument === 'Gitarre' ? ' <span class="pill">Gitarre</span>' : ''}${s.status !== 'aktiv' ? ' <span class="muted small">(' + esc(s.status) + ')</span>' : ''}</b>
     <span class="muted small">${withTime ? esc(s.lesson_time || '') + ' · ' : (s.weekday ? WD[s.weekday] + ' ' + esc(s.lesson_time || '') + ' · ' : '')}${s.minutes_since} min seit letzter Stunde</span></div></div></button>
     ${withTime ? `<button class="btn small" data-act="lesson" data-id="${s.id}">Starten</button>` : consentPill(s)}</div>`;
 }
 function sourceLabel(e) {
-  return { youtube: 'YouTube', instagram: 'Instagram', drive: 'Google Drive', buch: e.book_ref || 'Buch', link: 'Link' }[e.source_type] || (e.book_ref || '');
+  return { youtube: 'YouTube', instagram: 'Instagram', drive: 'Google Drive', buch: e.book_ref || 'Buch', link: 'Link', noten: 'Noten in der App' }[e.source_type] || (e.book_ref || '');
 }
 
 // Schülerakte
@@ -302,13 +317,15 @@ function studentFileView() {
   const open = f.assignments.filter((a) => a.status === 'offen');
   return `<div class="wrap">
     <div class="row between"><button class="btn small" data-act="close">Zurück</button><button class="btn primary small" data-act="lesson" data-id="${st.id}">Stunde starten</button></div>
-    <div class="col" style="gap:4px"><h1>${esc(st.first_name)}</h1><span class="muted">${st.weekday ? WD[st.weekday] + ' ' + esc(st.lesson_time || '') + ' · ' : ''}${st.lesson_minutes || 45} min${st.birth_year ? ' · Jahrgang ' + st.birth_year : ''}${st.level ? ' · ' + esc(st.level) : ''} · ${esc(st.status)}</span></div>
+    <div class="col" style="gap:4px"><h1>${esc(st.first_name)}</h1><span class="muted">${esc(st.instrument || 'Schlagzeug')} · ${st.weekday ? WD[st.weekday] + ' ' + esc(st.lesson_time || '') + ' · ' : ''}${st.lesson_minutes || 45} min${st.birth_year ? ' · Jahrgang ' + st.birth_year : ' · Jahrgang fehlt'}${st.level ? ' · ' + esc(st.level) : ''} · ${esc(st.status)}</span></div>
+    ${st.profile_note ? `<details class="card"><summary>Steckbrief</summary><p style="white-space:pre-line">${esc(st.profile_note)}</p></details>` : ''}
     <section class="card"><h3>Übezeit pro Woche</h3>${weeksCircles(f.sessions)}</section>
     <div class="grid2">
       <section class="card"><h3>Offene Hausaufgaben</h3><div class="list">${open.length ? open.map((a) => `<div class="item"><span class="t">${esc(a.title || a.free_text)}${a.target_bpm ? ' <span class="muted small">Ziel ' + a.target_bpm + '</span>' : ''}</span><span class="muted small">${practicedFor(a, f.sessions)}</span></div>`).join('') : '<p class="muted">Keine.</p>'}</div></section>
       <section class="card"><h3>Ziele</h3><div class="list">${f.goals.length ? f.goals.map((g) => `<div class="item"><span class="t">${esc(g.title)}</span><span class="pill">${g.status === 'erreicht' ? 'erreicht' : 'offen'}</span></div>`).join('') : '<p class="muted">Noch keine Ziele.</p>'}</div></section>
     </div>
-    <section class="card"><h3>Stunden</h3><div class="list">${f.lessons.length ? f.lessons.map((l) => `<div class="item"><div class="t col" style="gap:2px"><b>${esc(fmtDate(l.date))}</b>${l.notes_shared ? `<span>${esc(l.notes_shared)}</span>` : ''}${l.notes_teacher ? `<span class="muted small">Privat: ${esc(l.notes_teacher)}</span>` : ''}</div></div>`).join('') : '<p class="muted">Noch keine Stunde.</p>'}</div></section>
+    <section class="card"><h3>Stunden <span class="muted small">(${f.lessons.length})</span></h3><div class="list">${f.lessons.length ? f.lessons.slice(0, S.allLessons ? 9999 : 10).map((l) => `<div class="item"><div class="t col" style="gap:2px"><b>${esc(fmtDate(l.date))}${l.date.slice(0, 4) !== String(new Date().getFullYear()) ? ' ' + l.date.slice(0, 4) : ''}</b>${l.notes_shared ? `<span style="white-space:pre-line">${esc(l.notes_shared)}</span>` : ''}${l.notes_teacher ? `<span class="muted small" style="white-space:pre-line">Privat: ${esc(l.notes_teacher)}</span>` : ''}</div></div>`).join('') : '<p class="muted">Noch keine Stunde.</p>'}</div>
+      ${f.lessons.length > 10 && !S.allLessons ? '<button class="btn small" data-act="allLessons">Alle ' + f.lessons.length + ' Stunden anzeigen</button>' : ''}</section>
     <section class="card"><div class="row between"><h3>Zugänge</h3><div class="row"><button class="btn small" data-act="newAccess" data-role="student">Schülerlink</button><button class="btn small" data-act="newAccess" data-role="parent">Elternlink</button></div></div>
       ${S.newLink ? `<div class="col"><span class="small muted">Neuer Link, nur jetzt sichtbar. Schick ihn per Nachricht weiter:</span><div class="code" id="newLink">${esc(S.newLink)}</div><button class="btn small" data-act="copyLink">Link kopieren</button></div>` : ''}
       <div class="list">${f.access.length ? f.access.map((a) => `<div class="item"><span class="t">${a.role === 'parent' ? 'Eltern' + (a.label ? ' (' + esc(a.label) + ')' : '') : 'Schüler'}<br><span class="muted small">${a.revoked_at ? 'gesperrt' : a.last_seen ? 'zuletzt ' + esc(fmtDate(a.last_seen)) : 'noch nicht geöffnet'}</span></span>${a.revoked_at ? '' : `<button class="btn small danger" data-act="revoke" data-id="${a.id}">Sperren</button>`}</div>`).join('') : '<p class="muted">Noch kein Link erzeugt.</p>'}</div>
@@ -337,6 +354,8 @@ function studentForm(st) {
       <div class="field"><label for="f_time">Uhrzeit</label><input id="f_time" name="lesson_time" type="time" value="${esc(st.lesson_time || '')}"></div>
       <div class="field"><label for="f_min">Dauer (min)</label><input id="f_min" name="lesson_minutes" inputmode="numeric" value="${esc(st.lesson_minutes || 45)}"></div>
     </div>
+    <div class="field"><label for="f_instr">Instrument</label><select id="f_instr" name="instrument">${['Schlagzeug', 'Gitarre'].map((x) => `<option ${(st.instrument || 'Schlagzeug') === x ? 'selected' : ''}>${x}</option>`).join('')}</select></div>
+    <div class="field"><label for="f_profile">Steckbrief (nur du)</label><textarea id="f_profile" name="profile_note" maxlength="4000" placeholder="z. B. Ziel: in der Gemeinde spielen">${esc(st.profile_note || '')}</textarea></div>
     <div class="field"><label for="f_level">Stufe (frei)</label><input id="f_level" name="level" maxlength="60" value="${esc(st.level || '')}" placeholder="z. B. Einsteiger, Band ready"></div>
     ${st.id ? `<div class="field"><label for="f_status">Status</label><select id="f_status" name="status">${['aktiv', 'pausiert', 'archiviert'].map((x) => `<option ${st.status === x ? 'selected' : ''}>${x}</option>`).join('')}</select><span class="small muted">Archivierte Schüler können sich nicht mehr anmelden und werden nach 12 Monaten automatisch gelöscht.</span></div>` : ''}
     <button class="btn primary block" type="submit">Speichern</button>
@@ -349,11 +368,12 @@ function exerciseForm(e) {
     <input type="hidden" name="id" value="${esc(e.id || '')}">
     <div class="field"><label for="e_title">Titel</label><input id="e_title" name="title" required maxlength="120" value="${esc(e.title || '')}"></div>
     <div class="field"><label for="e_cat">Kategorie</label><input id="e_cat" name="category" list="cats" maxlength="40" value="${esc(e.category || '')}"><datalist id="cats">${['Grooves', 'Fills', 'Rudiments', 'Worship Songs', 'Technik', 'Lesen'].map((c) => `<option value="${c}">`).join('')}</datalist></div>
-    <div class="field"><label for="e_src">Quelle</label><select id="e_src" name="source_type">${[['youtube', 'YouTube'], ['instagram', 'Instagram'], ['drive', 'Google Drive (PDF, Noten)'], ['buch', 'Buch'], ['link', 'Anderer Link']].map(([v, l]) => `<option value="${v}" ${e.source_type === v ? 'selected' : ''}>${l}</option>`).join('')}</select></div>
+    <div class="field"><label for="e_src">Quelle</label><select id="e_src" name="source_type">${[['youtube', 'YouTube'], ['instagram', 'Instagram'], ['drive', 'Google Drive (PDF, Noten)'], ['buch', 'Buch'], ['link', 'Anderer Link'], ['noten', 'Noten in der App']].map(([v, l]) => `<option value="${v}" ${e.source_type === v ? 'selected' : ''}>${l}</option>`).join('')}</select></div>
     <div class="field"><label for="e_url">Link (https://)</label><input id="e_url" name="url" type="url" inputmode="url" value="${esc(e.url || '')}"><span class="small muted">Drive Dateien auf "Jeder mit dem Link" stellen. Nur Unterrichtsmaterial, nie Schülerdaten.</span></div>
     <div class="field"><label for="e_book">Buch und Seite</label><input id="e_book" name="book_ref" maxlength="120" value="${esc(e.book_ref || '')}" placeholder="z. B. Stick Control, S. 5"></div>
     <div class="field"><label for="e_bpm">Ziel BPM</label><input id="e_bpm" name="target_bpm" inputmode="numeric" value="${esc(e.target_bpm || '')}"></div>
     <div class="field"><label for="e_notes">Hinweise</label><textarea id="e_notes" name="notes" maxlength="1000">${esc(e.notes || '')}</textarea></div>
+    <section class="col"><h3>Schlagzeug Noten</h3>${S.nt && S.nt.ex ? DrumNotation.editorHTML(S.nt.ex, 'ex') : '<button class="btn" type="button" data-act="addBeat">Beat schreiben</button>'}</section>
     <button class="btn primary block" type="submit">Speichern</button>
     ${e.id ? '<button class="btn danger block" type="button" data-act="archiveExercise" data-id="' + e.id + '">Aus der Bibliothek nehmen</button>' : ''}
   </form></div>`;
@@ -382,12 +402,14 @@ function lessonView() {
   return `<div class="wrap">
     <div class="row between"><button class="btn small" data-act="closeLesson">Schließen</button><span class="pill">Stunde läuft · ${esc(st.lesson_time || '')}</span></div>
     <h1>${esc(st.first_name)}</h1>
+    ${st.profile_note ? `<details class="card"><summary>Steckbrief</summary><p style="white-space:pre-line">${esc(st.profile_note)}</p></details>` : ''}
     <div class="lesson-grid">
       <div class="col" style="gap:16px">
         <section class="card"><h3>Seit ${last ? 'der letzten Stunde (' + esc(fmtDate(last.date)) + ')' : '7 Tagen'}</h3>
           <div class="row">${ring(Math.min(1, total / 100), 76, 7, 'var(--ring)', total + ' Minuten', total + '′')}${ring(days / 7, 76, 7, 'var(--ring2)', days + ' von 7 Tagen', days + '/7')}
           <span class="muted small" style="flex:1;min-width:120px">${recent.length} Übungssitzungen${recent.length ? ', Gefühl im Schnitt ' + (recent.filter((s) => s.feeling).reduce((t, s) => t + s.feeling, 0) / Math.max(1, recent.filter((s) => s.feeling).length)).toFixed(1) : ''}</span></div>
           ${last && last.notes_shared ? `<p class="small"><span class="muted">Letzte Notiz:</span> ${esc(last.notes_shared)}</p>` : ''}
+          ${last && last.notes_teacher ? `<details><summary class="small muted">Letzte Stunde, deine Notiz</summary><p class="small" style="white-space:pre-line">${esc(last.notes_teacher)}</p></details>` : ''}
         </section>
         <section class="card"><h3>Hausaufgaben</h3><div class="list">${open.length ? open.map((a) => { const on = L.close_assignments.includes(a.id); return `<div class="item"><span class="t">${esc(a.title || a.free_text)}<br><span class="muted small">${practicedFor(a, f.sessions)}${a.target_bpm ? ' · Ziel ' + a.target_bpm : ''}</span></span><button class="check ${on ? 'on' : ''}" data-act="toggleClose" data-id="${a.id}" aria-pressed="${on}" aria-label="Als erledigt markieren">${on ? '✓' : ''}</button></div>`; }).join('') : '<p class="muted">Keine offenen Hausaufgaben.</p>'}</div></section>
         <section class="card"><h3>Ziele</h3><div class="list">${f.goals.filter((g) => g.status !== 'erreicht').map((g) => { const on = L.goals_reached.includes(g.id); return `<div class="item"><span class="t">${esc(g.title)}</span><button class="check ${on ? 'on' : ''}" data-act="toggleGoal" data-id="${g.id}" aria-pressed="${on}" aria-label="Ziel erreicht">${on ? '✓' : ''}</button></div>`; }).join('') || '<p class="muted small">Keine offenen Ziele.</p>'}
@@ -466,6 +488,7 @@ function assignmentCard(a, sessions) {
     <div class="col" style="gap:2px;flex:1"><b>${esc(a.title || a.free_text)}</b>
       <span class="muted small">${a.target_bpm ? (best ? best + ' von ' : 'Ziel ') + a.target_bpm + ' BPM · ' : ''}${goal} min am Tag${a.book_ref ? ' · ' + esc(a.book_ref) : ''}</span></div>
     <button class="check" data-act="toggleDone" data-id="${a.id}" aria-pressed="false" aria-label="Als erledigt abhaken"></button></div>
+    ${a.notation ? `<div class="nt-staff">${DrumNotation.render(DrumNotation.parse(a.notation), { label: 'Noten: ' + (a.title || '') })}</div>` : ''}
     <div class="row">${a.url ? `<a class="btn small" href="${esc(a.url)}" target="_blank" rel="noopener">${a.source_type === 'drive' ? 'Noten öffnen' : 'Video öffnen'}</a>` : ''}<button class="btn primary small" data-act="practice" data-id="${a.id}" style="flex:1">Üben starten</button></div>
   </section>`;
 }
@@ -473,7 +496,7 @@ function assignmentCard(a, sessions) {
 // Übungssitzung mit Stoppuhr und Metronom
 let tickTimer = null, wakeLock = null;
 const MET = { ctx: null, playing: false, bpm: 80, next: 0, beat: 0, timer: null, lastBeat: -1 };
-function stopTick() { clearInterval(tickTimer); tickTimer = null; metStop(); releaseWake(); }
+function stopTick() { clearInterval(tickTimer); tickTimer = null; metStop(); if (window.DrumNotation) DrumNotation.stop(); releaseWake(); }
 async function requestWake() { try { if ('wakeLock' in navigator && !wakeLock) { wakeLock = await navigator.wakeLock.request('screen'); wakeLock.addEventListener('release', () => { wakeLock = null; }); } } catch (e) {} }
 function releaseWake() { try { if (wakeLock) wakeLock.release(); } catch (e) {} wakeLock = null; }
 document.addEventListener('visibilitychange', () => { const r = store.get('run', null); if (document.visibilityState === 'visible' && r && r.runningSince) requestWake(); });
@@ -504,6 +527,8 @@ function practiceView() {
       ${a && a.book_ref ? `<span class="muted">${esc(a.book_ref)}</span>` : ''}
       ${a && a.exercise_notes ? `<span class="muted small">${esc(a.exercise_notes)}</span>` : ''}
       ${a && a.url ? `<a class="btn small" href="${esc(a.url)}" target="_blank" rel="noopener">${a.source_type === 'drive' ? 'Noten öffnen' : 'Video öffnen'}</a>` : ''}</div>
+    ${a && a.notation ? `<div class="nt-staff" id="practiceStaff">${DrumNotation.render(DrumNotation.parse(a.notation), { cursor: true, label: 'Noten: ' + (a.title || '') })}</div>
+      <button class="btn block" data-act="beatPlay">${DrumNotation.isPlaying() ? 'Beat stoppen' : 'Beat im Metronom Tempo abspielen'}</button>` : ''}
     <div id="clockRing" style="display:flex;justify-content:center">${clockRing(el, goal)}</div>
     <button class="btn ${r.runningSince ? '' : 'primary'} block" data-act="startStop">${r.runningSince ? 'Pause' : el ? 'Weiter' : 'Stoppuhr starten'}</button>
     <section class="card" aria-label="Metronom">
@@ -560,6 +585,7 @@ function setBpm(v) {
   MET.bpm = Math.max(30, Math.min(300, Math.round(v)));
   const r = store.get('run', null); if (r) { r.bpm = MET.bpm; store.set('run', r); }
   const el = $('#bpmVal'); if (el) el.textContent = MET.bpm;
+  if (window.DrumNotation) DrumNotation.setTempo(MET.bpm);
 }
 const taps = [];
 function tapTempo() {
@@ -634,7 +660,8 @@ document.addEventListener('click', async (ev) => {
       case 'reload': load(); break;
       case 'logout': try { await api('/api/logout'); } catch (e) {} logoutLocal(); break;
       case 'close': S.newLink = null; closeOverlay(); break;
-      case 'student': S.newLink = null; openStudent(id); break;
+      case 'student': S.newLink = null; S.allLessons = false; openStudent(id); break;
+      case 'allLessons': S.allLessons = true; render(); break;
       case 'lesson': openLesson(id); break;
       case 'newStudent': openOverlay(() => studentForm()); break;
       case 'editStudent': openOverlay(() => studentForm(S.file.student)); break;
@@ -649,8 +676,16 @@ document.addEventListener('click', async (ev) => {
       }
       case 'copyLink': try { await navigator.clipboard.writeText(S.newLink); toast('Link kopiert'); } catch (e) { const r = document.createRange(); r.selectNodeContents($('#newLink')); getSelection().removeAllRanges(); getSelection().addRange(r); toast('Link markiert, jetzt kopieren'); } break;
       case 'revoke': await api('/api/t/access/revoke', { id }); S.file = await api('/api/t/student', { id: S.file.student.id }); render(); toast('Gesperrt'); break;
-      case 'newExercise': openOverlay(() => exerciseForm()); break;
-      case 'editExercise': openOverlay(() => exerciseForm(S.exercises.find((e) => e.id === id))); break;
+      case 'newExercise': S.nt = {}; openOverlay(() => exerciseForm()); break;
+      case 'newBeat': S.nt = { ex: DrumNotation.empty() }; S.nt.ex.tracks.hh = [0, 2, 4, 6, 8, 10, 12, 14]; S.nt.ex.tracks.sn = [4, 12]; S.nt.ex.tracks.bd = [0, 8]; S.exDraft = { source_type: 'noten', category: 'Grooves' }; openOverlay(() => exerciseForm(S.exDraft)); break;
+      case 'editExercise': { const e = S.exercises.find((x) => x.id === id); S.nt = { ex: e.notation ? DrumNotation.parse(e.notation) : null }; openOverlay(() => exerciseForm(e)); break; }
+      case 'addBeat': { const f = $('#exerciseForm'); S.exDraft = Object.fromEntries(new FormData(f)); S.exDraft.source_type = 'noten'; S.nt = { ex: DrumNotation.empty() }; openOverlay(() => exerciseForm(S.exDraft)); break; }
+      case 'beatPlay': {
+        if (DrumNotation.isPlaying()) { DrumNotation.stop(); el.textContent = 'Beat im Metronom Tempo abspielen'; break; }
+        const r = store.get('run'); const a = S.data.assignments.find((x) => x.id === r.assignment_id);
+        metStop(); const mb = document.querySelector('[data-act="metronome"]'); if (mb) mb.textContent = 'Metronom starten';
+        DrumNotation.play(DrumNotation.parse(a.notation), MET.bpm, DrumNotation.cursorFor($('#practiceStaff svg'))); el.textContent = 'Beat stoppen'; break;
+      }
       case 'archiveExercise': await api('/api/t/exercise/archive', { id }); S.exercises = (await api('/api/t/exercises')).exercises; closeOverlay(); toast('Entfernt'); break;
       case 'feed': S.feed = (await api('/api/t/feed')).feed; render(); break;
       case 'toggleClose': { const L = S.lesson; L.close_assignments = L.close_assignments.includes(id) ? L.close_assignments.filter((x) => x !== id) : L.close_assignments.concat(id); saveDraft(); render(); break; }
@@ -671,7 +706,7 @@ document.addEventListener('click', async (ev) => {
       case 'startStop': { const r = store.get('run'); if (r.runningSince) { r.accumulated += Date.now() - r.runningSince; r.runningSince = null; releaseWake(); } else { r.runningSince = Date.now(); requestWake(); } store.set('run', r); render(); break; }
       case 'bpm': setBpm(MET.bpm + Number(el.dataset.d)); break;
       case 'tap': tapTempo(); break;
-      case 'metronome': if (MET.playing) metStop(); else metStart(); el.textContent = MET.playing ? 'Metronom stoppen' : 'Metronom starten'; break;
+      case 'metronome': if (MET.playing) metStop(); else { DrumNotation.stop(); const bb = document.querySelector('[data-act="beatPlay"]'); if (bb) bb.textContent = 'Beat im Metronom Tempo abspielen'; metStart(); } el.textContent = MET.playing ? 'Metronom stoppen' : 'Metronom starten'; break;
       case 'endPractice': { const r = store.get('run'); if (r.runningSince) { r.accumulated += Date.now() - r.runningSince; r.runningSince = null; store.set('run', r); } metStop(); clearInterval(tickTimer); S.feeling = null; openOverlay(finishForm); break; }
       case 'backToPractice': openOverlay(practiceView); tickTimer = setInterval(updateClock, 250); break;
       case 'feel': S.feeling = Number(el.dataset.v); document.querySelectorAll('[data-act="feel"]').forEach((b) => b.setAttribute('aria-pressed', String(b === el))); break;
@@ -683,6 +718,47 @@ document.addEventListener('click', async (ev) => {
     }
   } catch (e) { toast(e.message); el.disabled = false; }
 });
+// Noten Editor: Raster, Einstellungen, Abspielen
+document.addEventListener('click', (ev) => {
+  const cell = ev.target.closest('.nt-cell');
+  const actBtn = ev.target.closest('[data-nt-act]');
+  if (!cell && !actBtn) return;
+  const id = (cell && cell.dataset.nt) || actBtn.dataset.ntId; const n = S.nt && S.nt[id]; if (!n) return;
+  if (cell) {
+    DrumNotation.toggle(n, cell.dataset.k, Number(cell.dataset.i));
+    if (DrumNotation.has(n, cell.dataset.k, Number(cell.dataset.i))) { try { DrumNotation.hit(cell.dataset.k, 0); } catch (e) {} }
+    refreshEditor(id, false);
+  } else if (actBtn.dataset.ntAct === 'play') {
+    if (DrumNotation.isPlaying()) { DrumNotation.stop(); actBtn.textContent = 'Abspielen'; }
+    else { DrumNotation.play(n, n.bpm, DrumNotation.cursorFor(document.querySelector('#' + id + ' .nt-staff svg'))); actBtn.textContent = 'Stopp'; }
+  } else if (actBtn.dataset.ntAct === 'clear') { const e = DrumNotation.empty(n.sig, n.bars, n.bpm); n.tracks = e.tracks; refreshEditor(id, true); }
+});
+document.addEventListener('change', (ev) => {
+  const ctl = ev.target.dataset && ev.target.dataset.ntCtl; if (!ctl) return;
+  const ed = ev.target.closest('.nt-editor'); const id = ed && ed.id; const n = S.nt && S.nt[id]; if (!n) return;
+  if (ctl === 'bpm') { n.bpm = Math.max(30, Math.min(300, Number(ev.target.value) || 80)); DrumNotation.setTempo(n.bpm); return; }
+  const wasPlaying = DrumNotation.isPlaying(); DrumNotation.stop();
+  if (ctl === 'sig' && ev.target.value !== n.sig) { const e = DrumNotation.empty(ev.target.value, n.bars, n.bpm); n.sig = e.sig; n.tracks = e.tracks; }
+  if (ctl === 'bars') {
+    const oldBars = n.bars, pb = DrumNotation.total(n) / oldBars; n.bars = Number(ev.target.value); const max = DrumNotation.total(n);
+    for (const k in n.tracks) {
+      let t = n.tracks[k].filter((i) => i < max);
+      // neue Takte übernehmen den ersten Takt, damit man nur noch Fills ändern muss
+      if (n.bars > oldBars) { const first = n.tracks[k].filter((i) => i < pb); for (let b = oldBars; b < n.bars; b++) t = t.concat(first.map((i) => i + b * pb)); }
+      n.tracks[k] = [...new Set(t)].sort((a, b) => a - b);
+    }
+  }
+  refreshEditor(id, true);
+  if (wasPlaying) toast('Wiedergabe gestoppt');
+});
+function refreshEditor(id, full) {
+  const box = document.getElementById(id); if (!box) return;
+  const n = S.nt[id];
+  if (full) { const tmp = document.createElement('div'); tmp.innerHTML = DrumNotation.editorHTML(n, id); box.replaceWith(tmp.firstElementChild); return; }
+  box.querySelector('.nt-staff').innerHTML = DrumNotation.render(n, { cursor: true });
+  box.querySelectorAll('.nt-cell').forEach((c) => c.setAttribute('aria-pressed', String(DrumNotation.has(n, c.dataset.k, Number(c.dataset.i)))));
+  if (DrumNotation.isPlaying()) DrumNotation.play(n, n.bpm, DrumNotation.cursorFor(box.querySelector('.nt-staff svg')));
+}
 document.addEventListener('input', (ev) => {
   const k = ev.target.dataset && ev.target.dataset.draft;
   if (k && S.lesson) { S.lesson[k] = ev.target.value; saveDraft(); }
@@ -698,6 +774,8 @@ document.addEventListener('submit', async (ev) => {
       if (data.id) { S.file = await api('/api/t/student', { id: r.id }); openOverlay(studentFileView); } else openStudent(r.id);
     } else if (fid === 'exerciseForm') {
       const data = Object.fromEntries(new FormData(f)); if (!data.id) delete data.id;
+      for (const k of Object.keys(data)) if (k.startsWith('nt_')) delete data[k];
+      data.notation = S.nt && S.nt.ex ? S.nt.ex : null; DrumNotation.stop();
       await api('/api/t/exercise/save', data); S.exercises = (await api('/api/t/exercises')).exercises; closeOverlay(); toast('Gespeichert');
     } else if (fid === 'assignForm') {
       const exId = $('#a_ex').value, free = $('#a_free').value.trim();

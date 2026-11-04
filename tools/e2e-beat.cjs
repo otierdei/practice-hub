@@ -1,0 +1,40 @@
+// E2E: Beat schreiben, zuweisen, Schüler sieht Noten und spielt sie ab
+const { chromium } = require('playwright');
+const assert = require('node:assert/strict');
+const APP = 'http://localhost:8080/?api=http://localhost:8787';
+const OUT = process.env.SHOTS || '.';
+let n = 0; const ok = (m) => console.log('ok ' + (++n) + ' ' + m);
+(async () => {
+  const b = await chromium.launch(); const errors = [];
+  const t = await (await b.newContext({ viewport: { width: 1280, height: 900 } })).newPage(); t.on('pageerror', (e) => errors.push(e.message));
+  await t.goto(APP); await t.fill('#code', 'LEHRER2345XY'); await t.click('button[type=submit]'); await t.getByRole('heading', { name: 'Heute', exact: true }).waitFor();
+  await t.click('[data-tab=bibliothek]'); await t.click('[data-act=newBeat]');
+  await t.locator('.nt-editor').waitFor(); ok('Editor öffnet mit Grundbeat');
+  assert.equal(await t.locator('.nt-cell[aria-pressed=true]').count(), 12);
+  await t.click('.nt-cell[data-k=bd][data-i="10"]'); await t.click('.nt-cell[data-k=ho][data-i="14"]');
+  assert.equal(await t.locator('.nt-cell[data-k=hh][data-i="14"]').getAttribute('aria-pressed'), 'false', 'HiHat zu und offen schließen sich aus'); ok('Schläge setzen, HiHat offen ersetzt zu');
+  await t.selectOption('[data-nt-ctl=bars]', '2'); assert.equal(await t.locator('.nt-cell[data-k=sn]').count(), 32); assert.equal(await t.locator('.nt-cell[data-k=sn][data-i="20"]').getAttribute('aria-pressed'), 'true'); ok('Zwei Takte, zweiter Takt übernimmt den ersten');
+  await t.click('[data-nt-act=play]'); await t.waitForTimeout(600); await t.click('[data-nt-act=play]'); ok('Abspielen und Stopp');
+  await t.fill('#e_title', 'Rock Beat mit offener HiHat'); await t.fill('#e_bpm', '100');
+  await t.screenshot({ path: OUT + '/beat-editor-1280.png', fullPage: true });
+  await t.click('#exerciseForm button[type=submit]'); await t.getByText('Rock Beat mit offener HiHat').waitFor();
+  assert.equal(await t.locator('.nt-staff svg').count() >= 1, true); ok('Beat in der Bibliothek mit Notenbild');
+  // Schüler anlegen und zuweisen
+  await t.click('[data-tab=schueler]'); await t.click('[data-act=newStudent]'); await t.fill('#f_first', 'Testkind'); await t.fill('#f_birth', '2013'); await t.click('#studentForm button[type=submit]');
+  await t.getByRole('heading', { name: 'Testkind', exact: true }).waitFor();
+  await t.click('[data-act=newAccess][data-role=student]'); await t.locator('#newLink').waitFor(); const link = (await t.textContent('#newLink')).trim();
+  await t.click('.wrap > .row [data-act=lesson]'); await t.getByText('Neue Hausaufgaben').waitFor();
+  await t.selectOption('#a_ex', { label: 'Grooves: Rock Beat mit offener HiHat' }); await t.click('#assignForm button[type=submit]');
+  await t.click('[data-act=finishLesson]'); await t.getByText('Stunde gespeichert').waitFor(); ok('Beat als Hausaufgabe gegeben');
+  const s = await (await b.newContext({ viewport: { width: 390, height: 844 }, colorScheme: 'dark' })).newPage(); s.on('pageerror', (e) => errors.push(e.message));
+  await s.goto(link.replace('http://localhost:8080/', APP)); await s.getByRole('heading', { name: 'Heute üben' }).waitFor();
+  assert.equal(await s.locator('.card .nt-staff svg').count(), 1); ok('Schüler sieht Noten in der Karte');
+  await s.click('[data-act=practice]'); await s.locator('#practiceStaff svg').waitFor();
+  await s.click('[data-act=beatPlay]'); await s.waitForTimeout(700);
+  const op = await s.locator('#practiceStaff .nt-cursor').getAttribute('opacity'); assert.equal(op, '.18'); ok('Beat läuft, Cursor wandert');
+  await s.screenshot({ path: OUT + '/beat-schueler-390-dark.png', fullPage: true });
+  await s.click('[data-act=beatPlay]');
+  const over = await s.evaluate(() => document.documentElement.scrollWidth > window.innerWidth); assert.equal(over, false); ok('Kein seitliches Scrollen');
+  assert.deepEqual(errors, []); ok('Keine JavaScript Fehler');
+  await b.close(); console.log('ALLE ' + n + ' BEAT SCHRITTE GRÜN');
+})().catch((e) => { console.error('FEHLER', e); process.exit(1); });
