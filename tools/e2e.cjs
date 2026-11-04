@@ -1,0 +1,129 @@
+// End to end Test: Lehrer legt an, Schüler übt, Eltern willigen ein. Läuft gegen tools/dev-server.mjs
+const { chromium } = require('playwright');
+const assert = require('node:assert/strict');
+const APP = 'http://localhost:8080/?api=http://localhost:8787';
+const OUT = process.env.SHOTS || '.';
+let n = 0; const ok = (m) => console.log('ok ' + (++n) + ' ' + m);
+
+(async () => {
+  const b = await chromium.launch();
+  const errors = [];
+  const ctx = (opts) => b.newContext({ viewport: { width: 390, height: 844 }, ...opts });
+
+  // Lehrer am Mac
+  const tc = await b.newContext({ viewport: { width: 1440, height: 900 } });
+  const t = await tc.newPage(); t.on('pageerror', (e) => errors.push('Lehrer: ' + e.message));
+  await t.goto(APP);
+  await t.fill('#code', 'lehrer2345xy'); await t.click('button[type=submit]');
+  await t.getByRole('heading', { name: 'Heute', exact: true }).waitFor(); ok('Lehrer Login');
+
+  // Übung anlegen
+  await t.click('[data-tab=bibliothek]'); await t.click('[data-act=newExercise]');
+  await t.fill('#e_title', 'Paradiddle Groove'); await t.fill('#e_cat', 'Grooves'); await t.selectOption('#e_src', 'youtube');
+  await t.fill('#e_url', 'https://www.youtube.com/watch?v=beispiel'); await t.fill('#e_bpm', '96'); await t.click('#exerciseForm button[type=submit]');
+  await t.getByText('Paradiddle Groove').waitFor(); ok('Übung angelegt');
+
+  // Schüler anlegen, heute um jetzt
+  const now = new Date(); const wd = ((now.getDay() + 6) % 7) + 1;
+  const time = String(now.getHours()).padStart(2, '0') + ':' + String(Math.max(0, now.getMinutes() - 5)).padStart(2, '0');
+  await t.click('[data-tab=schueler]'); await t.click('[data-act=newStudent]');
+  await t.fill('#f_first', 'Jonas'); await t.fill('#f_birth', '2012'); await t.selectOption('#f_wd', String(wd)); await t.fill('#f_time', time);
+  await t.click('#studentForm button[type=submit]');
+  await t.getByRole('heading', { name: 'Jonas', exact: true }).waitFor(); ok('Schüler angelegt, Akte offen');
+
+  // Links erzeugen
+  await t.click('[data-act=newAccess][data-role=student]'); await t.locator('#newLink').waitFor();
+  const studentLink = (await t.textContent('#newLink')).trim();
+  await t.click('[data-act=newAccess][data-role=parent]');
+  await t.waitForFunction((old) => document.querySelector('#newLink').textContent.trim() !== old, studentLink);
+  const parentLink = (await t.textContent('#newLink')).trim();
+  assert.match(studentLink, /#c=[A-Z0-9]{10}$/); assert.notEqual(studentLink, parentLink); ok('Schüler und Elternlink');
+  await t.screenshot({ path: OUT + '/t-akte-1440.png' });
+
+  // Stunde starten von Heute
+  await t.click('[data-act=close]'); await t.click('[data-tab=heute]');
+  await t.getByText('Gerade dran').waitFor(); ok('Heute zeigt Jonas als gerade dran');
+  await t.click('section[aria-label="Gerade dran"] [data-act=lesson]');
+  await t.getByText('Neue Hausaufgaben').waitFor();
+  await t.selectOption('#a_ex', { label: 'Grooves: Paradiddle Groove' }); await t.fill('#a_min', '15'); await t.click('#assignForm button[type=submit]');
+  await t.fill('#a_free', 'Heilige Braut, Strophe mitspielen'); await t.click('#assignForm button[type=submit]');
+  await t.fill('#g_title', 'Groove sauber auf 96'); await t.click('#goalForm button[type=submit]');
+  await t.fill('#l_shared', 'Hi Hat locker lassen.'); await t.fill('#l_priv', 'Wirkte müde');
+  // Entwurf überlebt Neuladen
+  await t.reload(); await t.click('[data-tab=heute]'); await t.click('section[aria-label="Gerade dran"] [data-act=lesson]');
+  assert.equal(await t.inputValue('#l_shared'), 'Hi Hat locker lassen.'); ok('Stundenentwurf überlebt Neuladen');
+  await t.screenshot({ path: OUT + '/t-stunde-1440.png' });
+  await t.click('[data-act=finishLesson]'); await t.getByText('Stunde gespeichert').waitFor(); ok('Stunde beendet');
+
+  // Schüler am iPhone öffnet Link
+  const sc = await ctx({ colorScheme: 'dark' }); const s = await sc.newPage(); s.on('pageerror', (e) => errors.push('Schüler: ' + e.message));
+  await s.goto(studentLink.replace('http://localhost:8080/', APP));
+  await s.getByRole('heading', { name: 'Heute üben' }).waitFor(); ok('Schüler Login per Link');
+  assert.equal(new URL(s.url()).hash, '', 'Code aus der Adresse entfernt'); ok('Code aus Adresszeile entfernt');
+  const body = await s.textContent('body');
+  assert.ok(body.includes('Paradiddle Groove') && body.includes('Heilige Braut'));
+  assert.ok(!body.includes('Wirkte müde'), 'private Notiz unsichtbar'); ok('Schüler sieht Hausaufgaben, nicht die private Notiz');
+  await s.screenshot({ path: OUT + '/s-ueben-390-dark.png', fullPage: true });
+
+  // Übungssitzung: Stoppuhr starten, 12 Minuten vorspulen, beenden
+  await s.click('.card:has-text("Paradiddle Groove") [data-act=practice]');
+  await s.click('[data-act=startStop]'); await s.waitForTimeout(300);
+  await s.evaluate(() => { const r = JSON.parse(localStorage.getItem('ph_run')); r.runningSince -= 12 * 60000; localStorage.setItem('ph_run', JSON.stringify(r)); });
+  await s.click('[data-act=bpm][data-d="5"]');
+  await s.click('[data-act=metronome]'); await s.waitForTimeout(400); await s.click('[data-act=metronome]');
+  await s.waitForTimeout(300);
+  assert.match(await s.textContent('#clockRing'), /12:0\d/); ok('Stoppuhr läuft mit Zeitstempeln');
+  await s.screenshot({ path: OUT + '/s-session-390-dark.png' });
+  // Neuladen mitten in der Sitzung verliert nichts
+  await s.reload(); await s.click('[data-act=resumePractice]');
+  assert.match(await s.textContent('#clockRing'), /12:\d\d/); ok('Laufende Sitzung überlebt Neuladen');
+  await s.click('[data-act=endPractice]');
+  await s.fill('#fin_bpm', '88'); await s.click('[data-act=feel][data-v="4"]'); await s.click('#finishForm button[type=submit]');
+  await s.getByText('12 min gespeichert').waitFor(); ok('Sitzung gespeichert');
+  await s.waitForFunction(() => (JSON.parse(localStorage.getItem('ph_outbox') || '[]')).length === 0); ok('Ausgang leer, Server hat die Sitzung');
+
+  // Offline üben, dann nachsenden
+  await sc.setOffline(true);
+  await s.click('[data-act=practiceFree]'); await s.click('[data-act=startStop]');
+  await s.evaluate(() => { const r = JSON.parse(localStorage.getItem('ph_run')); r.runningSince -= 5 * 60000; localStorage.setItem('ph_run', JSON.stringify(r)); });
+  await s.click('[data-act=endPractice]'); await s.click('#finishForm button[type=submit]');
+  await s.getByText('wird gesendet').waitFor(); ok('Offline: Sitzung wartet im Ausgang');
+  await sc.setOffline(false); await s.waitForTimeout(300); await s.evaluate(() => window.dispatchEvent(new Event('online')));
+  await s.waitForFunction(() => (JSON.parse(localStorage.getItem('ph_outbox') || '[]')).length === 0); ok('Online: Sitzung nachgesendet');
+
+  await s.click('[data-tab=fortschritt]'); await s.getByText('Tempo').waitFor();
+  assert.ok((await s.textContent('body')).includes('88')); ok('Fortschritt zeigt 88 von 96 BPM');
+  await s.screenshot({ path: OUT + '/s-fortschritt-390-dark.png', fullPage: true });
+
+  // Eltern
+  const pc = await ctx({ colorScheme: 'light' }); const p = await pc.newPage(); p.on('pageerror', (e) => errors.push('Eltern: ' + e.message));
+  await p.goto(parentLink.replace('http://localhost:8080/', APP));
+  await p.getByText('Elternansicht').waitFor();
+  assert.ok(!(await p.textContent('body')).includes('Wirkte müde'));
+  await p.screenshot({ path: OUT + '/p-390-light.png', fullPage: true });
+  await p.click('[data-act=consent]'); await p.getByText('Einwilligung gegeben').waitFor(); ok('Eltern geben Einwilligung');
+  assert.equal(await p.locator('[data-act=startStop], [data-act=practice]').count(), 0); ok('Eltern haben keine Übe Buttons');
+
+  // Lehrer sieht Übezeit
+  await t.click('[data-tab=schueler]'); await t.reload(); await t.click('[data-tab=schueler]');
+  await t.getByText('17 min seit letzter Stunde').waitFor(); ok('Lehrer sieht 17 min (12 + 5)');
+  await t.screenshot({ path: OUT + '/t-schueler-1440.png' });
+  const tm = await b.newContext({ viewport: { width: 390, height: 844 }, colorScheme: 'light' }); const tp = await tm.newPage();
+  await tp.goto(APP); await tp.fill('#code', 'LEHRER2345XY'); await tp.click('button[type=submit]'); await tp.getByRole('heading', { name: 'Heute', exact: true }).waitFor();
+  await tp.screenshot({ path: OUT + '/t-heute-390-light.png', fullPage: true });
+
+  // Sperren
+  await t.click('[data-act=student]'); await t.click('.item:has-text("Schüler") [data-act=revoke]'); await t.locator('.toast', { hasText: 'Gesperrt' }).waitFor();
+  await s.reload(); await s.getByText('Anmelden').waitFor(); ok('Gesperrter Schüler fliegt raus');
+
+  // Horizontaler Überlauf am iPhone
+  for (const [pg, name] of [[s, 'Schüler'], [p, 'Eltern'], [tp, 'Lehrer iPhone']]) {
+    const over = await pg.evaluate(() => document.documentElement.scrollWidth > window.innerWidth);
+    assert.equal(over, false, name + ' scrollt seitlich');
+  }
+  ok('Kein seitliches Scrollen bei 390 px');
+
+  assert.deepEqual(errors, []); ok('Keine JavaScript Fehler');
+  await b.close();
+  console.log('ALLE ' + n + ' E2E SCHRITTE GRÜN');
+})().catch((e) => { console.error('FEHLER', e); process.exit(1); });

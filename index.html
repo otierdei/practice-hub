@@ -1,0 +1,719 @@
+<!doctype html>
+<html lang="de">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="theme-color" content="#e5e5e0" media="(prefers-color-scheme: light)">
+<meta name="theme-color" content="#171814" media="(prefers-color-scheme: dark)">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-title" content="Practice Hub">
+<meta name="robots" content="noindex">
+<title>Practice Hub</title>
+<link rel="manifest" href="manifest.webmanifest">
+<link rel="icon" href="icon.svg" type="image/svg+xml">
+<link rel="apple-touch-icon" href="icon-180.png">
+<style>
+@font-face{font-family:"Young Serif";src:url("fonts/young-serif.woff2") format("woff2");font-weight:400;font-display:swap}
+@font-face{font-family:"Figtree";src:url("fonts/figtree.woff2") format("woff2");font-weight:300 900;font-display:swap}
+/* Richtung D Kalkstein: Steinflächen, Oliv als einzige Akzentfarbe, Kreise für Fortschritt */
+:root{
+  --bg:#e5e5e0; --surface:#f6f6f3; --sunk:#ededE8; --ink:#23241f; --muted:#5c5d55; --line:#d3d0c6;
+  --accent:#4f5a2c; --accent-ink:#f6f6f3; --ring:#5f6b3a; --ring2:#8a6236; --track:#dcd9d0;
+  --danger:#9b3a24; --glass:rgba(229,229,224,.72);
+  --display:"Young Serif", Georgia, "Times New Roman", serif;
+  --body:"Figtree", -apple-system, "Segoe UI", system-ui, sans-serif;
+  color-scheme:light;
+}
+@media (prefers-color-scheme: dark){:root{
+  --bg:#171814; --surface:#22231e; --sunk:#1c1d19; --ink:#ecebe4; --muted:#a6a798; --line:#393a31;
+  --accent:#b3c083; --accent-ink:#1b1c16; --ring:#b3c083; --ring2:#d1a46f; --track:#34352d;
+  --danger:#e58f72; --glass:rgba(34,35,30,.72); color-scheme:dark }}
+*{box-sizing:border-box}
+html,body{margin:0;background:var(--bg);color:var(--ink);font-family:var(--body);font-size:16px;line-height:1.5;-webkit-text-size-adjust:100%}
+body{padding-top:env(safe-area-inset-top,0px)}
+h1,h2,h3{font-family:var(--display);font-weight:400;margin:0;line-height:1.15;text-wrap:balance}
+h1{font-size:clamp(1.9rem,6vw,2.5rem)} h2{font-size:1.3rem} h3{font-size:1.08rem}
+p{margin:0;text-wrap:pretty}
+button,input,select,textarea{font:inherit;color:inherit}
+button{cursor:pointer}
+a{color:var(--accent)}
+:focus-visible{outline:2px solid var(--accent);outline-offset:2px}
+.wrap{max-width:1100px;margin:0 auto;padding:20px max(16px,env(safe-area-inset-right,0px)) 120px max(16px,env(safe-area-inset-left,0px));display:flex;flex-direction:column;gap:18px}
+.row{display:flex;gap:12px;align-items:center;flex-wrap:wrap}
+.between{justify-content:space-between}
+.col{display:flex;flex-direction:column;gap:12px;min-width:0}
+.grid2{display:grid;grid-template-columns:repeat(auto-fit,minmax(300px,1fr));gap:16px}
+.card{background:var(--surface);border-radius:22px;padding:18px;display:flex;flex-direction:column;gap:12px;min-width:0}
+.muted{color:var(--muted)} .small{font-size:.88rem}
+.pill{display:inline-flex;align-items:center;gap:6px;background:var(--sunk);border-radius:999px;padding:4px 12px;font-size:.85rem;color:var(--muted)}
+.pill.warn{color:var(--danger)}
+.btn{min-height:48px;border-radius:999px;border:1px solid var(--line);background:transparent;padding:0 20px;display:inline-flex;align-items:center;justify-content:center;gap:8px;text-decoration:none;color:var(--ink)}
+.btn.primary{background:var(--accent);color:var(--accent-ink);border-color:transparent;font-weight:600}
+.btn.danger{color:var(--danger);border-color:var(--danger)}
+.btn.small{min-height:40px;padding:0 14px;font-size:.92rem}
+.btn.block{width:100%}
+.btn:disabled{opacity:.5;cursor:default}
+.iconbtn{width:48px;height:48px;border-radius:50%;border:none;background:var(--sunk);font-size:1.4rem;display:inline-flex;align-items:center;justify-content:center}
+label{font-size:.88rem;color:var(--muted)}
+input,select,textarea{width:100%;background:var(--sunk);border:1px solid var(--line);border-radius:14px;padding:11px 13px;min-height:46px}
+textarea{min-height:80px;resize:vertical}
+.field{display:flex;flex-direction:column;gap:6px;min-width:0}
+.list{display:flex;flex-direction:column}
+.item{display:flex;gap:12px;align-items:center;justify-content:space-between;padding:12px 0;border-bottom:1px solid var(--line);min-width:0}
+.item:last-child{border-bottom:none}
+.item .t{min-width:0;overflow-wrap:anywhere}
+.item button.link{background:none;border:none;padding:0;text-align:left;color:inherit;width:100%}
+.check{width:28px;height:28px;border-radius:50%;border:2px solid var(--line);background:transparent;flex:none;display:inline-flex;align-items:center;justify-content:center;color:var(--accent-ink)}
+.check.on{background:var(--accent);border-color:var(--accent)}
+.ring text{font-family:var(--body)}
+.nav{position:fixed;left:max(16px,env(safe-area-inset-left,0px));right:max(16px,env(safe-area-inset-right,0px));bottom:calc(14px + env(safe-area-inset-bottom,0px));max-width:520px;margin:0 auto;height:62px;border-radius:31px;background:var(--glass);backdrop-filter:blur(18px) saturate(1.4);-webkit-backdrop-filter:blur(18px) saturate(1.4);border:1px solid var(--line);display:flex;justify-content:space-around;align-items:center;z-index:20}
+.nav button{background:none;border:none;min-height:48px;padding:0 10px;color:var(--muted);font-size:.92rem;display:flex;flex-direction:column;align-items:center;gap:2px}
+.nav button[aria-current="page"]{color:var(--ink);font-weight:700}
+.nav svg{width:22px;height:22px}
+.sheet{position:fixed;inset:0;background:var(--bg);z-index:30;overflow-y:auto;-webkit-overflow-scrolling:touch}
+.sheet .wrap{padding-bottom:60px}
+.toast{position:fixed;left:50%;transform:translateX(-50%);bottom:calc(90px + env(safe-area-inset-bottom,0px));background:var(--ink);color:var(--bg);padding:10px 18px;border-radius:999px;z-index:50;font-size:.92rem;max-width:90vw}
+.big-time{font-family:var(--display);font-variant-numeric:tabular-nums}
+.beats{display:flex;gap:12px;justify-content:center}
+.beats span{width:16px;height:16px;border-radius:50%;border:2px solid var(--line)}
+.beats span.on{background:var(--ring);border-color:var(--ring)}
+.feel{display:flex;gap:8px;justify-content:space-between}
+.feel button{flex:1;min-height:52px;border-radius:16px;border:1px solid var(--line);background:var(--sunk);font-size:1.1rem}
+.feel button[aria-pressed="true"]{background:var(--accent);color:var(--accent-ink);border-color:transparent}
+.lesson-grid{display:grid;grid-template-columns:1fr;gap:16px}
+@media (min-width:900px){.lesson-grid{grid-template-columns:1fr 1fr}}
+.empty{padding:22px;text-align:center;color:var(--muted);border:1px dashed var(--line);border-radius:18px}
+.code{font-family:ui-monospace,Menlo,monospace;background:var(--sunk);padding:10px 12px;border-radius:12px;overflow-wrap:anywhere;font-size:.9rem}
+.weeks{display:flex;gap:8px;justify-content:space-between;flex-wrap:wrap}
+.weeks .w{display:flex;flex-direction:column;align-items:center;gap:4px;font-size:.75rem;color:var(--muted)}
+.hidden{display:none!important}
+@media (prefers-reduced-motion: reduce){*{transition:none!important;animation:none!important}}
+</style>
+</head>
+<body>
+<div id="app"><div class="wrap"><p class="muted">Lädt …</p></div></div>
+<script>
+'use strict';
+// ---------- Grundlagen ----------
+const qs = new URLSearchParams(location.search);
+const LOCAL = /^(localhost|127\.0\.0\.1)$/.test(location.hostname);
+const API = (LOCAL && qs.get('api')) || 'https://practice-hub.othniel-erdei.workers.dev';
+const CONSENT_TEXT = 'Ich bin einverstanden, dass Oti (Schlagzeugunterricht) in Practice Hub den Vornamen, das Geburtsjahr, Unterrichtsnotizen, Hausaufgaben und Übezeiten meines Kindes speichert, um den Unterricht zu begleiten. Die Daten liegen bei Cloudflare in der EU, werden nicht weitergegeben und spätestens 12 Monate nach Ende des Unterrichts gelöscht. Ich kann die Einwilligung jederzeit bei Oti widerrufen.';
+const store = {
+  get(k, d) { try { const v = localStorage.getItem('ph_' + k); return v == null ? d : JSON.parse(v); } catch (e) { return d; } },
+  set(k, v) { try { localStorage.setItem('ph_' + k, JSON.stringify(v)); } catch (e) {} },
+  del(k) { try { localStorage.removeItem('ph_' + k); } catch (e) {} },
+};
+const S = { token: store.get('token', null), role: store.get('role', null), name: store.get('name', null), tab: null, data: null, overlay: null, exercises: null };
+const esc = (v) => String(v == null ? '' : v).replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
+const $ = (sel, root = document) => root.querySelector(sel);
+const WD = ['', 'Montag', 'Dienstag', 'Mittwoch', 'Donnerstag', 'Freitag', 'Samstag', 'Sonntag'];
+const pad = (n) => String(n).padStart(2, '0');
+const localDate = (d = new Date()) => `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}`;
+const fmtDate = (s) => { if (!s) return ''; const d = new Date(s.length === 10 ? s + 'T12:00:00' : s); return d.toLocaleDateString('de-DE', { weekday: 'short', day: 'numeric', month: 'short' }); };
+const mins = (sec) => Math.round(sec / 60);
+const clock = (ms) => { const t = Math.max(0, Math.floor(ms / 1000)); const h = Math.floor(t / 3600); const m = Math.floor((t % 3600) / 60); return (h ? h + ':' + pad(m) : m) + ':' + pad(t % 60); };
+
+function toast(msg) {
+  const el = document.createElement('div'); el.className = 'toast'; el.setAttribute('role', 'status'); el.textContent = msg;
+  document.body.appendChild(el); setTimeout(() => el.remove(), 2600);
+}
+
+async function api(path, body) {
+  const headers = { 'Content-Type': 'application/json' };
+  if (S.token) headers.Authorization = 'Bearer ' + S.token;
+  let res;
+  try { res = await fetch(API + path, { method: 'POST', headers, body: JSON.stringify(body || {}) }); }
+  catch (e) { const err = new Error('Keine Verbindung. Bitte Internet prüfen.'); err.offline = true; throw err; }
+  const data = await res.json().catch(() => ({}));
+  if (res.status === 401 && path !== '/api/login') { logoutLocal(); throw new Error(data.error || 'Bitte neu anmelden.'); }
+  if (!res.ok) throw new Error(data.error || 'Fehler ' + res.status);
+  return data;
+}
+function logoutLocal() { S.token = null; S.role = null; S.data = null; store.del('token'); store.del('role'); store.del('name'); render(); }
+
+// Kreis: value 0..1
+function ring(value, size, stroke, color, label, inner, sub) {
+  const r = (size - stroke) / 2, c = 2 * Math.PI * r, v = Math.max(0, Math.min(1, value || 0));
+  return `<svg class="ring" width="${size}" height="${size}" viewBox="0 0 ${size} ${size}" role="img" aria-label="${esc(label)}">
+    <circle cx="${size / 2}" cy="${size / 2}" r="${r}" fill="none" stroke="var(--track)" stroke-width="${stroke}"/>
+    ${v > 0.004 ? `<circle cx="${size / 2}" cy="${size / 2}" r="${r}" fill="none" stroke="${color}" stroke-width="${stroke}" stroke-linecap="round" stroke-dasharray="${(v * c).toFixed(1)} ${c.toFixed(1)}" transform="rotate(-90 ${size / 2} ${size / 2})"/>` : ''}
+    ${inner ? `<text x="50%" y="${sub ? '47%' : '50%'}" text-anchor="middle" dominant-baseline="middle" fill="var(--ink)" font-size="${Math.round(size / 4.6)}" font-weight="700">${esc(inner)}</text>` : ''}
+    ${sub ? `<text x="50%" y="66%" text-anchor="middle" dominant-baseline="middle" fill="var(--muted)" font-size="${Math.max(11, Math.round(size / 12))}">${esc(sub)}</text>` : ''}
+  </svg>`;
+}
+
+const ICON = {
+  heute: '<path d="M4 7h16M4 12h16M4 17h10" stroke="currentColor" stroke-width="2" fill="none" stroke-linecap="round"/>',
+  schueler: '<circle cx="12" cy="8" r="4" stroke="currentColor" stroke-width="2" fill="none"/><path d="M4 20c1.5-4 4.5-6 8-6s6.5 2 8 6" stroke="currentColor" stroke-width="2" fill="none" stroke-linecap="round"/>',
+  bibliothek: '<path d="M5 4h4v16H5zM10 4h4v16h-4zM15.5 4.5l3.5 1-4 15-3.5-1z" stroke="currentColor" stroke-width="2" fill="none" stroke-linejoin="round"/>',
+  mehr: '<circle cx="5" cy="12" r="1.8" fill="currentColor"/><circle cx="12" cy="12" r="1.8" fill="currentColor"/><circle cx="19" cy="12" r="1.8" fill="currentColor"/>',
+  ueben: '<circle cx="12" cy="12" r="8" stroke="currentColor" stroke-width="2" fill="none"/><path d="M12 8v4l3 2" stroke="currentColor" stroke-width="2" fill="none" stroke-linecap="round"/>',
+  fortschritt: '<circle cx="12" cy="12" r="8" stroke="currentColor" stroke-width="2" fill="none"/><path d="M12 4a8 8 0 0 1 8 8h-8z" fill="currentColor"/>',
+  stunden: '<rect x="4" y="5" width="16" height="15" rx="3" stroke="currentColor" stroke-width="2" fill="none"/><path d="M4 10h16M9 3v4M15 3v4" stroke="currentColor" stroke-width="2" stroke-linecap="round"/>',
+  uebersicht: '<circle cx="12" cy="12" r="8" stroke="currentColor" stroke-width="2" fill="none"/><circle cx="12" cy="12" r="3" fill="currentColor"/>',
+};
+const TABS = {
+  teacher: [['heute', 'Heute'], ['schueler', 'Schüler'], ['bibliothek', 'Bibliothek'], ['mehr', 'Mehr']],
+  student: [['ueben', 'Üben'], ['fortschritt', 'Fortschritt'], ['stunden', 'Stunden']],
+  parent: [['uebersicht', 'Übersicht'], ['stunden', 'Stunden']],
+};
+function nav() {
+  return `<nav class="nav" aria-label="Bereiche">${TABS[S.role].map(([id, label]) =>
+    `<button data-tab="${id}" ${S.tab === id ? 'aria-current="page"' : ''}><svg viewBox="0 0 24 24" aria-hidden="true">${ICON[id]}</svg>${label}</button>`).join('')}</nav>`;
+}
+
+// ---------- Anmeldung ----------
+async function boot() {
+  const m = /[#&]c=([A-Za-z0-9-]+)/.exec(location.hash);
+  if (m) {
+    history.replaceState(null, '', location.pathname + location.search);
+    try { await doLogin(m[1]); return; } catch (e) { S.loginError = e.message; }
+  }
+  if (S.token) { S.tab = TABS[S.role] ? TABS[S.role][0][0] : null; render(); await load(); flushOutbox(); }
+  else render();
+}
+async function doLogin(code) {
+  const r = await api('/api/login', { code });
+  if (S.token && S.token !== r.token) { try { await api('/api/logout'); } catch (e) {} }
+  S.token = r.token; S.role = r.role; S.name = r.name; S.tab = TABS[r.role][0][0];
+  store.set('token', r.token); store.set('role', r.role); store.set('name', r.name);
+  render(); await load(); flushOutbox();
+}
+function loginView() {
+  return `<div class="wrap" style="max-width:520px;padding-top:12vh">
+    <div class="col" style="gap:20px">
+      <h1>Practice Hub</h1>
+      <p class="muted">Öffne den persönlichen Link, den du von Oti bekommen hast. Oder gib deinen Code hier ein.</p>
+      <form id="loginForm" class="col">
+        <div class="field"><label for="code">Code</label><input id="code" autocomplete="one-time-code" autocapitalize="characters" spellcheck="false" placeholder="z. B. K7MP2QRT9A"></div>
+        ${S.loginError ? `<p class="small" style="color:var(--danger)">${esc(S.loginError)}</p>` : ''}
+        <button class="btn primary block" type="submit">Anmelden</button>
+      </form>
+      <a class="small" href="datenschutz.html">Datenschutz</a>
+    </div></div>`;
+}
+
+async function load() {
+  try {
+    S.data = await api('/api/home');
+    if (S.role === 'teacher' && !S.exercises) S.exercises = (await api('/api/t/exercises')).exercises;
+    S.loadError = null;
+  } catch (e) { S.loadError = e.message; }
+  render();
+}
+
+// ---------- Rendern ----------
+function render() {
+  const app = $('#app');
+  if (!S.token || !S.role) { app.innerHTML = loginView(); return; }
+  let body = '';
+  if (!S.data) body = `<div class="wrap"><p class="muted">${S.loadError ? esc(S.loadError) + ' <button class="btn small" data-act="reload">Nochmal</button>' : 'Lädt …'}</p></div>`;
+  else if (S.role === 'teacher') body = teacherView();
+  else if (S.role === 'student') body = studentView();
+  else body = parentView();
+  app.innerHTML = body + nav() + (S.overlay ? `<div class="sheet" role="dialog" aria-modal="true">${S.overlay()}</div>` : '');
+  document.body.style.overflow = S.overlay ? 'hidden' : '';
+  if (S.afterRender) { const f = S.afterRender; S.afterRender = null; f(); }
+}
+function openOverlay(fn) { S.overlay = fn; render(); const sh = $('.sheet'); if (sh) sh.scrollTop = 0; }
+function closeOverlay() { S.overlay = null; stopTick(); render(); }
+
+// ---------- Lehrer ----------
+function nowMinutes() { const d = new Date(); return d.getHours() * 60 + d.getMinutes(); }
+function toMin(t) { if (!t) return null; const [h, m] = t.split(':').map(Number); return h * 60 + m; }
+function todayStudents() {
+  const wd = ((new Date().getDay() + 6) % 7) + 1;
+  return S.data.students.filter((s) => s.weekday === wd && s.status === 'aktiv').sort((a, b) => (toMin(a.lesson_time) || 0) - (toMin(b.lesson_time) || 0));
+}
+function currentStudent() {
+  const list = todayStudents(), n = nowMinutes();
+  return list.find((s) => { const t = toMin(s.lesson_time); return t != null && n >= t - 10 && n < t + (s.lesson_minutes || 45); })
+    || list.find((s) => (toMin(s.lesson_time) || 0) > n) || null;
+}
+function teacherView() {
+  const t = S.tab;
+  let html = '';
+  if (t === 'heute') {
+    const cur = currentStudent(), list = todayStudents();
+    const n = nowMinutes();
+    html = `<div class="row between"><h1>Heute</h1><span class="pill">${esc(new Date().toLocaleDateString('de-DE', { weekday: 'long', day: 'numeric', month: 'long' }))}</span></div>
+    ${cur ? `<section class="card" aria-label="Gerade dran">
+      <div class="row between"><div class="col" style="gap:2px"><span class="muted small">${(() => { const tt = toMin(cur.lesson_time); return n >= tt - 10 ? 'Gerade dran' : 'Als Nächstes'; })()}</span><h2 style="font-size:1.8rem">${esc(cur.first_name)}</h2></div>
+      <span class="pill">${esc(cur.lesson_time || '')} · ${cur.lesson_minutes || 45} min</span></div>
+      <div class="row">${ring(Math.min(1, cur.minutes_since / 100), 72, 7, 'var(--ring)', cur.minutes_since + ' Minuten geübt', cur.minutes_since + '′')}
+        <div class="col" style="gap:2px"><b>${cur.minutes_since} min geübt</b><span class="muted small">an ${cur.days_7} von 7 Tagen</span>${consentPill(cur)}</div></div>
+      <button class="btn primary block" data-act="lesson" data-id="${cur.id}">Stunde starten</button>
+    </section>` : `<div class="empty">Heute keine Stunden eingetragen.</div>`}
+    ${list.length ? `<section class="card"><h3>Stunden heute</h3><div class="list">${list.map((s) => studentRow(s, true)).join('')}</div></section>` : ''}`;
+  } else if (t === 'schueler') {
+    const act = S.data.students;
+    html = `<div class="row between"><h1>Schüler</h1><button class="btn primary small" data-act="newStudent">Schüler anlegen</button></div>
+    ${act.length ? `<section class="card"><div class="list">${act.map((s) => studentRow(s)).join('')}</div></section>` : `<div class="empty">Noch keine Schüler. Lege den ersten an.</div>`}`;
+  } else if (t === 'bibliothek') {
+    const ex = S.exercises || [];
+    const cats = [...new Set(ex.map((e) => e.category || 'Ohne Kategorie'))];
+    html = `<div class="row between"><h1>Bibliothek</h1><button class="btn primary small" data-act="newExercise">Übung anlegen</button></div>
+    ${ex.length ? cats.map((c) => `<section class="card"><h3>${esc(c)}</h3><div class="list">${ex.filter((e) => (e.category || 'Ohne Kategorie') === c).map((e) =>
+      `<div class="item"><button class="link t" data-act="editExercise" data-id="${e.id}"><b>${esc(e.title)}</b><br><span class="muted small">${esc(sourceLabel(e))}${e.target_bpm ? ' · Ziel ' + e.target_bpm + ' BPM' : ''}</span></button></div>`).join('')}</div></section>`).join('')
+      : `<div class="empty">Noch keine Übungen. Lege Grooves, Fills, Rudiments oder Worship Songs mit Link oder Buchseite an.</div>`}`;
+  } else {
+    html = `<h1>Mehr</h1>
+    <section class="card"><div class="row between"><h3>Aktivität</h3><button class="btn small" data-act="feed">Laden</button></div><div id="feed" class="list">${S.feed ? S.feed.map((f) => `<div class="item"><span class="t">${esc(f.summary || f.action)}</span><span class="muted small">${esc(fmtDate(f.at))}</span></div>`).join('') || '<p class="muted">Noch nichts.</p>' : '<p class="muted small">Was Schüler zuletzt geübt und abgehakt haben.</p>'}</div></section>
+    <section class="card"><a href="datenschutz.html">Datenschutzhinweise</a><button class="btn" data-act="logout">Auf diesem Gerät abmelden</button></section>`;
+  }
+  return `<main class="wrap">${html}</main>`;
+}
+function consentPill(s) {
+  if (!s.is_minor) return '';
+  if (s.consent) return '';
+  return `<span class="pill warn">${s.has_parent ? 'Einwilligung Eltern fehlt' : 'Kein Elternlink'}</span>`;
+}
+function studentRow(s, withTime) {
+  return `<div class="item"><button class="link t" data-act="student" data-id="${s.id}">
+    <div class="row" style="flex-wrap:nowrap">${ring(s.days_7 / 7, 44, 5, 'var(--ring)', s.days_7 + ' von 7 Tagen geübt')}
+    <div class="col" style="gap:0"><b>${esc(s.first_name)}${s.status !== 'aktiv' ? ' <span class="muted small">(' + esc(s.status) + ')</span>' : ''}</b>
+    <span class="muted small">${withTime ? esc(s.lesson_time || '') + ' · ' : (s.weekday ? WD[s.weekday] + ' ' + esc(s.lesson_time || '') + ' · ' : '')}${s.minutes_since} min seit letzter Stunde</span></div></div></button>
+    ${withTime ? `<button class="btn small" data-act="lesson" data-id="${s.id}">Starten</button>` : consentPill(s)}</div>`;
+}
+function sourceLabel(e) {
+  return { youtube: 'YouTube', instagram: 'Instagram', drive: 'Google Drive', buch: e.book_ref || 'Buch', link: 'Link' }[e.source_type] || (e.book_ref || '');
+}
+
+// Schülerakte
+async function openStudent(id) {
+  try {
+    const f = await api('/api/t/student', { id });
+    S.file = f;
+    openOverlay(studentFileView);
+  } catch (e) { toast(e.message); }
+}
+function weekKey(dateStr) { const d = new Date(dateStr + 'T12:00:00'); const day = (d.getDay() + 6) % 7; d.setDate(d.getDate() - day); return localDate(d); }
+function weeksCircles(sessions, count = 8) {
+  const byWeek = {};
+  for (const s of sessions) { const k = weekKey(s.local_date); byWeek[k] = (byWeek[k] || 0) + s.seconds; }
+  const out = []; const d = new Date(); d.setDate(d.getDate() - ((d.getDay() + 6) % 7));
+  for (let i = count - 1; i >= 0; i--) { const x = new Date(d); x.setDate(d.getDate() - i * 7); const k = localDate(x); out.push({ k, min: mins(byWeek[k] || 0), label: x.toLocaleDateString('de-DE', { day: 'numeric', month: 'numeric' }) }); }
+  const max = Math.max(60, ...out.map((o) => o.min));
+  return `<div class="weeks" aria-label="Übezeit der letzten ${count} Wochen">${out.map((o) => `<div class="w">${ring(o.min / max, 40, 5, 'var(--ring)', o.min + ' Minuten in der Woche ab ' + o.label, '')}<span>${o.min}′</span><span>${o.label}</span></div>`).join('')}</div>`;
+}
+function studentFileView() {
+  const f = S.file, st = f.student;
+  const open = f.assignments.filter((a) => a.status === 'offen');
+  return `<div class="wrap">
+    <div class="row between"><button class="btn small" data-act="close">Zurück</button><button class="btn primary small" data-act="lesson" data-id="${st.id}">Stunde starten</button></div>
+    <div class="col" style="gap:4px"><h1>${esc(st.first_name)}</h1><span class="muted">${st.weekday ? WD[st.weekday] + ' ' + esc(st.lesson_time || '') + ' · ' : ''}${st.lesson_minutes || 45} min${st.birth_year ? ' · Jahrgang ' + st.birth_year : ''}${st.level ? ' · ' + esc(st.level) : ''} · ${esc(st.status)}</span></div>
+    <section class="card"><h3>Übezeit pro Woche</h3>${weeksCircles(f.sessions)}</section>
+    <div class="grid2">
+      <section class="card"><h3>Offene Hausaufgaben</h3><div class="list">${open.length ? open.map((a) => `<div class="item"><span class="t">${esc(a.title || a.free_text)}${a.target_bpm ? ' <span class="muted small">Ziel ' + a.target_bpm + '</span>' : ''}</span><span class="muted small">${practicedFor(a, f.sessions)}</span></div>`).join('') : '<p class="muted">Keine.</p>'}</div></section>
+      <section class="card"><h3>Ziele</h3><div class="list">${f.goals.length ? f.goals.map((g) => `<div class="item"><span class="t">${esc(g.title)}</span><span class="pill">${g.status === 'erreicht' ? 'erreicht' : 'offen'}</span></div>`).join('') : '<p class="muted">Noch keine Ziele.</p>'}</div></section>
+    </div>
+    <section class="card"><h3>Stunden</h3><div class="list">${f.lessons.length ? f.lessons.map((l) => `<div class="item"><div class="t col" style="gap:2px"><b>${esc(fmtDate(l.date))}</b>${l.notes_shared ? `<span>${esc(l.notes_shared)}</span>` : ''}${l.notes_teacher ? `<span class="muted small">Privat: ${esc(l.notes_teacher)}</span>` : ''}</div></div>`).join('') : '<p class="muted">Noch keine Stunde.</p>'}</div></section>
+    <section class="card"><div class="row between"><h3>Zugänge</h3><div class="row"><button class="btn small" data-act="newAccess" data-role="student">Schülerlink</button><button class="btn small" data-act="newAccess" data-role="parent">Elternlink</button></div></div>
+      ${S.newLink ? `<div class="col"><span class="small muted">Neuer Link, nur jetzt sichtbar. Schick ihn per Nachricht weiter:</span><div class="code" id="newLink">${esc(S.newLink)}</div><button class="btn small" data-act="copyLink">Link kopieren</button></div>` : ''}
+      <div class="list">${f.access.length ? f.access.map((a) => `<div class="item"><span class="t">${a.role === 'parent' ? 'Eltern' + (a.label ? ' (' + esc(a.label) + ')' : '') : 'Schüler'}<br><span class="muted small">${a.revoked_at ? 'gesperrt' : a.last_seen ? 'zuletzt ' + esc(fmtDate(a.last_seen)) : 'noch nicht geöffnet'}</span></span>${a.revoked_at ? '' : `<button class="btn small danger" data-act="revoke" data-id="${a.id}">Sperren</button>`}</div>`).join('') : '<p class="muted">Noch kein Link erzeugt.</p>'}</div>
+      ${st.is_minor ? `<p class="small muted">${f.consents.length ? 'Einwilligung gegeben am ' + esc(fmtDate(f.consents[0].given_at)) : 'Unter 16: Die Eltern geben die Einwilligung über ihren Link.'}</p>` : ''}
+    </section>
+    <section class="card"><div class="row"><button class="btn" data-act="editStudent">Daten bearbeiten</button><button class="btn danger" data-act="deleteStudent">Löschen</button></div>
+      <div id="confirmDelete" class="col hidden"><p>Alle Daten von ${esc(st.first_name)} werden sofort und endgültig gelöscht.</p><div class="row"><button class="btn danger" data-act="deleteStudentYes">Endgültig löschen</button><button class="btn" data-act="deleteStudentNo">Abbrechen</button></div></div></section>
+  </div>`;
+}
+function practicedFor(a, sessions) {
+  const list = sessions.filter((s) => s.assignment_id === a.id);
+  const total = mins(list.reduce((t, s) => t + s.seconds, 0));
+  const best = Math.max(0, ...list.map((s) => s.bpm_reached || 0));
+  return `${total} min${best ? ' · ' + best + ' BPM' : ''}`;
+}
+
+function studentForm(st) {
+  st = st || {};
+  return `<div class="wrap" style="max-width:640px"><div class="row between"><h2>${st.id ? 'Schüler bearbeiten' : 'Schüler anlegen'}</h2><button class="btn small" data-act="${st.id ? 'backToFile' : 'close'}">Abbrechen</button></div>
+  <form id="studentForm" class="card">
+    <input type="hidden" name="id" value="${esc(st.id || '')}">
+    <div class="field"><label for="f_first">Vorname</label><input id="f_first" name="first_name" required maxlength="60" value="${esc(st.first_name || '')}"></div>
+    <div class="field"><label for="f_birth">Geburtsjahr</label><input id="f_birth" name="birth_year" inputmode="numeric" maxlength="4" value="${esc(st.birth_year || '')}"><span class="small muted">Nur das Jahr. Unter 16 brauchen die Eltern einen eigenen Link.</span></div>
+    <div class="grid2" style="grid-template-columns:repeat(auto-fit,minmax(140px,1fr))">
+      <div class="field"><label for="f_wd">Wochentag</label><select id="f_wd" name="weekday"><option value="">offen</option>${WD.slice(1).map((d, i) => `<option value="${i + 1}" ${st.weekday === i + 1 ? 'selected' : ''}>${d}</option>`).join('')}</select></div>
+      <div class="field"><label for="f_time">Uhrzeit</label><input id="f_time" name="lesson_time" type="time" value="${esc(st.lesson_time || '')}"></div>
+      <div class="field"><label for="f_min">Dauer (min)</label><input id="f_min" name="lesson_minutes" inputmode="numeric" value="${esc(st.lesson_minutes || 45)}"></div>
+    </div>
+    <div class="field"><label for="f_level">Stufe (frei)</label><input id="f_level" name="level" maxlength="60" value="${esc(st.level || '')}" placeholder="z. B. Einsteiger, Band ready"></div>
+    ${st.id ? `<div class="field"><label for="f_status">Status</label><select id="f_status" name="status">${['aktiv', 'pausiert', 'archiviert'].map((x) => `<option ${st.status === x ? 'selected' : ''}>${x}</option>`).join('')}</select><span class="small muted">Archivierte Schüler können sich nicht mehr anmelden und werden nach 12 Monaten automatisch gelöscht.</span></div>` : ''}
+    <button class="btn primary block" type="submit">Speichern</button>
+  </form></div>`;
+}
+function exerciseForm(e) {
+  e = e || {};
+  return `<div class="wrap" style="max-width:640px"><div class="row between"><h2>${e.id ? 'Übung bearbeiten' : 'Übung anlegen'}</h2><button class="btn small" data-act="close">Abbrechen</button></div>
+  <form id="exerciseForm" class="card">
+    <input type="hidden" name="id" value="${esc(e.id || '')}">
+    <div class="field"><label for="e_title">Titel</label><input id="e_title" name="title" required maxlength="120" value="${esc(e.title || '')}"></div>
+    <div class="field"><label for="e_cat">Kategorie</label><input id="e_cat" name="category" list="cats" maxlength="40" value="${esc(e.category || '')}"><datalist id="cats">${['Grooves', 'Fills', 'Rudiments', 'Worship Songs', 'Technik', 'Lesen'].map((c) => `<option value="${c}">`).join('')}</datalist></div>
+    <div class="field"><label for="e_src">Quelle</label><select id="e_src" name="source_type">${[['youtube', 'YouTube'], ['instagram', 'Instagram'], ['drive', 'Google Drive (PDF, Noten)'], ['buch', 'Buch'], ['link', 'Anderer Link']].map(([v, l]) => `<option value="${v}" ${e.source_type === v ? 'selected' : ''}>${l}</option>`).join('')}</select></div>
+    <div class="field"><label for="e_url">Link (https://)</label><input id="e_url" name="url" type="url" inputmode="url" value="${esc(e.url || '')}"><span class="small muted">Drive Dateien auf "Jeder mit dem Link" stellen. Nur Unterrichtsmaterial, nie Schülerdaten.</span></div>
+    <div class="field"><label for="e_book">Buch und Seite</label><input id="e_book" name="book_ref" maxlength="120" value="${esc(e.book_ref || '')}" placeholder="z. B. Stick Control, S. 5"></div>
+    <div class="field"><label for="e_bpm">Ziel BPM</label><input id="e_bpm" name="target_bpm" inputmode="numeric" value="${esc(e.target_bpm || '')}"></div>
+    <div class="field"><label for="e_notes">Hinweise</label><textarea id="e_notes" name="notes" maxlength="1000">${esc(e.notes || '')}</textarea></div>
+    <button class="btn primary block" type="submit">Speichern</button>
+    ${e.id ? '<button class="btn danger block" type="button" data-act="archiveExercise" data-id="' + e.id + '">Aus der Bibliothek nehmen</button>' : ''}
+  </form></div>`;
+}
+
+// Stundenfenster
+async function openLesson(id) {
+  try {
+    const f = await api('/api/t/student', { id });
+    if (!S.exercises) S.exercises = (await api('/api/t/exercises')).exercises;
+    S.file = f;
+    S.lesson = store.get('draft_' + id, null) || { student_id: id, notes_shared: '', notes_teacher: '', new_assignments: [], close_assignments: [], goals_reached: [], new_goals: [], started: Date.now() };
+    openOverlay(lessonView);
+  } catch (e) { toast(e.message); }
+}
+function saveDraft() { if (S.lesson) store.set('draft_' + S.lesson.student_id, S.lesson); }
+function lessonView() {
+  const f = S.file, st = f.student, L = S.lesson;
+  const open = f.assignments.filter((a) => a.status === 'offen');
+  const last = f.lessons[0];
+  const sinceDate = last ? last.date : localDate(new Date(Date.now() - 7 * 864e5));
+  const recent = f.sessions.filter((s) => s.local_date >= sinceDate);
+  const total = mins(recent.reduce((t, s) => t + s.seconds, 0));
+  const days = new Set(recent.map((s) => s.local_date)).size;
+  const exOpts = (S.exercises || []).map((e) => `<option value="${e.id}">${esc((e.category ? e.category + ': ' : '') + e.title)}</option>`).join('');
+  return `<div class="wrap">
+    <div class="row between"><button class="btn small" data-act="closeLesson">Schließen</button><span class="pill">Stunde läuft · ${esc(st.lesson_time || '')}</span></div>
+    <h1>${esc(st.first_name)}</h1>
+    <div class="lesson-grid">
+      <div class="col" style="gap:16px">
+        <section class="card"><h3>Seit ${last ? 'der letzten Stunde (' + esc(fmtDate(last.date)) + ')' : '7 Tagen'}</h3>
+          <div class="row">${ring(Math.min(1, total / 100), 76, 7, 'var(--ring)', total + ' Minuten', total + '′')}${ring(days / 7, 76, 7, 'var(--ring2)', days + ' von 7 Tagen', days + '/7')}
+          <span class="muted small" style="flex:1;min-width:120px">${recent.length} Übungssitzungen${recent.length ? ', Gefühl im Schnitt ' + (recent.filter((s) => s.feeling).reduce((t, s) => t + s.feeling, 0) / Math.max(1, recent.filter((s) => s.feeling).length)).toFixed(1) : ''}</span></div>
+          ${last && last.notes_shared ? `<p class="small"><span class="muted">Letzte Notiz:</span> ${esc(last.notes_shared)}</p>` : ''}
+        </section>
+        <section class="card"><h3>Hausaufgaben</h3><div class="list">${open.length ? open.map((a) => { const on = L.close_assignments.includes(a.id); return `<div class="item"><span class="t">${esc(a.title || a.free_text)}<br><span class="muted small">${practicedFor(a, f.sessions)}${a.target_bpm ? ' · Ziel ' + a.target_bpm : ''}</span></span><button class="check ${on ? 'on' : ''}" data-act="toggleClose" data-id="${a.id}" aria-pressed="${on}" aria-label="Als erledigt markieren">${on ? '✓' : ''}</button></div>`; }).join('') : '<p class="muted">Keine offenen Hausaufgaben.</p>'}</div></section>
+        <section class="card"><h3>Ziele</h3><div class="list">${f.goals.filter((g) => g.status !== 'erreicht').map((g) => { const on = L.goals_reached.includes(g.id); return `<div class="item"><span class="t">${esc(g.title)}</span><button class="check ${on ? 'on' : ''}" data-act="toggleGoal" data-id="${g.id}" aria-pressed="${on}" aria-label="Ziel erreicht">${on ? '✓' : ''}</button></div>`; }).join('') || '<p class="muted small">Keine offenen Ziele.</p>'}
+          ${L.new_goals.map((g, i) => `<div class="item"><span class="t">${esc(g.title)} <span class="pill">neu</span></span><button class="btn small" data-act="rmGoal" data-i="${i}">Entfernen</button></div>`).join('')}</div>
+          <form id="goalForm" class="row" style="flex-wrap:nowrap"><label for="g_title" class="hidden">Neues Ziel</label><input id="g_title" placeholder="Neues Ziel, z. B. Groove sauber auf 96" maxlength="160"><button class="btn small" type="submit">Hinzufügen</button></form></section>
+      </div>
+      <div class="col" style="gap:16px">
+        <section class="card"><h3>Neue Hausaufgaben</h3>
+          <div class="list">${L.new_assignments.map((a, i) => `<div class="item"><span class="t">${esc(a.label)}${a.target_bpm ? ' <span class="muted small">Ziel ' + a.target_bpm + '</span>' : ''}</span><button class="btn small" data-act="rmAssign" data-i="${i}">Entfernen</button></div>`).join('') || '<p class="muted small">Noch keine.</p>'}</div>
+          <form id="assignForm" class="col">
+            <div class="field"><label for="a_ex">Aus der Bibliothek</label><select id="a_ex"><option value="">Freie Aufgabe</option>${exOpts}</select></div>
+            <div class="field"><label for="a_free">Oder frei beschreiben</label><input id="a_free" maxlength="300" placeholder="z. B. Song Zentrum, Bridge mitspielen"></div>
+            <div class="row" style="flex-wrap:nowrap"><div class="field" style="flex:1"><label for="a_bpm">Ziel BPM</label><input id="a_bpm" inputmode="numeric"></div><div class="field" style="flex:1"><label for="a_min">Min pro Tag</label><input id="a_min" inputmode="numeric" placeholder="10"></div></div>
+            <button class="btn" type="submit">Hausaufgabe hinzufügen</button>
+          </form></section>
+        <section class="card">
+          <div class="field"><label for="l_shared">Notiz für ${esc(st.first_name)} (sichtbar${st.is_minor ? ', auch für Eltern' : ''})</label><textarea id="l_shared" data-draft="notes_shared" maxlength="3000">${esc(L.notes_shared)}</textarea></div>
+          <div class="field"><label for="l_priv">Private Notiz (nur du)</label><textarea id="l_priv" data-draft="notes_teacher" maxlength="3000">${esc(L.notes_teacher)}</textarea></div>
+          <button class="btn primary block" data-act="finishLesson">Stunde beenden und speichern</button>
+        </section>
+      </div>
+    </div></div>`;
+}
+
+// ---------- Schüler ----------
+function weekStart() { const d = new Date(); d.setHours(0, 0, 0, 0); d.setDate(d.getDate() - ((d.getDay() + 6) % 7)); return localDate(d); }
+function allSessions() { return (S.data.sessions || []).concat(store.get('outbox', []).filter((o) => !S.data.sessions.some((s) => s.client_id === o.client_id))); }
+function studentView() {
+  const d = S.data, t = S.tab;
+  const sessions = allSessions();
+  const today = localDate(), ws = weekStart();
+  const todayMin = mins(sessions.filter((s) => s.local_date === today).reduce((x, s) => x + s.seconds, 0));
+  const weekMin = mins(sessions.filter((s) => s.local_date >= ws).reduce((x, s) => x + s.seconds, 0));
+  const open = d.assignments.filter((a) => a.status === 'offen');
+  const dailyGoal = Math.max(10, open.reduce((x, a) => x + (a.minutes_per_day || 0), 0) || 20);
+  const pending = store.get('outbox', []).length;
+  let html = '';
+  if (t === 'ueben') {
+    html = `<div class="col" style="gap:2px"><span class="muted">Hallo ${esc(d.student.first_name)}</span><h1>Heute üben</h1></div>
+    ${d.student.is_minor && !d.consent ? `<div class="card small"><b>Kurzer Hinweis</b><span class="muted">Deine Eltern bekommen von Oti einen eigenen Link und stimmen dort zu, dass deine Übezeiten gespeichert werden.</span></div>` : ''}
+    ${store.get('run', null) ? `<button class="btn primary block" data-act="resumePractice">Laufende Sitzung öffnen</button>` : ''}
+    ${pending ? `<span class="pill">${pending} Sitzung${pending > 1 ? 'en' : ''} wird gesendet, sobald Internet da ist</span>` : ''}
+    <section class="card"><div class="row" style="justify-content:space-around">
+      <div class="col" style="align-items:center;gap:4px">${ring(todayMin / dailyGoal, 120, 10, 'var(--ring)', todayMin + ' von ' + dailyGoal + ' Minuten heute', todayMin + '′', 'von ' + dailyGoal)}<span class="small muted">heute</span></div>
+      <div class="col" style="align-items:center;gap:4px">${ring(weekMin / (dailyGoal * 5), 120, 10, 'var(--ring2)', weekMin + ' Minuten diese Woche', weekMin + '′', 'Woche')}<span class="small muted">diese Woche</span></div>
+    </div></section>
+    <section class="col"><h2>Hausaufgaben</h2>
+      ${open.length ? open.map((a) => assignmentCard(a, sessions)).join('') : '<div class="empty">Keine offenen Hausaufgaben. Du kannst trotzdem frei üben.</div>'}
+      <button class="btn block" data-act="practiceFree">Frei üben</button>
+    </section>
+    ${d.assignments.filter((a) => a.status === 'erledigt').length ? `<section class="card"><h3>Erledigt</h3><div class="list">${d.assignments.filter((a) => a.status === 'erledigt').map((a) => `<div class="item"><span class="t">${esc(a.title || a.free_text)}</span><button class="check on" data-act="toggleDone" data-id="${a.id}" aria-pressed="true" aria-label="Wieder öffnen">✓</button></div>`).join('')}</div></section>` : ''}`;
+  } else if (t === 'fortschritt') {
+    const perEx = {};
+    for (const a of d.assignments) if (a.exercise_id) perEx[a.exercise_id] = { title: a.title, target: a.target_bpm, best: 0 };
+    for (const s of sessions) if (s.exercise_id && perEx[s.exercise_id]) perEx[s.exercise_id].best = Math.max(perEx[s.exercise_id].best, s.bpm_reached || 0);
+    const exList = Object.values(perEx).filter((e) => e.target);
+    html = `<h1>Fortschritt</h1>
+    <section class="card"><h3>Übezeit pro Woche</h3>${weeksCircles(sessions)}</section>
+    ${exList.length ? `<section class="card"><h3>Tempo</h3><div class="grid2" style="grid-template-columns:repeat(auto-fill,minmax(150px,1fr))">${exList.map((e) => `<div class="col" style="align-items:center;gap:6px">${ring(e.best / e.target, 96, 8, 'var(--ring)', e.title + ': ' + e.best + ' von ' + e.target + ' BPM', String(e.best || '–'), 'von ' + e.target)}<span class="small" style="text-align:center">${esc(e.title)}</span></div>`).join('')}</div></section>` : ''}
+    <section class="card"><h3>Ziele</h3><div class="list">${d.goals.length ? d.goals.map((g) => `<div class="item"><span class="t">${esc(g.title)}</span>${g.status === 'erreicht' ? '<span class="pill">erreicht</span>' : '<span class="pill">offen</span>'}</div>`).join('') : '<p class="muted">Oti trägt deine Ziele in der Stunde ein.</p>'}</div></section>`;
+  } else {
+    html = lessonsList(d);
+  }
+  return `<main class="wrap">${html}</main>`;
+}
+function lessonsList(d) {
+  return `<h1>Stunden</h1>${d.lessons.length ? `<section class="card"><div class="list">${d.lessons.map((l) => `<div class="item"><div class="t col" style="gap:2px"><b>${esc(fmtDate(l.date))}</b><span>${l.notes_shared ? esc(l.notes_shared) : '<span class="muted">Keine Notiz</span>'}</span></div></div>`).join('')}</div></section>` : '<div class="empty">Noch keine Stunden eingetragen.</div>'}`;
+}
+function assignmentCard(a, sessions) {
+  const list = sessions.filter((s) => s.assignment_id === a.id);
+  const today = mins(list.filter((s) => s.local_date === localDate()).reduce((t, s) => t + s.seconds, 0));
+  const goal = a.minutes_per_day || 10;
+  const best = Math.max(0, ...list.map((s) => s.bpm_reached || 0));
+  return `<section class="card"><div class="row" style="flex-wrap:nowrap">
+    ${ring(today / goal, 60, 6, 'var(--ring)', today + ' von ' + goal + ' Minuten heute', today + '′')}
+    <div class="col" style="gap:2px;flex:1"><b>${esc(a.title || a.free_text)}</b>
+      <span class="muted small">${a.target_bpm ? (best ? best + ' von ' : 'Ziel ') + a.target_bpm + ' BPM · ' : ''}${goal} min am Tag${a.book_ref ? ' · ' + esc(a.book_ref) : ''}</span></div>
+    <button class="check" data-act="toggleDone" data-id="${a.id}" aria-pressed="false" aria-label="Als erledigt abhaken"></button></div>
+    <div class="row">${a.url ? `<a class="btn small" href="${esc(a.url)}" target="_blank" rel="noopener">${a.source_type === 'drive' ? 'Noten öffnen' : 'Video öffnen'}</a>` : ''}<button class="btn primary small" data-act="practice" data-id="${a.id}" style="flex:1">Üben starten</button></div>
+  </section>`;
+}
+
+// Übungssitzung mit Stoppuhr und Metronom
+let tickTimer = null, wakeLock = null;
+const MET = { ctx: null, playing: false, bpm: 80, next: 0, beat: 0, timer: null, lastBeat: -1 };
+function stopTick() { clearInterval(tickTimer); tickTimer = null; metStop(); releaseWake(); }
+async function requestWake() { try { if ('wakeLock' in navigator && !wakeLock) { wakeLock = await navigator.wakeLock.request('screen'); wakeLock.addEventListener('release', () => { wakeLock = null; }); } } catch (e) {} }
+function releaseWake() { try { if (wakeLock) wakeLock.release(); } catch (e) {} wakeLock = null; }
+document.addEventListener('visibilitychange', () => { const r = store.get('run', null); if (document.visibilityState === 'visible' && r && r.runningSince) requestWake(); });
+
+function runElapsed(r) { return r.accumulated + (r.runningSince ? Date.now() - r.runningSince : 0); }
+function startPractice(assignmentId) {
+  const existing = store.get('run', null);
+  if (existing && existing.assignment_id !== (assignmentId || null) && runElapsed(existing) > 0) {
+    toast('Erst die laufende Sitzung beenden'); assignmentId = existing.assignment_id;
+  }
+  if (!existing || existing.assignment_id !== (assignmentId || null)) {
+    const a = S.data.assignments.find((x) => x.id === assignmentId);
+    const best = Math.max(0, ...allSessions().filter((s) => s.assignment_id === assignmentId).map((s) => s.bpm_reached || 0));
+    store.set('run', { assignment_id: assignmentId || null, startedAt: new Date().toISOString(), accumulated: 0, runningSince: null, bpm: best || (a && (a.start_bpm || a.target_bpm && Math.round(a.target_bpm * 0.8))) || 80 });
+  }
+  MET.bpm = store.get('run').bpm;
+  openOverlay(practiceView);
+  tickTimer = setInterval(updateClock, 250);
+}
+function practiceView() {
+  const r = store.get('run', null); if (!r) return '';
+  const a = S.data.assignments.find((x) => x.id === r.assignment_id);
+  const goal = (a && a.minutes_per_day) || 10;
+  const el = runElapsed(r);
+  return `<div class="wrap" style="max-width:560px;align-items:stretch">
+    <div class="row between"><button class="btn small" data-act="minimize">Zurück</button><span class="pill">Ziel ${goal} min</span></div>
+    <div class="col" style="align-items:center;gap:8px;text-align:center"><h1>${esc(a ? (a.title || a.free_text) : 'Frei üben')}</h1>
+      ${a && a.book_ref ? `<span class="muted">${esc(a.book_ref)}</span>` : ''}
+      ${a && a.exercise_notes ? `<span class="muted small">${esc(a.exercise_notes)}</span>` : ''}
+      ${a && a.url ? `<a class="btn small" href="${esc(a.url)}" target="_blank" rel="noopener">${a.source_type === 'drive' ? 'Noten öffnen' : 'Video öffnen'}</a>` : ''}</div>
+    <div id="clockRing" style="display:flex;justify-content:center">${clockRing(el, goal)}</div>
+    <button class="btn ${r.runningSince ? '' : 'primary'} block" data-act="startStop">${r.runningSince ? 'Pause' : el ? 'Weiter' : 'Stoppuhr starten'}</button>
+    <section class="card" aria-label="Metronom">
+      <div class="beats" id="beats" aria-hidden="true"><span></span><span></span><span></span><span></span></div>
+      <div class="row" style="justify-content:center;flex-wrap:nowrap">
+        <button class="iconbtn" data-act="bpm" data-d="-5" aria-label="5 BPM langsamer">−</button>
+        <div class="col" style="align-items:center;gap:0;min-width:110px"><b class="big-time" id="bpmVal" style="font-size:2.2rem">${MET.bpm}</b><span class="muted small">BPM${a && a.target_bpm ? ' · Ziel ' + a.target_bpm : ''}</span></div>
+        <button class="iconbtn" data-act="bpm" data-d="5" aria-label="5 BPM schneller">+</button>
+      </div>
+      <div class="row" style="flex-wrap:nowrap"><button class="btn small" data-act="bpm" data-d="-1" style="flex:1" aria-label="1 BPM langsamer">−1</button><button class="btn small" data-act="tap" style="flex:2">Tippen</button><button class="btn small" data-act="bpm" data-d="1" style="flex:1" aria-label="1 BPM schneller">+1</button></div>
+      <button class="btn block" data-act="metronome">${MET.playing ? 'Metronom stoppen' : 'Metronom starten'}</button>
+      <span class="small muted" style="text-align:center">Am iPhone muss der Stummschalter aus sein, damit du den Klick hörst.</span>
+    </section>
+    <button class="btn primary block" data-act="endPractice" ${el < 1000 ? 'disabled' : ''}>Sitzung beenden</button>
+  </div>`;
+}
+function clockRing(el, goal) {
+  const v = el / (goal * 60000);
+  return ring(v % 1 === 0 && v > 0 ? 1 : v % 1, 230, 12, v >= 1 ? 'var(--ring2)' : 'var(--ring)', 'Übezeit ' + clock(el), clock(el), v >= 1 ? 'Ziel geschafft' : 'von ' + goal + ' min');
+}
+function updateClock() {
+  const r = store.get('run', null); const box = $('#clockRing');
+  if (!r || !box) return;
+  const a = S.data.assignments.find((x) => x.id === r.assignment_id);
+  box.innerHTML = clockRing(runElapsed(r), (a && a.minutes_per_day) || 10);
+  const end = document.querySelector('[data-act="endPractice"]'); if (end) end.disabled = runElapsed(r) < 1000;
+}
+// Metronom: Web Audio mit Vorausplanung, damit der Takt stabil bleibt
+function metStart() {
+  MET.ctx = MET.ctx || new (window.AudioContext || window.webkitAudioContext)();
+  if (MET.ctx.state === 'suspended') MET.ctx.resume();
+  MET.playing = true; MET.beat = 0; MET.next = MET.ctx.currentTime + 0.08;
+  MET.timer = setInterval(metSchedule, 25); metDraw();
+}
+function metStop() { MET.playing = false; clearInterval(MET.timer); MET.timer = null; }
+function metSchedule() {
+  while (MET.next < MET.ctx.currentTime + 0.12) {
+    const o = MET.ctx.createOscillator(), g = MET.ctx.createGain();
+    o.frequency.value = MET.beat % 4 === 0 ? 1600 : 1000;
+    g.gain.setValueAtTime(0.0001, MET.next); g.gain.exponentialRampToValueAtTime(0.6, MET.next + 0.002); g.gain.exponentialRampToValueAtTime(0.0001, MET.next + 0.05);
+    o.connect(g).connect(MET.ctx.destination); o.start(MET.next); o.stop(MET.next + 0.06);
+    MET.queue = (MET.queue || []).concat([{ t: MET.next, b: MET.beat % 4 }]);
+    MET.next += 60 / MET.bpm; MET.beat++;
+  }
+}
+function metDraw() {
+  if (!MET.playing) { document.querySelectorAll('#beats span').forEach((s) => s.classList.remove('on')); return; }
+  const t = MET.ctx.currentTime; let cur = null;
+  while (MET.queue && MET.queue.length && MET.queue[0].t <= t) cur = MET.queue.shift();
+  if (cur) document.querySelectorAll('#beats span').forEach((s, i) => s.classList.toggle('on', i === cur.b));
+  requestAnimationFrame(metDraw);
+}
+function setBpm(v) {
+  MET.bpm = Math.max(30, Math.min(300, Math.round(v)));
+  const r = store.get('run', null); if (r) { r.bpm = MET.bpm; store.set('run', r); }
+  const el = $('#bpmVal'); if (el) el.textContent = MET.bpm;
+}
+const taps = [];
+function tapTempo() {
+  const t = performance.now(); if (taps.length && t - taps[taps.length - 1] > 2000) taps.length = 0;
+  taps.push(t); if (taps.length > 6) taps.shift();
+  if (taps.length >= 3) { const avg = (taps[taps.length - 1] - taps[0]) / (taps.length - 1); setBpm(60000 / avg); }
+}
+function finishForm() {
+  const r = store.get('run', null);
+  const a = S.data.assignments.find((x) => x.id === r.assignment_id);
+  return `<div class="wrap" style="max-width:560px">
+    <h1>Gut gemacht</h1><p class="muted">${clock(runElapsed(r))} geübt${a ? ' · ' + esc(a.title || a.free_text) : ''}</p>
+    <form id="finishForm" class="card">
+      <div class="field"><label for="fin_bpm">Welches Tempo hast du sauber geschafft?</label><input id="fin_bpm" inputmode="numeric" value="${MET.bpm}"></div>
+      <div class="field"><span id="feelLbl" class="small muted">Wie lief es?</span><div class="feel" role="group" aria-labelledby="feelLbl">${[1, 2, 3, 4, 5].map((n) => `<button type="button" data-act="feel" data-v="${n}" aria-pressed="false" aria-label="${['', 'schwer', 'eher schwer', 'okay', 'gut', 'sehr gut'][n]}">${n}</button>`).join('')}</div><div class="row between small muted"><span>schwer</span><span>sehr gut</span></div></div>
+      <div class="field"><label for="fin_note">Frage oder Notiz an Oti (optional)</label><textarea id="fin_note" maxlength="500"></textarea></div>
+      <button class="btn primary block" type="submit">Speichern</button>
+      <button class="btn block" type="button" data-act="backToPractice">Weiter üben</button>
+    </form></div>`;
+}
+function saveSession(feeling) {
+  const r = store.get('run', null); if (!r) return;
+  const el = runElapsed(r);
+  const s = { client_id: (crypto.randomUUID ? crypto.randomUUID() : String(Date.now()) + Math.random()), assignment_id: r.assignment_id, started_at: r.startedAt, ended_at: new Date().toISOString(), local_date: localDate(new Date(r.startedAt)), seconds: Math.max(1, Math.round(el / 1000)), bpm_reached: Number($('#fin_bpm').value) || null, feeling: feeling || null, note: $('#fin_note').value.trim() || null };
+  const ob = store.get('outbox', []); ob.push(s); store.set('outbox', ob);
+  store.del('run'); stopTick();
+  S.overlay = null; render(); toast(mins(s.seconds) + ' min gespeichert'); flushOutbox();
+}
+let flushing = false;
+async function flushOutbox() {
+  if (flushing || S.role !== 'student') return;
+  flushing = true;
+  try {
+    let ob = store.get('outbox', []);
+    for (const s of ob.slice()) {
+      try { await api('/api/session/add', s); ob = store.get('outbox', []).filter((x) => x.client_id !== s.client_id); store.set('outbox', ob); }
+      catch (e) { if (e.offline) break; if (/gehört nicht/.test(e.message)) { ob = store.get('outbox', []).filter((x) => x.client_id !== s.client_id); store.set('outbox', ob); } else break; }
+    }
+    if (S.data) S.data = await api('/api/home');
+  } catch (e) {} finally { flushing = false; if (!S.overlay) render(); }
+}
+window.addEventListener('online', () => setTimeout(flushOutbox, 800));
+setInterval(() => { if (navigator.onLine !== false && store.get('outbox', []).length) flushOutbox(); }, 20000);
+document.addEventListener('visibilitychange', () => { if (document.visibilityState === 'visible' && store.get('outbox', []).length) flushOutbox(); });
+
+// ---------- Eltern ----------
+function parentView() {
+  const d = S.data, t = S.tab;
+  if (t === 'stunden') return `<main class="wrap">${lessonsList(d)}</main>`;
+  const ws = weekStart();
+  const weekMin = mins(d.sessions.filter((s) => s.local_date >= ws).reduce((x, s) => x + s.seconds, 0));
+  const days7 = new Set(d.sessions.filter((s) => s.local_date > localDate(new Date(Date.now() - 7 * 864e5))).map((s) => s.local_date)).size;
+  return `<main class="wrap"><div class="col" style="gap:2px"><span class="muted">Elternansicht</span><h1>${esc(d.student.first_name)}</h1></div>
+    ${!d.consent ? `<section class="card"><h3>Einwilligung</h3><p>${esc(CONSENT_TEXT)}</p><a class="small" href="datenschutz.html">Datenschutzhinweise lesen</a><button class="btn primary block" data-act="consent">Ich stimme zu</button></section>`
+      : `<span class="pill">Einwilligung gegeben am ${esc(fmtDate(d.consent))}</span>`}
+    <section class="card"><div class="row" style="justify-content:space-around">
+      <div class="col" style="align-items:center">${ring(weekMin / 100, 110, 9, 'var(--ring)', weekMin + ' Minuten diese Woche', weekMin + '′', 'Woche')}</div>
+      <div class="col" style="align-items:center">${ring(days7 / 7, 110, 9, 'var(--ring2)', days7 + ' von 7 Tagen', days7 + '/7', 'Tage')}</div></div></section>
+    <section class="card"><h3>Hausaufgaben</h3><div class="list">${d.assignments.length ? d.assignments.map((a) => `<div class="item"><span class="t">${esc(a.title || a.free_text)}</span><span class="pill">${a.status}</span></div>`).join('') : '<p class="muted">Keine.</p>'}</div></section>
+    <section class="card"><h3>Letzte Übungen</h3><div class="list">${d.sessions.slice(0, 10).map((s) => `<div class="item"><span class="t">${esc(fmtDate(s.local_date))}</span><span class="muted small">${mins(s.seconds)} min${s.bpm_reached ? ' · ' + s.bpm_reached + ' BPM' : ''}</span></div>`).join('') || '<p class="muted">Noch keine.</p>'}</div></section>
+    <section class="card"><a href="datenschutz.html">Datenschutz</a><button class="btn" data-act="logout">Abmelden</button></section></main>`;
+}
+
+// ---------- Ereignisse ----------
+document.addEventListener('click', async (ev) => {
+  const tabBtn = ev.target.closest('[data-tab]');
+  if (tabBtn) { S.tab = tabBtn.dataset.tab; S.overlay = null; render(); window.scrollTo(0, 0); return; }
+  const el = ev.target.closest('[data-act]'); if (!el) return;
+  const act = el.dataset.act, id = el.dataset.id;
+  try {
+    switch (act) {
+      case 'reload': load(); break;
+      case 'logout': try { await api('/api/logout'); } catch (e) {} logoutLocal(); break;
+      case 'close': S.newLink = null; closeOverlay(); break;
+      case 'student': S.newLink = null; openStudent(id); break;
+      case 'lesson': openLesson(id); break;
+      case 'newStudent': openOverlay(() => studentForm()); break;
+      case 'editStudent': openOverlay(() => studentForm(S.file.student)); break;
+      case 'backToFile': openOverlay(studentFileView); break;
+      case 'deleteStudent': $('#confirmDelete').classList.remove('hidden'); break;
+      case 'deleteStudentNo': $('#confirmDelete').classList.add('hidden'); break;
+      case 'deleteStudentYes': await api('/api/t/student/delete', { id: S.file.student.id }); store.del('draft_' + S.file.student.id); closeOverlay(); toast('Gelöscht'); load(); break;
+      case 'newAccess': {
+        const r = await api('/api/t/access/create', { student_id: S.file.student.id, role: el.dataset.role, label: el.dataset.role === 'parent' ? 'Eltern' : null });
+        S.newLink = location.origin + location.pathname + '#c=' + r.code;
+        S.file = await api('/api/t/student', { id: S.file.student.id }); render(); break;
+      }
+      case 'copyLink': try { await navigator.clipboard.writeText(S.newLink); toast('Link kopiert'); } catch (e) { const r = document.createRange(); r.selectNodeContents($('#newLink')); getSelection().removeAllRanges(); getSelection().addRange(r); toast('Link markiert, jetzt kopieren'); } break;
+      case 'revoke': await api('/api/t/access/revoke', { id }); S.file = await api('/api/t/student', { id: S.file.student.id }); render(); toast('Gesperrt'); break;
+      case 'newExercise': openOverlay(() => exerciseForm()); break;
+      case 'editExercise': openOverlay(() => exerciseForm(S.exercises.find((e) => e.id === id))); break;
+      case 'archiveExercise': await api('/api/t/exercise/archive', { id }); S.exercises = (await api('/api/t/exercises')).exercises; closeOverlay(); toast('Entfernt'); break;
+      case 'feed': S.feed = (await api('/api/t/feed')).feed; render(); break;
+      case 'toggleClose': { const L = S.lesson; L.close_assignments = L.close_assignments.includes(id) ? L.close_assignments.filter((x) => x !== id) : L.close_assignments.concat(id); saveDraft(); render(); break; }
+      case 'toggleGoal': { const L = S.lesson; L.goals_reached = L.goals_reached.includes(id) ? L.goals_reached.filter((x) => x !== id) : L.goals_reached.concat(id); saveDraft(); render(); break; }
+      case 'rmAssign': S.lesson.new_assignments.splice(Number(el.dataset.i), 1); saveDraft(); render(); break;
+      case 'rmGoal': S.lesson.new_goals.splice(Number(el.dataset.i), 1); saveDraft(); render(); break;
+      case 'closeLesson': saveDraft(); closeOverlay(); break;
+      case 'finishLesson': {
+        el.disabled = true;
+        const L = S.lesson;
+        await api('/api/t/lesson/finish', { student_id: L.student_id, date: localDate(), minutes: S.file.student.lesson_minutes, notes_shared: L.notes_shared, notes_teacher: L.notes_teacher, new_assignments: L.new_assignments, close_assignments: L.close_assignments, goals_reached: L.goals_reached, new_goals: L.new_goals });
+        store.del('draft_' + L.student_id); S.lesson = null; closeOverlay(); toast('Stunde gespeichert'); load(); break;
+      }
+      case 'practice': startPractice(id); break;
+      case 'practiceFree': startPractice(null); break;
+      case 'resumePractice': startPractice(store.get('run').assignment_id); break;
+      case 'minimize': stopTick(); S.overlay = null; render(); break;
+      case 'startStop': { const r = store.get('run'); if (r.runningSince) { r.accumulated += Date.now() - r.runningSince; r.runningSince = null; releaseWake(); } else { r.runningSince = Date.now(); requestWake(); } store.set('run', r); render(); break; }
+      case 'bpm': setBpm(MET.bpm + Number(el.dataset.d)); break;
+      case 'tap': tapTempo(); break;
+      case 'metronome': if (MET.playing) metStop(); else metStart(); el.textContent = MET.playing ? 'Metronom stoppen' : 'Metronom starten'; break;
+      case 'endPractice': { const r = store.get('run'); if (r.runningSince) { r.accumulated += Date.now() - r.runningSince; r.runningSince = null; store.set('run', r); } metStop(); clearInterval(tickTimer); S.feeling = null; openOverlay(finishForm); break; }
+      case 'backToPractice': openOverlay(practiceView); tickTimer = setInterval(updateClock, 250); break;
+      case 'feel': S.feeling = Number(el.dataset.v); document.querySelectorAll('[data-act="feel"]').forEach((b) => b.setAttribute('aria-pressed', String(b === el))); break;
+      case 'toggleDone': {
+        const a = S.data.assignments.find((x) => x.id === id); const done = a.status !== 'erledigt';
+        await api('/api/assignment/toggle', { id, done }); a.status = done ? 'erledigt' : 'offen'; render(); if (done) toast('Abgehakt'); break;
+      }
+      case 'consent': await api('/api/consent', { version: S.data.consentVersion }); toast('Danke, gespeichert'); load(); break;
+    }
+  } catch (e) { toast(e.message); el.disabled = false; }
+});
+document.addEventListener('input', (ev) => {
+  const k = ev.target.dataset && ev.target.dataset.draft;
+  if (k && S.lesson) { S.lesson[k] = ev.target.value; saveDraft(); }
+});
+document.addEventListener('submit', async (ev) => {
+  ev.preventDefault();
+  const f = ev.target; const fid = f.getAttribute('id'); // nicht f.id: ein Feld name="id" überdeckt es
+  try {
+    if (fid === 'loginForm') { S.loginError = null; await doLogin($('#code').value); }
+    else if (fid === 'studentForm') {
+      const data = Object.fromEntries(new FormData(f)); if (!data.id) delete data.id;
+      const r = await api('/api/t/student/save', data); toast('Gespeichert'); await load();
+      if (data.id) { S.file = await api('/api/t/student', { id: r.id }); openOverlay(studentFileView); } else openStudent(r.id);
+    } else if (fid === 'exerciseForm') {
+      const data = Object.fromEntries(new FormData(f)); if (!data.id) delete data.id;
+      await api('/api/t/exercise/save', data); S.exercises = (await api('/api/t/exercises')).exercises; closeOverlay(); toast('Gespeichert');
+    } else if (fid === 'assignForm') {
+      const exId = $('#a_ex').value, free = $('#a_free').value.trim();
+      if (!exId && !free) { toast('Übung wählen oder Aufgabe beschreiben'); return; }
+      const ex = S.exercises.find((e) => e.id === exId);
+      S.lesson.new_assignments.push({ exercise_id: exId || null, free_text: exId ? null : free, label: ex ? ex.title : free, target_bpm: Number($('#a_bpm').value) || (ex && ex.target_bpm) || null, minutes_per_day: Number($('#a_min').value) || 10 });
+      saveDraft(); render();
+    } else if (fid === 'goalForm') {
+      const t = $('#g_title').value.trim(); if (!t) return;
+      S.lesson.new_goals.push({ title: t }); saveDraft(); render();
+    } else if (fid === 'finishForm') saveSession(S.feeling);
+  } catch (e) { S.loginError = fid === 'loginForm' ? e.message : S.loginError; if (fid === 'loginForm') render(); else toast(e.message); }
+});
+
+if ('serviceWorker' in navigator && !LOCAL) navigator.serviceWorker.register('sw.js').catch(() => {});
+boot();
+</script>
+</body>
+</html>

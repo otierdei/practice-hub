@@ -1,0 +1,72 @@
+name: Worker
+on:
+  push:
+    branches: [main]
+    paths: ["worker/**", ".github/workflows/worker.yml"]
+  workflow_dispatch:
+    inputs:
+      setup:
+        description: "Datenbank (EU) anlegen und Schema einspielen"
+        type: boolean
+        default: false
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with: { node-version: 22 }
+      - name: Tests
+        working-directory: worker
+        run: node --test --no-warnings test/worker.test.mjs
+
+  setup:
+    if: ${{ github.event_name == 'workflow_dispatch' && inputs.setup }}
+    needs: test
+    runs-on: ubuntu-latest
+    env:
+      CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+      CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with: { node-version: 22 }
+      - name: D1 anlegen (EU), falls noch nicht vorhanden
+        working-directory: worker
+        run: |
+          npx -y wrangler@3 d1 list --json > list.json || true
+          if grep -q '"name": *"practice-hub"' list.json; then echo "Datenbank existiert schon"; else npx -y wrangler@3 d1 create practice-hub --jurisdiction eu; fi
+          npx -y wrangler@3 d1 list --json | node -e 'let s="";process.stdin.on("data",d=>s+=d).on("end",()=>{const d=JSON.parse(s).find(x=>x.name==="practice-hub");console.log("DATABASE_ID="+d.uuid)})'
+
+  deploy:
+    if: ${{ github.event_name == 'push' || !inputs.setup }}
+    needs: test
+    runs-on: ubuntu-latest
+    env:
+      CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+      CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with: { node-version: 22 }
+      - name: Datenbank ID gesetzt?
+        working-directory: worker
+        run: |
+          if grep -q WIRD_NACH_SETUP_EINGETRAGEN wrangler.toml; then echo "Erst Setup laufen lassen"; exit 1; fi
+      - name: Schema einspielen (idempotent)
+        working-directory: worker
+        run: npx -y wrangler@3 d1 execute practice-hub --remote --file=schema.sql
+      - name: Deploy
+        working-directory: worker
+        run: npx -y wrangler@3 deploy
+      - name: Lehrer Code setzen
+        working-directory: worker
+        env:
+          TEACHER_CODE: ${{ secrets.TEACHER_CODE }}
+        run: |
+          if [ -n "$TEACHER_CODE" ]; then printf '%s' "$TEACHER_CODE" | npx -y wrangler@3 secret put TEACHER_CODE; fi
+      - name: Ping
+        run: |
+          sleep 5
+          curl -fsS -X POST -H 'Origin: https://otierdei.github.io' https://practice-hub.othniel-erdei.workers.dev/api/ping

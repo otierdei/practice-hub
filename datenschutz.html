@@ -1,0 +1,54 @@
+<!doctype html>
+<html lang="de">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="robots" content="noindex">
+<title>Datenschutz · Practice Hub</title>
+<style>
+@font-face{font-family:"Young Serif";src:url("fonts/young-serif.woff2") format("woff2");font-display:swap}
+@font-face{font-family:"Figtree";src:url("fonts/figtree.woff2") format("woff2");font-weight:300 900;font-display:swap}
+:root{--bg:#e5e5e0;--surface:#f6f6f3;--ink:#23241f;--muted:#5c5d55;--accent:#4f5a2c;color-scheme:light}
+@media (prefers-color-scheme: dark){:root{--bg:#171814;--surface:#22231e;--ink:#ecebe4;--muted:#a6a798;--accent:#b3c083;color-scheme:dark}}
+body{margin:0;background:var(--bg);color:var(--ink);font-family:"Figtree",system-ui,sans-serif;line-height:1.6}
+main{max-width:620px;margin:0 auto;padding:32px max(16px,env(safe-area-inset-right,0px)) 64px max(16px,env(safe-area-inset-left,0px));display:flex;flex-direction:column;gap:18px}
+h1,h2{font-family:"Young Serif",Georgia,serif;font-weight:400;margin:0;line-height:1.2}
+h1{font-size:2rem}h2{font-size:1.25rem}
+section{background:var(--surface);border-radius:20px;padding:18px;display:flex;flex-direction:column;gap:8px}
+p,ul{margin:0;text-wrap:pretty}ul{padding-left:1.2em}
+a{color:var(--accent)}
+.muted{color:var(--muted)}
+</style>
+</head>
+<body>
+<main>
+<a href="./">Zurück zur App</a>
+<h1>Datenschutz</h1>
+<section><h2>Kurz und einfach</h2>
+<p>Practice Hub hilft dir beim Üben für den Schlagzeugunterricht bei Oti. Gespeichert wird nur, was für den Unterricht nötig ist: dein Vorname, dein Geburtsjahr, Notizen aus der Stunde, deine Hausaufgaben und wie lange und wie schnell du geübt hast. Keine Adresse, keine Fotos, keine Aufnahmen, keine Werbung, kein Tracking.</p>
+<p>Nur du, deine Eltern (mit eigenem Link) und Oti sehen deine Daten. Andere Schüler sehen sie nie.</p></section>
+<section><h2>Wer verantwortlich ist</h2>
+<p>[NAME UND ANSCHRIFT VON OTI, VOR LIVEGANG EINTRAGEN]</p>
+<p>E-Mail: [KONTAKTADRESSE, VOR LIVEGANG EINTRAGEN]</p></section>
+<section><h2>Wofür und auf welcher Grundlage</h2>
+<ul>
+<li>Begleitung des Unterrichts (Stundennotizen, Hausaufgaben, Übezeiten): Erfüllung des Unterrichtsvertrags, Art. 6 Abs. 1 lit. b DSGVO.</li>
+<li>Bei Schülern unter 16 Jahren zusätzlich mit Einwilligung der Eltern, die sie in der App über ihren Elternlink geben (Art. 6 Abs. 1 lit. a und Art. 8 DSGVO). Die Einwilligung kann jederzeit bei Oti widerrufen werden.</li>
+</ul></section>
+<section><h2>Wo die Daten liegen</h2>
+<ul>
+<li>Datenbank und Server: Cloudflare (Datenbank mit Speicherort EU). Cloudflare ist Auftragsverarbeiter nach Art. 28 DSGVO.</li>
+<li>Die App selbst liegt auf GitHub Pages. Dort liegen keine Schülerdaten. Beim Aufruf verarbeitet GitHub technisch die IP Adresse.</li>
+<li>Videos und Noten sind Links zu YouTube, Instagram oder Google Drive. Erst wenn du einen Link öffnest, gelten die Datenschutzregeln dieses Anbieters.</li>
+<li>Schriften sind in der App selbst gespeichert, es werden keine Google Fonts geladen.</li>
+</ul></section>
+<section><h2>Auf deinem Gerät</h2>
+<p>Die App speichert auf deinem Gerät einen Anmeldeschlüssel und eine laufende Übungssitzung, damit nichts verloren geht, wenn das Internet weg ist. Keine Cookies zu Werbezwecken.</p></section>
+<section><h2>Wie lange</h2>
+<p>Solange du Unterricht hast. Wenn der Unterricht endet, wird dein Zugang gesperrt und alle Daten werden spätestens 12 Monate später automatisch gelöscht. Auf Wunsch löscht Oti sofort alles.</p></section>
+<section><h2>Deine Rechte</h2>
+<p>Du (oder deine Eltern) könnt jederzeit Auskunft, Berichtigung, Löschung, Einschränkung und Datenübertragung verlangen und eine Einwilligung widerrufen. Melde dich dafür bei Oti. Beschweren kannst du dich beim Landesbeauftragten für den Datenschutz und die Informationsfreiheit Baden-Württemberg.</p></section>
+<p class="muted">Stand: 04.11.2026, Version v1</p>
+</main>
+</body>
+</html>

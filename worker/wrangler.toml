@@ -1,0 +1,15 @@
+name = "practice-hub"
+main = "src/index.js"
+compatibility_date = "2025-09-01"
+workers_dev = true
+
+[vars]
+ALLOWED_ORIGINS = "https://otierdei.github.io"
+
+[triggers]
+crons = ["17 3 * * *"]
+
+[[d1_databases]]
+binding = "DB"
+database_name = "practice-hub"
+database_id = "WIRD_NACH_SETUP_EINGETRAGEN"
