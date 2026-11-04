@@ -2,6 +2,7 @@ name = "practice-hub"
 main = "worker/src/index.js"
 compatibility_date = "2025-09-01"
 workers_dev = true
+preview_urls = false
 
 # App (public/) und API (/api/*) aus einem Worker
 [assets]
