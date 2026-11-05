@@ -661,7 +661,7 @@ function exerciseItem(it, teacher) {
   const e = it.exercise, n = DrumNotation.parse(e.notation);
   return `<section class="card col ex-item"><div class="row between" style="flex-wrap:nowrap"><b>${esc(e.title)}</b>${n ? `<span class="pill">${n.bpm} BPM</span>` : ''}</div>
     ${e.notes ? `<span class="small muted" style="white-space:pre-line">${esc(e.notes)}</span>` : ''}
-    ${n ? `<div class="nt-staff" id="exs_${it.id}">${DrumNotation.render(n, { cursor: true, label: 'Noten: ' + e.title })}</div><div class="row"><button class="btn small primary" data-act="exPlay" data-id="${it.id}">${S.exPlaying === it.id ? 'Stopp' : 'Abspielen'}</button>${e.url ? `<a class="btn small" href="${esc(e.url)}" target="_blank" rel="noopener">Video</a>` : ''}</div>` : notationPreview(e.notation, e.title)}
+    ${n ? `<div class="nt-staff" id="exs_${it.id}">${DrumNotation.render(n, { cursor: true, label: 'Noten: ' + e.title, barsPerLine: 1, stepWidth: Math.max(12, Math.min(22, Math.floor(270 / DrumNotation.perBar(n.sig)))) })}</div><div class="row"><button class="btn small primary" data-act="exPlay" data-id="${it.id}">${S.exPlaying === it.id ? 'Stopp' : 'Abspielen'}</button>${e.url ? `<a class="btn small" href="${esc(e.url)}" target="_blank" rel="noopener">Video</a>` : ''}</div>` : notationPreview(e.notation, e.title)}
     ${teacher ? `<button class="btn small danger" data-act="itemDelete" data-id="${it.id}">Entfernen</button>` : ''}</section>`;
 }
 function fileCourseCard(f) {
