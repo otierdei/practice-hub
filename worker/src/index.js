@@ -469,7 +469,7 @@ async function route(env, req, path, body) {
     return { role: 'teacher', ...(await teacherOverview(s)) };
   }
   if (path === '/api/songs') return songsHome(s, who);
-  if (path === '/api/course') return courseData(s, 'drums', who.role === 'teacher' ? (str(body.student_id, 64) || null) : who.studentId);
+  if (path === '/api/course') return courseData(s, 'drums', who.role === 'teacher' ? (str(body.student_id, 64) || null) : who.studentId, who.role === 'teacher');
   if (path === '/api/song') { const d = await songDetail(s, body.id); if (!d) throw new HttpError(404, 'Song nicht gefunden.'); return d; }
   if (path === '/api/my/song') {
     if (who.role !== 'student') throw new HttpError(403, 'Nur Schüler haben eine eigene Setlist.');
@@ -555,7 +555,7 @@ async function route(env, req, path, body) {
     case '/api/t/course/item/save': {
       const l = await s.first('SELECT id FROM course_lessons WHERE id = ?', String(body.lesson_id || ''));
       if (!l) throw new HttpError(404, 'Lektion nicht gefunden.');
-      const kind = ['video', 'song', 'text'].includes(body.kind) ? body.kind : 'video';
+      const kind = ['video', 'song', 'text', 'material'].includes(body.kind) ? body.kind : 'video';
       const title = str(body.title, 160) || str(body.song_title, 160); if (!title) throw new HttpError(400, 'Titel fehlt.');
       const url = kind === 'video' ? cleanUrl(body.url) : null;
       if (kind === 'video' && !url) throw new HttpError(400, 'Link fehlt.');

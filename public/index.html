@@ -79,6 +79,7 @@ body.kid{--bg:#fbf3e4;--surface:#ffffff;--sunk:#f6ead3;--ink:#23241f;--muted:#4a
 .num{width:22px;flex:none;font-weight:700;opacity:.8}
 .iconbtn.add{font-size:1.3rem;font-weight:700}.iconbtn.add.on{background:var(--accent);color:var(--accent-ink)}
 .kid .sunday-card{border:3px solid #23241f}
+.card.material{background:var(--sunk);border:1px dashed var(--line)}
 .level-card{display:flex;align-items:center;gap:14px;width:100%;padding:14px 16px;border:1px solid var(--line);border-radius:22px;background:var(--surface);color:var(--ink);font:inherit;cursor:pointer}
 .lv-badge{display:grid;place-items:center;width:48px;height:48px;border-radius:50%;background:var(--ring2);color:#fff;font-weight:800;font-size:1.3rem;flex:none}
 .small-badge{width:32px;height:32px;font-size:1rem}
@@ -618,7 +619,7 @@ function openLessonCards() {
     <span class="task-icon" aria-hidden="true"><b>${l.num}</b></span><div class="col" style="gap:2px;flex:1;min-width:0"><span class="small muted">Lektion ${l.num} · Level ${l.level}</span><b class="task-title">${esc(l.title)}</b><span class="muted small">${lessonSummary(l)}</span></div></div>
     <button class="btn primary" data-act="courseLesson" data-id="${l.id}">Lektion öffnen</button></section>`).join('');
 }
-function lessonSummary(l) { const v = l.items.filter((i) => i.kind === 'video').length, so = l.items.filter((i) => i.kind === 'song').length; return [v ? v + ' Video' + (v > 1 ? 's' : '') : '', so ? so + ' Song' + (so > 1 ? 's' : '') : ''].filter(Boolean).join(' · ') || 'Mit Oti in der Stunde'; }
+function lessonSummary(l) { l = { ...l, items: l.items.filter((i) => i.kind !== 'material') }; const v = l.items.filter((i) => i.kind === 'video').length, so = l.items.filter((i) => i.kind === 'song').length; return [v ? v + ' Video' + (v > 1 ? 's' : '') : '', so ? so + ' Song' + (so > 1 ? 's' : '') : ''].filter(Boolean).join(' · ') || 'Mit Oti in der Stunde'; }
 function courseOf() { return S.role === 'teacher' && S.fileCourseOpen && S.file ? S.file.course : S.course; }
 function courseView() {
   const c = courseOf(); if (!c) return '';
@@ -639,14 +640,15 @@ function courseLessonView() {
     <div class="row between"><button class="btn small" data-act="backToCourse">Zurück</button><span class="pill">Level ${l.level} · Lektion ${l.num}</span></div>
     <h1>${esc(l.title)}</h1>
     ${l.body ? `<p style="white-space:pre-line">${esc(l.body)}</p>` : ''}
-    ${l.items.map((it) => it.kind === 'video' ? `<section class="card col"><b>${esc(it.title)}</b>${ytEmbed(it.url) || `<a class="btn small" href="${esc(it.url)}" target="_blank" rel="noopener">Link öffnen</a>`}${it.notes ? `<span class="small muted">${esc(it.notes)}</span>` : ''}${teacher ? `<button class="btn small danger" data-act="itemDelete" data-id="${it.id}">Entfernen</button>` : ''}</section>`
+    ${teacher && l.items.some((it) => it.kind === 'material') ? `<section class="card material"><b>Deine Unterlagen (nur du siehst das)</b><div class="list">${l.items.filter((it) => it.kind === 'material').map((it) => `<div class="item"><span class="t col" style="gap:0"><span>${esc(it.title)}</span>${it.notes ? `<span class="small muted">${esc(it.notes)}</span>` : ''}</span><button class="btn small danger" data-act="itemDelete" data-id="${it.id}">Entfernen</button></div>`).join('')}</div></section>` : ''}
+    ${l.items.filter((it) => it.kind !== 'material').map((it) => it.kind === 'video' ? `<section class="card col"><b>${esc(it.title)}</b>${ytEmbed(it.url) || `<a class="btn small" href="${esc(it.url)}" target="_blank" rel="noopener">Link öffnen</a>`}${it.notes ? `<span class="small muted">${esc(it.notes)}</span>` : ''}${teacher ? `<button class="btn small danger" data-act="itemDelete" data-id="${it.id}">Entfernen</button>` : ''}</section>`
       : it.kind === 'song' ? `<section class="card"><div class="row" style="flex-wrap:nowrap;gap:12px;align-items:center"><span class="task-icon" aria-hidden="true">${ICON_NOTE}</span><div class="col" style="gap:0;flex:1;min-width:0"><span class="small muted">Song</span><b>${esc(it.title)}</b>${it.notes ? `<span class="small muted">${esc(it.notes)}</span>` : ''}</div>${it.song_id ? `<button class="btn small" data-act="song" data-id="${esc(it.song_id)}">Öffnen</button>` : ''}${teacher ? `<button class="btn small danger" data-act="itemDelete" data-id="${it.id}">Entfernen</button>` : ''}</div></section>`
       : `<section class="card"><div class="row between" style="flex-wrap:nowrap"><span style="white-space:pre-line">${esc(it.title)}${it.notes ? '\n' + esc(it.notes) : ''}</span>${teacher ? `<button class="btn small danger" data-act="itemDelete" data-id="${it.id}">Entfernen</button>` : ''}</div></section>`).join('')}
-    ${!l.items.length ? `<div class="empty">${teacher ? 'Noch kein Inhalt. Füg unten Videos, Songs oder Text hinzu.' : 'Diese Lektion machst du mit Oti in der Stunde.'}</div>` : ''}
+    ${!l.items.filter((it) => it.kind !== 'material').length ? `<div class="empty">${teacher ? 'Noch kein Inhalt. Füg unten Videos, Songs oder Text hinzu.' : 'Diese Lektion machst du mit Oti in der Stunde.'}</div>` : ''}
     ${S.role === 'student' && !S.preview ? '<button class="btn primary block" data-act="practiceFree">Jetzt üben</button>' : ''}
     ${teacher ? `<form id="itemForm" class="card col"><b>Inhalt hinzufügen</b>
-      <div class="row" style="gap:6px">${[['video', 'Video'], ['song', 'Song'], ['text', 'Text']].map(([k, n]) => `<button type="button" class="chip" data-act="itemKind" data-v="${k}" aria-pressed="${(S.itemKind || 'video') === k}">${n}</button>`).join('')}</div>
-      <div class="field"><label for="it_title">${(S.itemKind || 'video') === 'song' ? 'Songtitel (wie im Lieder Ordner)' : (S.itemKind || 'video') === 'text' ? 'Text' : 'Titel'}</label><input id="it_title" maxlength="160"></div>
+      <div class="row" style="gap:6px">${[['video', 'Video'], ['song', 'Song'], ['text', 'Text'], ['material', 'Meine Unterlage']].map(([k, n]) => `<button type="button" class="chip" data-act="itemKind" data-v="${k}" aria-pressed="${(S.itemKind || 'video') === k}">${n}</button>`).join('')}</div>
+      <div class="field"><label for="it_title">${(S.itemKind || 'video') === 'song' ? 'Songtitel (wie im Lieder Ordner)' : (S.itemKind || 'video') === 'text' ? 'Text' : (S.itemKind || 'video') === 'material' ? 'Datei oder Buch (nur für dich sichtbar)' : 'Titel'}</label><input id="it_title" maxlength="160"></div>
       ${(S.itemKind || 'video') === 'video' ? '<div class="field"><label for="it_url">YouTube Link</label><input id="it_url" type="url" inputmode="url" placeholder="Link einfügen"></div>' : ''}
       <div class="field"><label for="it_notes">Hinweis (optional)</label><input id="it_notes" maxlength="500"></div>
       <button class="btn primary" type="submit">Hinzufügen</button></form>` : ''}

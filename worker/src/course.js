@@ -20,7 +20,7 @@ CREATE TABLE IF NOT EXISTS course_lessons (
 CREATE TABLE IF NOT EXISTS lesson_items (
   id TEXT PRIMARY KEY,
   lesson_id TEXT NOT NULL,
-  kind TEXT NOT NULL,          -- video, song, text
+  kind TEXT NOT NULL,          -- video, song, text, material (nur Lehrer: Verweis auf Otis eigene Unterlagen)
   title TEXT NOT NULL,
   url TEXT,
   song_title TEXT,
@@ -39,10 +39,10 @@ CREATE INDEX IF NOT EXISTS i_course_lessons ON course_lessons(course, num);
 CREATE INDEX IF NOT EXISTS i_lesson_items ON lesson_items(lesson_id, sort);
 `;
 
-const KINDS = ['video', 'song', 'text'];
+const KINDS = ['video', 'song', 'text', 'material'];
 const s200 = (v, max = 200) => (v == null ? null : String(v).trim().slice(0, max) || null);
 
-export async function courseData(s, course, studentId) {
+export async function courseData(s, course, studentId, teacher = false) {
   const [levels, lessons, items, songs, mine] = await Promise.all([
     s.all('SELECT level, name FROM course_levels WHERE course = ? ORDER BY level', course),
     s.all('SELECT id, level, num, title, body FROM course_lessons WHERE course = ? ORDER BY num', course),
@@ -52,7 +52,7 @@ export async function courseData(s, course, studentId) {
   ]);
   const bySlug = {}; for (const x of songs) bySlug[slug(x.title)] = bySlug[slug(x.title)] || x.id;
   const byLesson = {};
-  for (const it of items) { if (it.kind === 'song') it.song_id = bySlug[slug(it.song_title || it.title)] || null; (byLesson[it.lesson_id] = byLesson[it.lesson_id] || []).push(it); }
+  for (const it of items) { if (it.kind === 'material' && !teacher) continue; if (it.kind === 'song') it.song_id = bySlug[slug(it.song_title || it.title)] || null; (byLesson[it.lesson_id] = byLesson[it.lesson_id] || []).push(it); }
   for (const l of lessons) l.items = byLesson[l.id] || [];
   const progress = {}; for (const m of mine) progress[m.lesson_id] = m;
   return { course, levels, lessons, progress, level: studentId ? currentLevel(levels, lessons, progress) : null };

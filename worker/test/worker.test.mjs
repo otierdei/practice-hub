@@ -331,3 +331,11 @@ test('Lehrer trägt Einwilligung der Eltern ein', async () => {
   const c = (await w.call('/api/t/student', { id: w.a }, w.t)).data.consents[0];
   assert.equal(c.access_id, 'lehrer'); assert.match(c.version_text, /von Oti bestätigt: schriftlich/);
 });
+test('Kurs: eigene Unterlagen sieht nur der Lehrer', async () => {
+  const w = await world();
+  await w.call('/api/t/course/import', { course: 'drums', levels: [{ level: 1, name: 'Starter' }], lessons: [{ num: 1, level: 1, title: 'Beat 1', items: [{ kind: 'material', title: 'Rock Beats 1-5.pdf', notes: 'Ordner Drum RAUM' }, { kind: 'text', title: 'Hi Hat Achtel' }] }] }, w.t);
+  assert.equal((await w.call('/api/course', {}, w.t)).data.lessons[0].items.length, 2);
+  const st = (await w.call('/api/course', {}, w.ta)).data.lessons[0].items;
+  assert.deepEqual(st.map((i) => i.kind), ['text'], 'Schüler sieht keine Unterlagen');
+  assert.equal((await w.call('/api/course', {}, w.tap)).data.lessons[0].items.length, 1, 'Eltern auch nicht');
+});
