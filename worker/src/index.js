@@ -348,9 +348,9 @@ export function cleanNotation(n) {
   if (typeof n === 'string') { if (n.length > 40000) throw new HttpError(400, 'Noten zu groß.'); try { o = JSON.parse(n); } catch (e) { throw new HttpError(400, 'Noten sind beschädigt.'); } }
   if (!o || typeof o !== 'object' || Array.isArray(o)) throw new HttpError(400, 'Noten sind beschädigt.');
   if (o.kind === 'guitar') return cleanGuitar(o);
-  const sig = o.sig === '6/8' ? '6/8' : '4/4';
+  const sig = ['4/4', '3/4', '6/8', '12/8'].includes(o.sig) ? o.sig : '4/4';
   const bars = int(o.bars, 1, 16) || 1;
-  const steps = (sig === '6/8' ? 12 : 16) * bars;
+  const steps = ({ '3/4': 12, '6/8': 12, '12/8': 24 }[sig] || 16) * bars;
   const tracks = {};
   for (const k of DRUMS) {
     const list = Array.isArray(o.tracks && o.tracks[k]) ? o.tracks[k] : [];
@@ -362,7 +362,11 @@ export function cleanNotation(n) {
     if (Number.isInteger(bar) && bar >= 0 && bar < bars && t) marks[bar] = t;
   }
   const repeat = [...new Set((Array.isArray(o.repeat) ? o.repeat : []).map(Number).filter((x) => Number.isInteger(x) && x > 0 && x < bars))].sort((a, b) => a - b);
-  return JSON.stringify({ v: 2, sig, bars, bpm: int(o.bpm, 30, 300) || 80, tracks, marks, repeat });
+  const stick = {};
+  for (const [k, v] of Object.entries(o.stick && typeof o.stick === 'object' ? o.stick : {})) {
+    const i = Number(k); if (Number.isInteger(i) && i >= 0 && i < steps && (v === 'R' || v === 'L')) stick[i] = v;
+  }
+  return JSON.stringify({ v: 2, sig, bars, bpm: int(o.bpm, 30, 300) || 80, tracks, stick, marks, repeat });
 }
 // Gitarre: Akkorde, Schlagmuster, Tabs, Capo
 function cleanGuitar(o) {
@@ -555,9 +559,14 @@ async function route(env, req, path, body) {
     case '/api/t/course/item/save': {
       const l = await s.first('SELECT id FROM course_lessons WHERE id = ?', String(body.lesson_id || ''));
       if (!l) throw new HttpError(404, 'Lektion nicht gefunden.');
-      const kind = ['video', 'song', 'text', 'material'].includes(body.kind) ? body.kind : 'video';
+      const kind = ['video', 'song', 'text', 'material', 'exercise'].includes(body.kind) ? body.kind : 'video';
       const title = str(body.title, 160) || str(body.song_title, 160); if (!title) throw new HttpError(400, 'Titel fehlt.');
-      const url = kind === 'video' ? cleanUrl(body.url) : null;
+      let url = kind === 'video' ? cleanUrl(body.url) : null;
+      if (kind === 'exercise') {
+        const ex = await s.first('SELECT id FROM exercises WHERE id = ?', String(body.exercise_id || ''));
+        if (!ex) throw new HttpError(404, 'Übung nicht gefunden.');
+        url = ex.id;
+      }
       if (kind === 'video' && !url) throw new HttpError(400, 'Link fehlt.');
       const n = (await s.first('SELECT COUNT(*) AS n FROM lesson_items WHERE lesson_id = ?', l.id)).n;
       const id = uid();

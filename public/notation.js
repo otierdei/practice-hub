@@ -1,5 +1,5 @@
 // Practice Hub Noten Editor für Schlagzeug: Raster, Notenbild (SVG), Song Chart und Wiedergabe mit Web Audio.
-// Beat: { v:2, sig:'4/4'|'6/8', bars:1..16, bpm, tracks:{ cr:[schritte], ... }, marks:{ takt: 'Refrain' }, repeat:[takt, ...] }
+// Beat: { v:2, sig:'4/4'|'3/4'|'6/8'|'12/8', bars:1..16, bpm, tracks:{ cr:[schritte], ... }, stick:{ schritt:'R'|'L' }, marks:{ takt: 'Refrain' }, repeat:[takt, ...] }
 // Ein Schritt ist eine 16tel. Ein Takt in repeat wiederholt den vorherigen ausgeschriebenen Takt (Prozentzeichen).
 'use strict';
 (function () {
@@ -19,36 +19,40 @@
   const BY = Object.fromEntries(ROWS.map((r) => [r.k, r]));
   const EXCLUSIVE = { hh: 'ho', ho: 'hh', sn: 'gh', gh: 'sn' };
   const MAX_BARS = 16;
-  const perBar = (sig) => (sig === '6/8' ? 12 : 16);
-  const groupSize = (sig) => (sig === '6/8' ? 6 : 4);
+  const SIGS = ['4/4', '3/4', '6/8', '12/8'];
+  const EIGHTH = (sig) => sig === '6/8' || sig === '12/8'; // Achtel Takte: Tempo zählt Achtel, Gruppen zu drei Achteln
+  const perBar = (sig) => ({ '3/4': 12, '6/8': 12, '12/8': 24 }[sig] || 16);
+  const groupSize = (sig) => (EIGHTH(sig) ? 6 : 4);
   const total = (n) => perBar(n.sig) * n.bars;
   const esc = (v) => String(v == null ? '' : v).replace(/[&<>"]/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]));
 
   function empty(sig = '4/4', bars = 1, bpm = 80) {
     const tracks = {}; ROWS.forEach((r) => { tracks[r.k] = []; });
-    return { v: 2, sig, bars, bpm, tracks, marks: {}, repeat: [] };
+    return { v: 2, sig, bars, bpm, tracks, stick: {}, marks: {}, repeat: [] };
   }
   function parse(s) {
     if (!s) return null;
     try {
       const o = typeof s === 'string' ? JSON.parse(s) : s;
       if (o.kind === 'guitar') return null;
-      const n = empty(o.sig === '6/8' ? '6/8' : '4/4', Math.min(MAX_BARS, Math.max(1, o.bars | 0 || 1)), o.bpm || 80);
+      const n = empty(SIGS.includes(o.sig) ? o.sig : '4/4', Math.min(MAX_BARS, Math.max(1, o.bars | 0 || 1)), o.bpm || 80);
+      for (const [k, v] of Object.entries(o.stick || {})) if (Number(k) >= 0 && Number(k) < total(n) && (v === 'R' || v === 'L')) n.stick[Number(k)] = v;
       ROWS.forEach((r) => { n.tracks[r.k] = (o.tracks && o.tracks[r.k] || []).filter((x) => x >= 0 && x < total(n)); });
       for (const [k, v] of Object.entries(o.marks || {})) if (Number(k) < n.bars && v) n.marks[Number(k)] = String(v).slice(0, 30);
       n.repeat = (o.repeat || []).map(Number).filter((b) => b > 0 && b < n.bars);
       return n;
     } catch (e) { return null; }
   }
-  const has = (n, k, i) => n.tracks[k].includes(i);
+  const has = (n, k, i) => (k === 'stick' ? !!(n.stick || {})[i] : (n.tracks[k] || []).includes(i));
   function toggle(n, k, i) {
+    if (k === 'stick') { n.stick = n.stick || {}; const v = n.stick[i]; if (!v) n.stick[i] = 'R'; else if (v === 'R') n.stick[i] = 'L'; else delete n.stick[i]; return; }
     const t = n.tracks[k];
     if (t.includes(i)) n.tracks[k] = t.filter((x) => x !== i);
     else { t.push(i); t.sort((a, b) => a - b); const ex = EXCLUSIVE[k]; if (ex) n.tracks[ex] = n.tracks[ex].filter((x) => x !== i); }
   }
   function countLabel(sig, i) {
     const j = i % perBar(sig);
-    if (sig === '6/8') return j % 2 === 0 ? String(j / 2 + 1) : '+';
+    if (EIGHTH(sig)) return j % 2 === 0 ? String(j / 2 + 1) : '+';
     return [String(Math.floor(j / 4) + 1), 'e', '+', 'a'][j % 4];
   }
   // Takt, den ein Wiederholungstakt tatsächlich spielt
@@ -57,6 +61,7 @@
     n.bars = Math.max(1, Math.min(MAX_BARS, bars));
     const max = total(n);
     for (const k in n.tracks) n.tracks[k] = n.tracks[k].filter((i) => i < max);
+    for (const k of Object.keys(n.stick || {})) if (Number(k) >= max) delete n.stick[k];
     n.repeat = n.repeat.filter((b) => b < n.bars);
     for (const k of Object.keys(n.marks)) if (Number(k) >= n.bars) delete n.marks[k];
   }
@@ -68,7 +73,8 @@
   function renderLine(n, from, to, opt) {
     const sw = opt.stepWidth || 22, pb = perBar(n.sig), gs = groupSize(n.sig), first = from === 0;
     const x0 = first ? 58 : 26, steps = (to - from) * pb;
-    const W = x0 + steps * sw + 14, H = 130, ink = 'currentColor', out = [];
+    const sticks = Object.entries(n.stick || {}).filter(([i]) => i >= from * pb && i < to * pb && !n.repeat.includes(Math.floor(i / pb)));
+    const W = x0 + steps * sw + 14, H = sticks.length ? 148 : 130, ink = 'currentColor', out = [];
     const xOf = (i) => x0 + (i - from * pb) * sw + 8;
     for (let l = 0; l < 5; l++) out.push(`<line x1="6" x2="${W - 6}" y1="${yOf(l * 2)}" y2="${yOf(l * 2)}" stroke="${ink}" stroke-width="1" opacity=".55"/>`);
     if (first) {
@@ -93,7 +99,7 @@
       for (let g = from * pb; g < to * pb; g += gs) {
         if (n.repeat.includes(Math.floor(g / pb))) continue;
         const inG = onsets.filter((i) => i >= g && i < g + gs);
-        if (!inG.length) { if (!down) out.push(restGlyph(n.sig === '6/8' ? 6 : 4, xOf(g) + (gs / 2) * sw - 12, ink)); continue; }
+        if (!inG.length) { if (!down) out.push(restGlyph(gs, xOf(g) + (gs / 2) * sw - 12, ink)); continue; }
         if (!down && inG[0] > g) out.push(restGlyph(inG[0] - g, xOf(g), ink));
         const notes = inG.map((i, idx) => {
           const end = idx + 1 < inG.length ? inG[idx + 1] : g + gs;
@@ -129,6 +135,7 @@
         }
       }
     }
+    for (const [i, v] of sticks) out.push(`<text x="${xOf(Number(i))}" y="142" text-anchor="middle" font-size="12" font-weight="700" font-family="sans-serif" fill="${ink}">${v}</text>`);
     if (opt.cursor) out.push(`<rect class="nt-cursor" x="0" y="20" width="${sw - 2}" height="${H - 26}" rx="4" fill="var(--ring, #5f6b3a)" opacity="0"/>`);
     return `<svg class="nt-svg" viewBox="0 0 ${W} ${H}" width="${W}" height="${H}" role="img" aria-label="${esc(opt.label || 'Schlagzeug Noten')}${from ? ', ab Takt ' + (from + 1) : ''}" data-x0="${x0}" data-sw="${sw}" data-from="${from * pb}" data-to="${to * pb}">${out.join('')}</svg>`;
   }
@@ -218,7 +225,7 @@
       const bar = Math.floor(i / pb), src = sourceBar(n, bar) * pb + (i % pb);
       for (const r of ROWS) if (!P.mute.has(r.k) && n.tracks[r.k].includes(src)) hit(r.k, P.next);
       P.queue.push({ t: P.next, i });
-      P.next += n.sig === '6/8' ? 60 / P.bpm / 2 : 60 / P.bpm / 4;
+      P.next += EIGHTH(n.sig) ? 60 / P.bpm / 2 : 60 / P.bpm / 4;
       P.step++;
     }
   }
@@ -250,11 +257,14 @@
     const rows = ROWS.map((r) => `<tr><th scope="row">${r.n}</th>${Array.from({ length: pb }, (_, j) => {
       const i = from + j;
       return `<td class="${Math.floor(j / gs) % 2 ? 'nt-alt' : ''}"><button type="button" class="nt-cell" data-nt="${id}" data-k="${r.k}" data-i="${i}" aria-pressed="${has(n, r.k, i)}" aria-label="${r.n} auf ${countLabel(n.sig, j)}, Takt ${curBar + 1}" ${rep ? 'disabled' : ''}></button></td>`;
-    }).join('')}</tr>`).join('');
+    }).join('')}</tr>`).join('') + `<tr><th scope="row">Hand</th>${Array.from({ length: pb }, (_, j) => {
+      const i = from + j, v = (n.stick || {})[i] || '';
+      return `<td class="${Math.floor(j / gs) % 2 ? 'nt-alt' : ''}"><button type="button" class="nt-cell nt-stick" data-nt="${id}" data-k="stick" data-i="${i}" aria-pressed="${!!v}" aria-label="Hand auf ${countLabel(n.sig, j)}: ${v || 'keine'}" ${rep ? 'disabled' : ''}>${v}</button></td>`;
+    }).join('')}</tr>`;
     const tabs = Array.from({ length: n.bars }, (_, b) => `<button type="button" class="nt-bartab" data-nt-bar="${b}" data-nt-id="${id}" aria-pressed="${b === curBar}">${b + 1}${n.repeat.includes(b) ? ' %' : ''}${n.marks[b] ? ' · ' + esc(n.marks[b]) : ''}</button>`).join('');
     return `<div class="nt-editor" id="${id}" data-bar="${curBar}">
       <div class="row" style="gap:10px">
-        <div class="field" style="flex:1;min-width:90px"><label for="${id}-sig">Takt</label><select id="${id}-sig" data-nt-ctl="sig"><option ${n.sig === '4/4' ? 'selected' : ''}>4/4</option><option ${n.sig === '6/8' ? 'selected' : ''}>6/8</option></select></div>
+        <div class="field" style="flex:1;min-width:90px"><label for="${id}-sig">Takt</label><select id="${id}-sig" data-nt-ctl="sig">${SIGS.map((g) => `<option ${n.sig === g ? 'selected' : ''}>${g}</option>`).join('')}</select></div>
         <div class="field" style="flex:1;min-width:90px"><label for="${id}-bars">Takte</label><select id="${id}-bars" data-nt-ctl="bars">${Array.from({ length: MAX_BARS }, (_, i) => i + 1).map((b) => `<option ${n.bars === b ? 'selected' : ''}>${b}</option>`).join('')}</select></div>
         <div class="field" style="flex:1;min-width:90px"><label for="${id}-bpm">Tempo</label><input id="${id}-bpm" data-nt-ctl="bpm" inputmode="numeric" value="${n.bpm}"></div>
       </div>
@@ -269,5 +279,5 @@
     </div>`;
   }
 
-  window.DrumNotation = { ROWS, MAX_BARS, empty, parse, render, toggle, has, play, stop, setTempo, setMute, setTrainer, hit, editorHTML, cursorFor, total, perBar, setBars, usedKeys, isPlaying: () => P.playing, audio };
+  window.DrumNotation = { SIGS, ROWS, MAX_BARS, empty, parse, render, toggle, has, play, stop, setTempo, setMute, setTrainer, hit, editorHTML, cursorFor, total, perBar, setBars, usedKeys, isPlaying: () => P.playing, audio };
 })();

@@ -146,6 +146,7 @@ textarea{min-height:80px;resize:vertical}
 .nt-grid .nt-bar{border-left:2px solid var(--line)}
 .nt-cell{width:30px;height:30px;border-radius:50%;border:1.5px solid var(--line);background:transparent;padding:0;display:block}
 .nt-cell[aria-pressed="true"]{background:var(--ring);border-color:var(--ring)}
+.nt-cell.nt-stick{font-weight:800;font-size:.8rem;color:var(--accent-ink)}.nt-cell.nt-stick[aria-pressed="false"]{color:var(--muted)}
 .nt-lines{display:flex;flex-direction:column;gap:0}
 .nt-bartabs{display:flex;gap:6px;flex-wrap:wrap}
 .nt-bartab{min-height:40px;min-width:44px;border-radius:12px;border:1px solid var(--line);background:transparent;padding:0 10px;font-size:.85rem}
@@ -641,18 +642,27 @@ function courseLessonView() {
     <h1>${esc(l.title)}</h1>
     ${l.body ? `<p style="white-space:pre-line">${esc(l.body)}</p>` : ''}
     ${teacher && l.items.some((it) => it.kind === 'material') ? `<section class="card material"><b>Deine Unterlagen (nur du siehst das)</b><div class="list">${l.items.filter((it) => it.kind === 'material').map((it) => `<div class="item"><span class="t col" style="gap:0"><span>${esc(it.title)}</span>${it.notes ? `<span class="small muted">${esc(it.notes)}</span>` : ''}</span><button class="btn small danger" data-act="itemDelete" data-id="${it.id}">Entfernen</button></div>`).join('')}</div></section>` : ''}
-    ${l.items.filter((it) => it.kind !== 'material').map((it) => it.kind === 'video' ? `<section class="card col"><b>${esc(it.title)}</b>${ytEmbed(it.url) || `<a class="btn small" href="${esc(it.url)}" target="_blank" rel="noopener">Link öffnen</a>`}${it.notes ? `<span class="small muted">${esc(it.notes)}</span>` : ''}${teacher ? `<button class="btn small danger" data-act="itemDelete" data-id="${it.id}">Entfernen</button>` : ''}</section>`
+    ${l.items.filter((it) => it.kind !== 'material').map((it) => it.kind === 'exercise' ? exerciseItem(it, teacher)
+      : it.kind === 'video' ? `<section class="card col"><b>${esc(it.title)}</b>${ytEmbed(it.url) || `<a class="btn small" href="${esc(it.url)}" target="_blank" rel="noopener">Link öffnen</a>`}${it.notes ? `<span class="small muted">${esc(it.notes)}</span>` : ''}${teacher ? `<button class="btn small danger" data-act="itemDelete" data-id="${it.id}">Entfernen</button>` : ''}</section>`
       : it.kind === 'song' ? `<section class="card"><div class="row" style="flex-wrap:nowrap;gap:12px;align-items:center"><span class="task-icon" aria-hidden="true">${ICON_NOTE}</span><div class="col" style="gap:0;flex:1;min-width:0"><span class="small muted">Song</span><b>${esc(it.title)}</b>${it.notes ? `<span class="small muted">${esc(it.notes)}</span>` : ''}</div>${it.song_id ? `<button class="btn small" data-act="song" data-id="${esc(it.song_id)}">Öffnen</button>` : ''}${teacher ? `<button class="btn small danger" data-act="itemDelete" data-id="${it.id}">Entfernen</button>` : ''}</div></section>`
       : `<section class="card"><div class="row between" style="flex-wrap:nowrap"><span style="white-space:pre-line">${esc(it.title)}${it.notes ? '\n' + esc(it.notes) : ''}</span>${teacher ? `<button class="btn small danger" data-act="itemDelete" data-id="${it.id}">Entfernen</button>` : ''}</div></section>`).join('')}
     ${!l.items.filter((it) => it.kind !== 'material').length ? `<div class="empty">${teacher ? 'Noch kein Inhalt. Füg unten Videos, Songs oder Text hinzu.' : 'Diese Lektion machst du mit Oti in der Stunde.'}</div>` : ''}
     ${S.role === 'student' && !S.preview ? '<button class="btn primary block" data-act="practiceFree">Jetzt üben</button>' : ''}
     ${teacher ? `<form id="itemForm" class="card col"><b>Inhalt hinzufügen</b>
-      <div class="row" style="gap:6px">${[['video', 'Video'], ['song', 'Song'], ['text', 'Text'], ['material', 'Meine Unterlage']].map(([k, n]) => `<button type="button" class="chip" data-act="itemKind" data-v="${k}" aria-pressed="${(S.itemKind || 'video') === k}">${n}</button>`).join('')}</div>
-      <div class="field"><label for="it_title">${(S.itemKind || 'video') === 'song' ? 'Songtitel (wie im Lieder Ordner)' : (S.itemKind || 'video') === 'text' ? 'Text' : (S.itemKind || 'video') === 'material' ? 'Datei oder Buch (nur für dich sichtbar)' : 'Titel'}</label><input id="it_title" maxlength="160"></div>
+      <div class="row" style="gap:6px">${[['video', 'Video'], ['exercise', 'Übung mit Noten'], ['song', 'Song'], ['text', 'Text'], ['material', 'Meine Unterlage']].map(([k, n]) => `<button type="button" class="chip" data-act="itemKind" data-v="${k}" aria-pressed="${(S.itemKind || 'video') === k}">${n}</button>`).join('')}</div>
+      ${(S.itemKind || 'video') === 'exercise' ? `<div class="field"><label for="it_ex">Übung aus der Bibliothek</label><select id="it_ex">${(S.exercises || []).map((e) => `<option value="${e.id}">${esc((e.category ? e.category + ': ' : '') + e.title)}</option>`).join('')}</select></div>` : ''}
+      <div class="field" ${(S.itemKind || 'video') === 'exercise' ? 'hidden' : ''}><label for="it_title">${(S.itemKind || 'video') === 'song' ? 'Songtitel (wie im Lieder Ordner)' : (S.itemKind || 'video') === 'text' ? 'Text' : (S.itemKind || 'video') === 'material' ? 'Datei oder Buch (nur für dich sichtbar)' : 'Titel'}</label><input id="it_title" maxlength="160"></div>
       ${(S.itemKind || 'video') === 'video' ? '<div class="field"><label for="it_url">YouTube Link</label><input id="it_url" type="url" inputmode="url" placeholder="Link einfügen"></div>' : ''}
       <div class="field"><label for="it_notes">Hinweis (optional)</label><input id="it_notes" maxlength="500"></div>
       <button class="btn primary" type="submit">Hinzufügen</button></form>` : ''}
   </div>`;
+}
+function exerciseItem(it, teacher) {
+  const e = it.exercise, n = DrumNotation.parse(e.notation);
+  return `<section class="card col ex-item"><div class="row between" style="flex-wrap:nowrap"><b>${esc(e.title)}</b>${n ? `<span class="pill">${n.bpm} BPM</span>` : ''}</div>
+    ${e.notes ? `<span class="small muted" style="white-space:pre-line">${esc(e.notes)}</span>` : ''}
+    ${n ? `<div class="nt-staff" id="exs_${it.id}">${DrumNotation.render(n, { cursor: true, label: 'Noten: ' + e.title })}</div><div class="row"><button class="btn small primary" data-act="exPlay" data-id="${it.id}">${S.exPlaying === it.id ? 'Stopp' : 'Abspielen'}</button>${e.url ? `<a class="btn small" href="${esc(e.url)}" target="_blank" rel="noopener">Video</a>` : ''}</div>` : notationPreview(e.notation, e.title)}
+    ${teacher ? `<button class="btn small danger" data-act="itemDelete" data-id="${it.id}">Entfernen</button>` : ''}</section>`;
 }
 function fileCourseCard(f) {
   const c = f.course; if (!c || !c.lessons.length) return '';
@@ -1104,10 +1114,16 @@ document.addEventListener('click', async (ev) => {
       case 'video': S.videoId = id; openOverlay(videoView); break;
       case 'goalToggle': { const r = await api('/api/goal/toggle', { id }); const g = S.data.goals.find((x) => x.id === id); g.status = r.status; render(); if (r.status === 'erreicht') toast('Ziel erreicht!'); break; }
       case 'course': S.fileCourseOpen = false; openOverlay(courseView); break;
-      case 'courseBack': if (S.fileCourseOpen) { S.fileCourseOpen = false; openOverlay(studentFileView); } else closeOverlay(); break;
+      case 'exPlay': {
+        if (S.exPlaying === id) { DrumNotation.stop(); S.exPlaying = null; el.textContent = 'Abspielen'; break; }
+        const c = courseOf(), it = c.lessons.flatMap((x) => x.items).find((x) => x.id === id); const n = DrumNotation.parse(it.exercise.notation);
+        document.querySelectorAll('[data-act=exPlay]').forEach((b) => { b.textContent = 'Abspielen'; });
+        S.exPlaying = id; el.textContent = 'Stopp'; DrumNotation.play(n, n.bpm, DrumNotation.cursorFor(document.getElementById('exs_' + id))); break;
+      }
+      case 'courseBack': DrumNotation.stop(); S.exPlaying = null; if (S.fileCourseOpen) { S.fileCourseOpen = false; openOverlay(studentFileView); } else closeOverlay(); break;
       case 'fileCourse': S.fileCourseOpen = true; openOverlay(courseView); break;
       case 'courseLesson': S.lessonId = id; S.lessonFrom = S.overlay; openOverlay(courseLessonView); break;
-      case 'backToCourse': if (S.lessonFrom === courseView) openOverlay(courseView); else closeOverlay(); break;
+      case 'backToCourse': DrumNotation.stop(); S.exPlaying = null; if (S.lessonFrom === courseView) openOverlay(courseView); else closeOverlay(); break;
       case 'itemKind': S.itemKind = el.dataset.v; openOverlay(courseLessonView); break;
       case 'itemDelete': await api('/api/t/course/item/delete', { id }); await reloadCourse(); openOverlay(courseLessonView); break;
       case 'lessonState': {
@@ -1164,7 +1180,7 @@ document.addEventListener('click', (ev) => {
   if (barBtn) { refreshEditor(id, true, Number(barBtn.dataset.ntBar)); return; }
   if (cell) {
     DrumNotation.toggle(n, cell.dataset.k, Number(cell.dataset.i));
-    if (DrumNotation.has(n, cell.dataset.k, Number(cell.dataset.i))) { try { DrumNotation.hit(cell.dataset.k, 0); } catch (e) {} }
+    if (cell.dataset.k !== 'stick' && DrumNotation.has(n, cell.dataset.k, Number(cell.dataset.i))) { try { DrumNotation.hit(cell.dataset.k, 0); } catch (e) {} }
     refreshEditor(id, false);
   } else if (actBtn.dataset.ntAct === 'play') {
     if (DrumNotation.isPlaying()) { DrumNotation.stop(); actBtn.textContent = 'Abspielen'; }
@@ -1183,7 +1199,7 @@ document.addEventListener('change', (ev) => {
   if (ctl === 'mark') { const v = ev.target.value.trim(); if (v) n.marks[bar] = v.slice(0, 30); else delete n.marks[bar]; refreshEditor(id, true, bar); return; }
   if (ctl === 'repeat') { n.repeat = ev.target.checked ? [...new Set(n.repeat.concat(bar))] : n.repeat.filter((b) => b !== bar); refreshEditor(id, true, bar); return; }
   const wasPlaying = DrumNotation.isPlaying(); DrumNotation.stop();
-  if (ctl === 'sig' && ev.target.value !== n.sig) { const e = DrumNotation.empty(ev.target.value, n.bars, n.bpm); n.sig = e.sig; n.tracks = e.tracks; n.repeat = []; }
+  if (ctl === 'sig' && ev.target.value !== n.sig) { const e = DrumNotation.empty(ev.target.value, n.bars, n.bpm); n.sig = e.sig; n.tracks = e.tracks; n.stick = {}; n.repeat = []; }
   if (ctl === 'bars') {
     const oldBars = n.bars, newBars = Number(ev.target.value);
     DrumNotation.setBars(n, newBars);
@@ -1233,7 +1249,7 @@ function refreshEditor(id, full, bar) {
   const n = S.nt[id];
   if (full) { const tmp = document.createElement('div'); tmp.innerHTML = DrumNotation.editorHTML(n, id, bar == null ? ntBar(id) : bar); box.replaceWith(tmp.firstElementChild); return; }
   box.querySelector('.nt-staff').innerHTML = DrumNotation.render(n, { cursor: true });
-  box.querySelectorAll('.nt-cell').forEach((c) => c.setAttribute('aria-pressed', String(DrumNotation.has(n, c.dataset.k, Number(c.dataset.i)))));
+  box.querySelectorAll('.nt-cell').forEach((c) => { c.setAttribute('aria-pressed', String(DrumNotation.has(n, c.dataset.k, Number(c.dataset.i)))); if (c.dataset.k === 'stick') c.textContent = (n.stick || {})[c.dataset.i] || ''; });
   if (DrumNotation.isPlaying()) DrumNotation.play(n, n.bpm, DrumNotation.cursorFor(box.querySelector('.nt-staff')));
 }
 document.addEventListener('input', (ev) => {
@@ -1261,8 +1277,11 @@ document.addEventListener('submit', async (ev) => {
       S.lesson.new_assignments.push({ exercise_id: exId || null, free_text: exId ? null : free, url: exId ? null : ($('#a_url').value.trim() || null), label: ex ? ex.title : free, target_bpm: Number($('#a_bpm').value) || (ex && ex.target_bpm) || null, minutes_per_day: Number($('#a_min').value) || 10 });
       saveDraft(); render();
     } else if (fid === 'itemForm') {
-      const kind = S.itemKind || 'video', title = $('#it_title').value.trim(); if (!title) { toast('Titel fehlt'); return; }
-      await api('/api/t/course/item/save', { lesson_id: S.lessonId, kind, title, song_title: kind === 'song' ? title : null, url: $('#it_url') ? $('#it_url').value.trim() : null, notes: $('#it_notes').value.trim() || null });
+      const kind = S.itemKind || 'video'; let title = $('#it_title').value.trim();
+      const exId = kind === 'exercise' && $('#it_ex') ? $('#it_ex').value : null;
+      if (exId) title = (S.exercises.find((e) => e.id === exId) || {}).title || 'Übung';
+      if (!title) { toast('Titel fehlt'); return; }
+      await api('/api/t/course/item/save', { lesson_id: S.lessonId, kind, title, exercise_id: exId, song_title: kind === 'song' ? title : null, url: $('#it_url') ? $('#it_url').value.trim() : null, notes: $('#it_notes').value.trim() || null });
       await reloadCourse(); openOverlay(courseLessonView); toast('Hinzugefügt');
     } else if (fid === 'myGoalForm') {
       const title = $('#mg_title').value.trim(); if (!title) return;
