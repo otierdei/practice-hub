@@ -52,8 +52,8 @@
   }
   function countLabel(sig, i) {
     const j = i % perBar(sig);
-    if (EIGHTH(sig)) return j % 2 === 0 ? String(j / 2 + 1) : '+';
-    return [String(Math.floor(j / 4) + 1), 'e', '+', 'a'][j % 4];
+    if (EIGHTH(sig)) return j % 2 === 0 ? String(j / 2 + 1) : '&';
+    return [String(Math.floor(j / 4) + 1), 'e', '&', 'a'][j % 4];
   }
   // Takt, den ein Wiederholungstakt tatsächlich spielt
   function sourceBar(n, bar) { let b = bar; while (b > 0 && n.repeat.includes(b)) b--; return b; }
@@ -253,13 +253,13 @@
   // ---------- Editor: Takt wählen, Raster für einen Takt ----------
   function editorHTML(n, id, curBar = 0) {
     const pb = perBar(n.sig), gs = groupSize(n.sig), from = curBar * pb, rep = n.repeat.includes(curBar);
-    const head = `<tr><th scope="col"><span class="nt-sr">Instrument</span></th>${Array.from({ length: pb }, (_, j) => `<th scope="col" class="${j % gs === 0 ? 'nt-beat' : ''}">${countLabel(n.sig, j)}</th>`).join('')}</tr>`;
+    const head = `<tr><th scope="col"><span class="nt-sr">Instrument</span></th>${Array.from({ length: pb }, (_, j) => `<th scope="col" class="${j % gs === 0 ? 'nt-beat' : ''}">${esc(countLabel(n.sig, j))}</th>`).join('')}</tr>`;
     const rows = ROWS.map((r) => `<tr><th scope="row">${r.n}</th>${Array.from({ length: pb }, (_, j) => {
       const i = from + j;
-      return `<td class="${Math.floor(j / gs) % 2 ? 'nt-alt' : ''}"><button type="button" class="nt-cell" data-nt="${id}" data-k="${r.k}" data-i="${i}" aria-pressed="${has(n, r.k, i)}" aria-label="${r.n} auf ${countLabel(n.sig, j)}, Takt ${curBar + 1}" ${rep ? 'disabled' : ''}></button></td>`;
+      return `<td class="${Math.floor(j / gs) % 2 ? 'nt-alt' : ''}"><button type="button" class="nt-cell" data-nt="${id}" data-k="${r.k}" data-i="${i}" aria-pressed="${has(n, r.k, i)}" aria-label="${r.n} auf ${esc(countLabel(n.sig, j))}, Takt ${curBar + 1}" ${rep ? 'disabled' : ''}></button></td>`;
     }).join('')}</tr>`).join('') + `<tr><th scope="row">Hand</th>${Array.from({ length: pb }, (_, j) => {
       const i = from + j, v = (n.stick || {})[i] || '';
-      return `<td class="${Math.floor(j / gs) % 2 ? 'nt-alt' : ''}"><button type="button" class="nt-cell nt-stick" data-nt="${id}" data-k="stick" data-i="${i}" aria-pressed="${!!v}" aria-label="Hand auf ${countLabel(n.sig, j)}: ${v || 'keine'}" ${rep ? 'disabled' : ''}>${v}</button></td>`;
+      return `<td class="${Math.floor(j / gs) % 2 ? 'nt-alt' : ''}"><button type="button" class="nt-cell nt-stick" data-nt="${id}" data-k="stick" data-i="${i}" aria-pressed="${!!v}" aria-label="Hand auf ${esc(countLabel(n.sig, j))}: ${v || 'keine'}" ${rep ? 'disabled' : ''}>${v}</button></td>`;
     }).join('')}</tr>`;
     const tabs = Array.from({ length: n.bars }, (_, b) => `<button type="button" class="nt-bartab" data-nt-bar="${b}" data-nt-id="${id}" aria-pressed="${b === curBar}">${b + 1}${n.repeat.includes(b) ? ' %' : ''}${n.marks[b] ? ' · ' + esc(n.marks[b]) : ''}</button>`).join('');
     return `<div class="nt-editor" id="${id}" data-bar="${curBar}">
