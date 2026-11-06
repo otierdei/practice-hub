@@ -385,3 +385,21 @@ test('Beat direkt in der Stunde: Übung mit Noten, Tempo von bis, Bibliothek nur
   const lib = (await w.call('/api/t/exercises', {}, w.t)).data.exercises.map((e) => e.title);
   assert.ok(lib.includes('Groove B') && !lib.includes('Groove A'), 'nur B in der Bibliothek');
 });
+
+test('Songs: Unterricht Song, Links mit Versionen, Song als Hausaufgabe, gespielt von', async () => {
+  const w = await world();
+  const sid = (await w.call('/api/t/song/create', { title: 'Yellow' }, w.t)).data.id;
+  assert.equal((await w.call('/api/t/song/create', { title: 'Yellow' }, w.ta)).status, 403);
+  const add = await w.call('/api/t/song/links/add', { song_id: sid, lines: 'Easy | https://youtu.be/aaaaaaaaaaa\nOriginal: youtu.be/bbbbbbbbbbb\nhttps://youtu.be/ccccccccccc\nkein link' }, w.t);
+  assert.equal(add.data.added, 3);
+  const r = await w.call('/api/t/lesson/finish', { student_id: w.a, date: '2026-10-03', new_assignments: [{ song_id: sid, version: 'Easy' }, { song_id: sid, version: 'Original' }] }, w.t);
+  assert.deepEqual(r.data.skipped, ['Yellow'], 'Song nur einmal offen');
+  const a = (await w.call('/api/home', {}, w.ta)).data.assignments.find((x) => x.song_id === sid);
+  assert.equal(a.song_version, 'Easy'); assert.equal(a.free_text, 'Yellow (Easy)');
+  const d = (await w.call('/api/song', { id: sid }, w.ta)).data;
+  assert.deepEqual(d.links.map((l) => l.version), ['Easy', 'Original', 'Original']);
+  assert.deepEqual(d.playedBy, [], 'Schüler sieht nicht, wer den Song spielt');
+  assert.deepEqual((await w.call('/api/song', { id: sid }, w.t)).data.playedBy, ['Anna']);
+  assert.ok((await w.call('/api/songs', {}, w.ta)).data.songs.some((x) => x.id === sid && x.lang === 'unterricht'));
+  assert.ok((await w.call('/api/t/song/candidates', {}, w.t)).status === 200);
+});

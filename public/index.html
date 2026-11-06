@@ -548,6 +548,7 @@ function lessonView() {
           <div class="list">${L.new_assignments.map((a, i) => `<div class="item"><span class="t">${esc(a.label)}${a.target_bpm ? ' <span class="muted small">Ziel ' + a.target_bpm + '</span>' : ''}</span><button class="btn small" data-act="rmAssign" data-i="${i}">Entfernen</button></div>`).join('') || '<p class="muted small">Noch keine.</p>'}</div>
           <form id="assignForm" class="col">
             ${(S.exercises || []).some((e) => e.category === 'Aufwärmen') ? `<div class="col" style="gap:6px"><span class="small muted">Aufwärmen mit einem Tipp</span><div class="row" style="gap:6px">${S.exercises.filter((e) => e.category === 'Aufwärmen').map((e) => `<button type="button" class="chip" data-act="warmAdd" data-id="${e.id}">${esc(e.title)}</button>`).join('')}</div></div>` : ''}
+            <div class="row" style="flex-wrap:nowrap;align-items:flex-end"><div class="field" style="flex:1"><label for="a_song">Song</label><input id="a_song" list="a_songs" placeholder="Song suchen" autocomplete="off"><datalist id="a_songs">${(S.songs ? S.songs.songs : []).map((x) => `<option value="${esc(x.title)}"></option>`).join('')}</datalist></div><div class="field" style="width:110px"><label for="a_ver">Version</label><input id="a_ver" list="a_vers" placeholder="Original"><datalist id="a_vers"><option value="Original"></option><option value="Easy"></option></datalist></div></div>
             <div class="field"><label for="a_ex">Aus der Bibliothek</label><select id="a_ex"><option value="">Freie Aufgabe</option>${exOpts}</select></div>
             <div id="a_preview"></div>
             ${S.nt && S.nt.lb ? `<div class="col" style="gap:8px"><b>Neuer Beat</b>${DrumNotation.editorHTML(S.nt.lb, 'lb')}<label class="row" style="gap:8px"><input type="checkbox" id="a_lib" style="width:22px;min-height:22px"> Auch in meine Bibliothek</label><button type="button" class="btn small" data-act="lessonBeatOff">Beat verwerfen</button></div>` : '<button type="button" class="btn small" data-act="lessonBeat">Beat schreiben</button>'}
@@ -722,14 +723,15 @@ function songsTab(teacher) {
   if (!sg) return '<h1>Songs</h1><div class="empty">Songs werden geladen …</div>';
   const byId = Object.fromEntries(sg.songs.map((x) => [x.id, x]));
   const sun = sg.sunday;
-  return `<div class="row between"><h1>Songs</h1>${teacher ? `<button class="btn small" data-act="songSync">Jetzt abgleichen</button>` : ''}</div>
+  return `<div class="row between"><h1>Songs</h1>${teacher ? `<div class="row"><button class="btn small primary" data-act="songNew">Song anlegen</button><button class="btn small" data-act="songCand">Aus Notizen finden</button><button class="btn small" data-act="songSync">Jetzt abgleichen</button></div>` : ''}</div>
+    ${teacher && S.songNew ? `<form id="songNewForm" class="card row" style="flex-wrap:nowrap"><input id="sn_title" maxlength="160" placeholder="Songtitel, z. B. Yellow" aria-label="Songtitel" style="flex:1"><button class="btn primary small" type="submit">Anlegen</button></form>` : ''}
     ${teacher ? `<p class="small muted">${sg.synced ? 'Zuletzt abgeglichen ' + esc(new Date(sg.synced.at).toLocaleString('de-DE')) + ': ' + sg.synced.files + ' Dateien, ' + sg.synced.sundays + ' Sonntage.' : 'Noch nicht abgeglichen. Tipp auf Jetzt abgleichen.'} Quelle: Lobpreis Ordner Lieder in Drive, täglich automatisch.</p>` : ''}
     ${sun ? `<section class="card sunday"><div class="col" style="gap:2px"><span class="small">${esc(fmtSunday(sun.date))}${teacher ? '' : ' · Du spielst'}</span><h2>Setlist Gottesdienst</h2></div>
       <div class="list">${sun.items.map((i) => `<div class="item"><span class="num">${i.n || ''}</span><button class="t song-open" ${i.song_id ? `data-act="song" data-id="${esc(i.song_id)}"` : `data-act="sheet" data-id="${esc(i.drive_id)}"`}><b>${esc(i.title)}</b><span class="small">${[i.key, i.bpm ? i.bpm + ' BPM' : ''].filter(Boolean).join(' · ')}${i.song_id && byId[i.song_id] && byId[i.song_id].parts ? ' · ' + byId[i.song_id].parts + ' Videos' : ''}</span></button><a class="btn small" href="${driveUrl(i.drive_id)}" target="_blank" rel="noopener">Leadsheet</a></div>`).join('')}</div></section>` : ''}
     ${teacher ? '' : `<section class="col"><h2>Meine Setlist</h2>${sg.mine.length ? `<section class="card"><div class="list">${sg.mine.map((id) => byId[id]).filter(Boolean).map((x) => songRow(x, true)).join('')}</div></section>` : '<div class="empty">Noch leer. Such dir unten Songs aus und tipp auf +.</div>'}</section>`}
     <section class="col"><h2>Alle Songs <span class="muted small">(${sg.songs.length})</span></h2>
       <input id="songQ" type="search" placeholder="Song suchen" value="${esc(S.songQ || '')}" autocomplete="off">
-      <div class="row" style="gap:6px">${[['', 'Alle'], ['de', 'Deutsch'], ['en', 'Englisch']].map(([v, l]) => `<button class="chip" data-act="songLang" data-v="${v}" aria-pressed="${(S.songLang || '') === v}">${l}</button>`).join('')}<button class="chip" data-act="songVideos" aria-pressed="${!!S.songVideos}">Mit Videos</button></div>
+      <div class="row" style="gap:6px">${[['', 'Alle'], ['de', 'Deutsch'], ['en', 'Englisch'], ['unterricht', 'Unterricht']].map(([v, l]) => `<button class="chip" data-act="songLang" data-v="${v}" aria-pressed="${(S.songLang || '') === v}">${l}</button>`).join('')}<button class="chip" data-act="songVideos" aria-pressed="${!!S.songVideos}">Mit Videos</button></div>
       <section class="card"><div class="list" id="songList">${songResults()}</div></section></section>`;
 }
 function songView() {
@@ -741,6 +743,8 @@ function songView() {
   return `<div class="wrap" style="max-width:720px;align-items:stretch">
     <div class="row between"><button class="btn small" data-act="close">Zurück</button>${S.role === 'student' && !S.preview ? `<button class="btn small ${mine ? '' : 'primary'}" data-act="mySong" data-id="${esc(d.song.id)}">${mine ? 'In meiner Setlist ✓' : 'Zu meiner Setlist'}</button>` : ''}</div>
     <div class="col" style="gap:4px"><h1>${esc(d.song.title)}</h1><span class="muted">${esc(x ? songMeta({ ...x, parts: 0 }) : '')}</span></div>
+    ${songLinksSection(d, teacher)}
+    ${teacher && d.playedBy && d.playedBy.length ? `<p class="small muted">Gespielt von: ${d.playedBy.map(esc).join(', ')}</p>` : ''}
     <section class="col"><h2>Bausteine</h2>
       ${d.parts.length ? d.parts.map((p) => `<section class="card task"><div class="row" style="flex-wrap:nowrap;align-items:center;gap:14px">
         ${ytThumb(p.url) ? `<button class="thumb" data-act="partVideo" data-id="${p.id}" aria-label="Video ansehen: ${esc(p.title)}"><img src="${ytThumb(p.url)}" alt="" loading="lazy" onerror="this.remove()"><span class="thumb-play">${PLAY}</span></button>` : `<span class="task-icon" aria-hidden="true">${ICON_NOTE}</span>`}
@@ -755,6 +759,34 @@ function songView() {
     </section>
     ${pdfs.length ? `<section class="col"><h2>Leadsheets</h2><div class="row">${pdfs.map((f) => `<a class="btn small" href="${driveUrl(f.drive_id)}" target="_blank" rel="noopener">${esc(f.key_sig || 'PDF')}${f.bpm ? ' · ' + f.bpm : ''}</a>`).join('')}</div></section>` : ''}
   </div>`;
+}
+function songLinksSection(d, teacher) {
+  const versions = [...new Set(d.links.map((l) => l.version))];
+  const cur = versions.includes(S.songVersion) ? S.songVersion : versions[0];
+  const list = d.links.filter((l) => l.version === cur);
+  return `<section class="col"><h2>Videos</h2>
+    ${versions.length > 1 ? `<div class="row" style="gap:6px">${versions.map((v) => `<button class="chip" data-act="songVer" data-v="${esc(v)}" aria-pressed="${v === cur}">${esc(v)}</button>`).join('')}</div>` : ''}
+    ${list.length ? list.map((l) => `<section class="card task"><div class="row" style="flex-wrap:nowrap;align-items:center;gap:14px">
+      ${ytThumb(l.url) ? `<button class="thumb" data-act="linkVideo" data-id="${l.id}" aria-label="Video ansehen: ${esc(cur)}"><img src="${ytThumb(l.url)}" alt="" loading="lazy" onerror="this.remove()"><span class="thumb-play">${PLAY}</span></button>` : `<a class="btn small" href="${esc(l.url)}" target="_blank" rel="noopener">Link öffnen</a>`}
+      <div class="col" style="gap:2px;flex:1;min-width:0"><b>${esc(l.version)}</b><span class="small muted">${esc(linkLabel({ url: l.url, source_type: /youtu/.test(l.url) ? 'youtube' : 'link' }))}</span></div>
+      ${teacher ? `<button class="btn small danger" data-act="linkDelete" data-id="${l.id}">Entfernen</button>` : ''}</div></section>`).join('') : `<div class="empty">${teacher ? 'Noch keine Videos. Füg unten Links ein, eine Zeile pro Link.' : 'Noch keine Videos zu diesem Song.'}</div>`}
+    ${teacher ? `<form id="linksForm" class="card col"><b>Links hinzufügen</b>
+      <div class="field"><label for="lk_ver">Version (wenn in der Zeile keine steht)</label><select id="lk_ver">${['Original', 'Easy', 'Mittel', 'Playthrough', 'Fill'].map((v) => `<option>${v}</option>`).join('')}</select></div>
+      <div class="field"><label for="lk_lines">Eine Zeile pro Link, z. B. "Easy | https://youtu.be/…"</label><textarea id="lk_lines" rows="4" placeholder="Easy | https://youtu.be/…&#10;Original | https://youtu.be/…"></textarea></div>
+      <button class="btn primary" type="submit">Speichern</button></form>` : ''}
+  </section>`;
+}
+function linkVideoView() {
+  const l = S.song && S.song.links.find((x) => x.id === S.linkId); if (!l) return '';
+  return `<div class="wrap" style="max-width:720px;align-items:stretch"><div class="row between"><button class="btn small" data-act="backToSong">Zurück</button></div>
+    <div class="col" style="gap:2px"><span class="muted">${esc(S.song.song.title)}</span><h1>${esc(l.version)}</h1></div>${ytEmbed(l.url) || `<a class="btn" href="${esc(l.url)}" target="_blank" rel="noopener">Link öffnen</a>`}
+    ${S.role === 'student' && !S.preview ? '<button class="btn primary block" data-act="practiceFree">Jetzt üben</button>' : ''}</div>`;
+}
+function songCandView() {
+  const c = S.songCand || [];
+  return `<div class="wrap" style="max-width:720px;align-items:stretch"><div class="row between"><button class="btn small" data-act="close">Zurück</button></div>
+    <h1>Songs aus deinen Notizen</h1><p class="muted">Das sind freie Hausaufgaben Texte. Tipp bei jedem echten Song auf "Als Song anlegen". Nichts wird automatisch übernommen.</p>
+    <section class="card"><div class="list">${c.length ? c.map((x, i) => `<div class="item"><span class="t">${esc(x.t)} <span class="small muted">${x.n}x</span></span><button class="btn small" data-act="candAdd" data-i="${i}">Als Song anlegen</button></div>`).join('') : '<p class="muted">Keine Kandidaten.</p>'}</div></section></div>`;
 }
 function partVideoView() {
   const p = S.song && S.song.parts.find((x) => x.id === S.partId); if (!p) return '';
@@ -839,6 +871,7 @@ function assignmentCard(a, sessions) {
     <div class="col" style="gap:4px;flex:1;min-width:0"><b class="task-title">${esc(a.title || a.free_text)}</b><span class="muted small">${meta}</span></div>
     <button class="check" data-act="toggleDone" data-id="${a.id}" aria-pressed="false" aria-label="Als erledigt abhaken"></button></div>
     ${notationPreview(a.notation, 'Noten: ' + (a.title || ''))}
+    ${a.song_id ? `<button class="btn" data-act="song" data-id="${esc(a.song_id)}" data-v="${esc(a.song_version || '')}">Song öffnen${a.song_version ? ' · ' + esc(a.song_version) : ''}</button>` : ''}
     <div class="row" style="flex-wrap:nowrap">${a.url && !th ? `<a class="btn video" href="${esc(a.url)}" target="_blank" rel="noopener">${PLAY}${linkLabel(a)}</a>` : ''}<button class="btn primary" data-act="practice" data-id="${a.id}" style="flex:1">Üben</button></div>
   </section>`;
 }
@@ -1056,9 +1089,9 @@ document.addEventListener('click', async (ev) => {
   const el = ev.target.closest('[data-act]'); if (!el) return;
   const act = el.dataset.act, id = el.dataset.id;
   if (S.preview && act === 'video') { S.videoId = id; openOverlay(videoView); return; }
-  if (S.preview && act === 'close' && [videoView, songView, partVideoView, courseView, courseLessonView].includes(S.overlay)) { closeOverlay(); return; }
+  if (S.preview && act === 'close' && [videoView, songView, partVideoView, linkVideoView, courseView, courseLessonView].includes(S.overlay)) { closeOverlay(); return; }
   // In der Vorschau darf man ansehen, aber nichts ändern
-  if (S.preview && !['endPreview', 'song', 'partVideo', 'backToSong', 'songLang', 'songVideos', 'sheet', 'course', 'courseLesson', 'backToCourse', 'courseBack'].includes(act) && el.tagName !== 'A') { toast('Vorschau: hier tippt ' + S.preview.data.student.first_name); return; }
+  if (S.preview && !['endPreview', 'song', 'partVideo', 'backToSong', 'songLang', 'songVideos', 'sheet', 'course', 'courseLesson', 'backToCourse', 'courseBack', 'songVer', 'linkVideo'].includes(act) && el.tagName !== 'A') { toast('Vorschau: hier tippt ' + S.preview.data.student.first_name); return; }
   try {
     switch (act) {
       case 'reload': load(); break;
@@ -1171,7 +1204,13 @@ document.addEventListener('click', async (ev) => {
         await reloadCourse(); openOverlay(courseView); toast(next === 'offen' ? 'Als Hausaufgabe aufgegeben' : next === 'fertig' ? 'Geschafft' : 'Zurückgesetzt'); break;
       }
       case 'teacherConsent': await api('/api/t/consent', { student_id: S.file.student.id, how: 'liegt Oti vor' }); S.file = Object.assign(await api('/api/t/student', { id: S.file.student.id }), { course: S.file.course }); openOverlay(studentFileView); toast('Einwilligung eingetragen'); break;
-      case 'song': await openSong(id); break;
+      case 'song': S.songVersion = el.dataset.v || null; await openSong(id); break;
+      case 'songVer': S.songVersion = el.dataset.v; openOverlay(songView); break;
+      case 'linkVideo': S.linkId = id; openOverlay(linkVideoView); break;
+      case 'linkDelete': await api('/api/t/song/link/delete', { id }); S.song = await api('/api/song', { id: S.song.song.id }); openOverlay(songView); break;
+      case 'songNew': S.songNew = !S.songNew; render(); break;
+      case 'songCand': S.songCand = (await api('/api/t/song/candidates')).candidates; openOverlay(songCandView); break;
+      case 'candAdd': { const x = S.songCand[Number(el.dataset.i)]; await api('/api/t/song/create', { title: x.t }); S.songCand.splice(Number(el.dataset.i), 1); S.songs = await api('/api/songs'); openOverlay(songCandView); toast(x.t + ' angelegt'); break; }
       case 'sheet': window.open(driveUrl(id), '_blank', 'noopener'); break;
       case 'partVideo': S.partId = id; openOverlay(partVideoView); break;
       case 'backToSong': openOverlay(songView); break;
@@ -1309,6 +1348,15 @@ document.addEventListener('submit', async (ev) => {
       data.notation = S.gt && S.gt.gx ? S.gt.gx : S.nt && S.nt.ex ? S.nt.ex : null; DrumNotation.stop(); Guitar.stop();
       await api('/api/t/exercise/save', data); S.exercises = (await api('/api/t/exercises')).exercises; closeOverlay(); toast('Gespeichert');
     } else if (fid === 'assignForm') {
+      const songTitle = $('#a_song') ? $('#a_song').value.trim() : '';
+      if (songTitle) {
+        const sg = S.songs && S.songs.songs.find((x) => x.title.toLowerCase() === songTitle.toLowerCase());
+        if (!sg) { toast('Song nicht gefunden. Unter Songs > Song anlegen'); return; }
+        const ver = $('#a_ver').value.trim() || null;
+        if (S.file.assignments.some((a) => a.status === 'offen' && a.song_id === sg.id) || S.lesson.new_assignments.some((a) => a.song_id === sg.id)) { toast('Du hast die Hausaufgabe schon aufgegeben'); return; }
+        S.lesson.new_assignments.push({ song_id: sg.id, version: ver, label: sg.title + (ver ? ' (' + ver + ')' : ''), start_bpm: Number($('#a_from').value) || null, target_bpm: Number($('#a_bpm').value) || null, minutes_per_day: Number($('#a_min').value) || 10 });
+        saveDraft(); render(); return;
+      }
       const exId = $('#a_ex').value; let free = $('#a_free').value.trim();
       const beat = S.nt && S.nt.lb && !exId ? S.nt.lb : null;
       if (beat && !Object.values(beat.tracks).some((t) => t.length)) { toast('Der Beat ist noch leer'); return; }
@@ -1329,6 +1377,12 @@ document.addEventListener('submit', async (ev) => {
       if (!title) { toast('Titel fehlt'); return; }
       await api('/api/t/course/item/save', { lesson_id: S.lessonId, kind, title, exercise_id: exId, song_title: kind === 'song' ? title : null, url: $('#it_url') ? $('#it_url').value.trim() : null, notes: $('#it_notes').value.trim() || null });
       await reloadCourse(); openOverlay(courseLessonView); toast('Hinzugefügt');
+    } else if (fid === 'songNewForm') {
+      const title = $('#sn_title').value.trim(); if (!title) return;
+      const r = await api('/api/t/song/create', { title }); S.songNew = false; S.songs = await api('/api/songs'); await openSong(r.id); toast('Song angelegt');
+    } else if (fid === 'linksForm') {
+      const r = await api('/api/t/song/links/add', { song_id: S.song.song.id, lines: $('#lk_lines').value, version: $('#lk_ver').value });
+      S.song = await api('/api/song', { id: S.song.song.id }); S.songs = await api('/api/songs'); openOverlay(songView); toast(r.added + ' Links gespeichert');
     } else if (fid === 'myGoalForm') {
       const title = $('#mg_title').value.trim(); if (!title) return;
       await api('/api/goal/add', { title }); S.data = await api('/api/home'); render(); toast('Ziel gespeichert');

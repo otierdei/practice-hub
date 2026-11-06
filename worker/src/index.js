@@ -1,5 +1,5 @@
 import { COURSE_SCHEMA, courseData, courseImport } from './course.js';
-import { SONG_SCHEMA, syncSongs, songsHome, songDetail } from './songs.js';
+import { SONG_SCHEMA, syncSongs, songsHome, songDetail, parseLinkLines, slug } from './songs.js';
 // Practice Hub Worker v1 (04.11.2026)
 // Rechte werden bei jeder Anfrage aus dem Gerätetoken abgeleitet, nie aus der Anfrage.
 
@@ -125,8 +125,8 @@ async function studentView(s, studentId, role) {
   const since = new Date(Date.now() - 90 * DAY).toISOString();
   const [assignments, sessions, goals, lessons, consent] = await Promise.all([
     s.all(`SELECT a.id, a.exercise_id, a.free_text, a.target_bpm, a.start_bpm, a.minutes_per_day, a.due_date, a.status, a.done_at, a.created_at,
-             e.title, e.category, e.source_type, e.url, e.book_ref, e.notes AS exercise_notes, e.notation, c.student_done_at
-           FROM assignments a LEFT JOIN exercises e ON e.id = a.exercise_id LEFT JOIN assignment_checks c ON c.assignment_id = a.id
+             e.title, e.category, e.source_type, e.url, e.book_ref, e.notes AS exercise_notes, e.notation, c.student_done_at, x.song_id, x.version AS song_version
+           FROM assignments a LEFT JOIN exercises e ON e.id = a.exercise_id LEFT JOIN assignment_checks c ON c.assignment_id = a.id LEFT JOIN assignment_songs x ON x.assignment_id = a.id
            WHERE a.student_id = ? AND (a.status = 'offen' OR a.done_at > ?) ORDER BY a.created_at DESC`, studentId, new Date(Date.now() - 21 * DAY).toISOString()),
     s.all(`SELECT id, client_id, assignment_id, exercise_id, started_at, local_date, seconds, bpm_reached, feeling, note
            FROM practice_sessions WHERE student_id = ? AND started_at > ? ORDER BY started_at DESC`, studentId, since),
@@ -201,8 +201,8 @@ async function teacherStudent(s, id) {
   if (!st) throw new HttpError(404, 'Schüler nicht gefunden.');
   const [lessons, assignments, sessions, goals, access, consents] = await Promise.all([
     s.all('SELECT * FROM lessons WHERE student_id = ? ORDER BY date DESC', id),
-    s.all(`SELECT a.*, e.title, e.category, e.source_type, e.url, e.book_ref, e.notation, c.student_done_at FROM assignments a LEFT JOIN exercises e ON e.id = a.exercise_id
-           LEFT JOIN assignment_checks c ON c.assignment_id = a.id
+    s.all(`SELECT a.*, e.title, e.category, e.source_type, e.url, e.book_ref, e.notation, c.student_done_at, x.song_id, x.version AS song_version FROM assignments a LEFT JOIN exercises e ON e.id = a.exercise_id
+           LEFT JOIN assignment_checks c ON c.assignment_id = a.id LEFT JOIN assignment_songs x ON x.assignment_id = a.id
            WHERE a.student_id = ? ORDER BY a.created_at DESC LIMIT 200`, id),
     s.all('SELECT id, assignment_id, exercise_id, started_at, local_date, seconds, bpm_reached, feeling, note FROM practice_sessions WHERE student_id = ? ORDER BY started_at DESC LIMIT 400', id),
     s.all('SELECT * FROM goals WHERE student_id = ? ORDER BY created_at', id),
@@ -254,6 +254,8 @@ async function deleteStudent(s, who, id) {
 }
 function deleteStudentStatements(id) {
   return [
+    ['DELETE FROM assignment_songs WHERE assignment_id IN (SELECT id FROM assignments WHERE student_id = ?)', [id]],
+    ['DELETE FROM assignment_checks WHERE assignment_id IN (SELECT id FROM assignments WHERE student_id = ?)', [id]],
     ['DELETE FROM devices WHERE access_id IN (SELECT id FROM access WHERE student_id = ?)', [id]],
     ['DELETE FROM access WHERE student_id = ?', [id]],
     ['DELETE FROM consents WHERE student_id = ?', [id]],
@@ -430,17 +432,22 @@ async function finishLesson(s, who, b) {
   const skipped = [];
   const closing = new Set((Array.isArray(b.close_assignments) ? b.close_assignments : []).map(String));
   // Kleinschreibung in JS, weil SQLite LOWER keine Umlaute kennt
-  const openRows = (await s.all("SELECT id, exercise_id, free_text FROM assignments WHERE student_id = ? AND status = 'offen'", st.id)).map((r) => ({ ...r, ft: (r.free_text || '').trim().toLowerCase() }));
+  const openRows = (await s.all("SELECT a.id, a.exercise_id, a.free_text, x.song_id FROM assignments a LEFT JOIN assignment_songs x ON x.assignment_id = a.id WHERE a.student_id = ? AND a.status = 'offen'", st.id)).map((r) => ({ ...r, ft: (r.free_text || '').trim().toLowerCase() }));
+  const openSongs = new Set(openRows.filter((r) => !closing.has(r.id) && r.song_id).map((r) => r.song_id));
   const openEx = new Set(openRows.filter((r) => !closing.has(r.id) && r.exercise_id).map((r) => r.exercise_id));
   const openFt = new Set(openRows.filter((r) => !closing.has(r.id) && r.ft).map((r) => r.ft));
   for (const a of (Array.isArray(b.new_assignments) ? b.new_assignments : []).slice(0, 20)) {
     let exId = str(a.exercise_id, 64);
     if (exId && !(await s.first('SELECT id FROM exercises WHERE id = ?', exId))) exId = null;
-    const free = str(a.free_text, 300);
+    const songId = str(a.song_id, 200);
+    const song = songId ? await s.first('SELECT id, title FROM songs WHERE id = ?', songId) : null;
+    const free = song ? str((song.title + (a.version ? ' (' + a.version + ')' : '')), 300) : str(a.free_text, 300);
     if (!exId && !free) continue;
+    if (song && openSongs.has(song.id)) { skipped.push(song.title); continue; }
+    if (song) { openSongs.add(song.id); exId = null; }
     // Keine doppelte Hausaufgabe: gleiche Übung oder gleicher Text ist schon offen
     const ft = (free || '').trim().toLowerCase();
-    if (!a.notation && ((exId && openEx.has(exId)) || (!exId && ft && openFt.has(ft)))) { skipped.push(free || exId); continue; }
+    if (!a.notation && !song && ((exId && openEx.has(exId)) || (!exId && ft && openFt.has(ft)))) { skipped.push(free || exId); continue; }
     if (exId) openEx.add(exId); if (ft) openFt.add(ft);
     // Beat direkt in der Stunde geschrieben: eigene Übung mit Noten anlegen (Bibliothek nur auf Wunsch)
     const beat = !exId && a.notation ? cleanNotation(a.notation) : null;
@@ -454,8 +461,10 @@ async function finishLesson(s, who, b) {
       exId = uid();
       stmts.push(['INSERT INTO exercises (id, title, category, source_type, url, archived, created_at) VALUES (?, ?, ?, ?, ?, 1, ?)', [exId, free.slice(0, 120), 'Hausaufgaben', sourceFor(link), link, t]]);
     }
+    const aid = uid();
+    if (song) stmts.push(['INSERT INTO assignment_songs (assignment_id, song_id, version) VALUES (?, ?, ?)', [aid, song.id, str(a.version, 40)]]);
     stmts.push(['INSERT INTO assignments (id, student_id, lesson_id, exercise_id, free_text, target_bpm, start_bpm, minutes_per_day, due_date, status, created_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)',
-      [uid(), st.id, lessonId, exId, free, int(a.target_bpm, 20, 400), int(a.start_bpm, 20, 400), int(a.minutes_per_day, 1, 240), isDate(a.due_date) ? a.due_date : null, 'offen', t]]);
+      [aid, st.id, lessonId, exId, free, int(a.target_bpm, 20, 400), int(a.start_bpm, 20, 400), int(a.minutes_per_day, 1, 240), isDate(a.due_date) ? a.due_date : null, 'offen', t]]);
   }
   for (const id of (Array.isArray(b.close_assignments) ? b.close_assignments : []).slice(0, 50)) {
     stmts.push(["UPDATE assignments SET status = 'erledigt', done_at = COALESCE(done_at, ?) WHERE id = ? AND student_id = ?", [t, String(id), st.id]]);
@@ -502,7 +511,7 @@ async function route(env, req, path, body) {
   }
   if (path === '/api/songs') return songsHome(s, who);
   if (path === '/api/course') return courseData(s, 'drums', who.role === 'teacher' ? (str(body.student_id, 64) || null) : who.studentId, who.role === 'teacher');
-  if (path === '/api/song') { const d = await songDetail(s, body.id); if (!d) throw new HttpError(404, 'Song nicht gefunden.'); return d; }
+  if (path === '/api/song') { const d = await songDetail(s, body.id, who.role === 'teacher'); if (!d) throw new HttpError(404, 'Song nicht gefunden.'); return d; }
   if (path === '/api/my/song') {
     if (who.role !== 'student') throw new HttpError(403, 'Nur Schüler haben eine eigene Setlist.');
     const sid = String(body.song_id || '');
@@ -564,6 +573,29 @@ async function route(env, req, path, body) {
   switch (path) {
     case '/api/t/student': return teacherStudent(s, String(body.id || ''));
     case '/api/t/songs/sync': return syncSongs(env);
+    case '/api/t/song/create': {
+      // Song aus dem Unterricht, der nicht im Lobpreis Ordner liegt
+      const title = str(body.title, 160); if (!title) throw new HttpError(400, 'Titel fehlt.');
+      const id = 'unterricht:' + slug(title);
+      await s.run("INSERT INTO songs (id, title, lang, updated_at) VALUES (?, ?, 'unterricht', ?) ON CONFLICT(id) DO NOTHING", id, title, now());
+      return { id };
+    }
+    case '/api/t/song/links/add': {
+      const song = await s.first('SELECT id FROM songs WHERE id = ?', String(body.song_id || ''));
+      if (!song) throw new HttpError(404, 'Song nicht gefunden.');
+      const items = parseLinkLines(body.lines, str(body.version, 40) || 'Original');
+      if (!items.length) throw new HttpError(400, 'Kein Link gefunden. Eine Zeile pro Link, z. B. "Easy | https://youtu.be/…".');
+      const n = (await s.first('SELECT COUNT(*) AS n FROM song_links WHERE song_id = ?', song.id)).n;
+      await s.batch(items.map((it, i) => ['INSERT INTO song_links (id, song_id, version, title, url, sort, created_at) VALUES (?, ?, ?, ?, ?, ?, ?)', [uid(), song.id, it.version, null, cleanUrl(it.url), n + i, now()]]).concat([logRow(who, 'create', 'song_links', song.id, items.length + ' Links')]));
+      return { added: items.length };
+    }
+    case '/api/t/song/link/delete': await s.run('DELETE FROM song_links WHERE id = ?', String(body.id || '')); return { ok: true };
+    case '/api/t/song/candidates': {
+      // Mögliche Songs aus freien Hausaufgaben Texten; Oti entscheidet selbst, was ein Song ist
+      const rows = await s.all("SELECT TRIM(free_text) AS t, COUNT(*) AS n FROM assignments WHERE free_text IS NOT NULL AND TRIM(free_text) != '' GROUP BY LOWER(TRIM(free_text)) ORDER BY n DESC LIMIT 400");
+      const known = new Set((await s.all('SELECT title FROM songs')).map((r) => slug(r.title)));
+      return { candidates: rows.filter((r) => r.t.length <= 80 && !known.has(slug(r.t))) };
+    }
     case '/api/t/consent': {
       // Einwilligung der Eltern, die Oti außerhalb der App bekommen hat (schriftlich oder per Nachricht)
       const st = await s.first('SELECT id, first_name FROM students WHERE id = ?', String(body.student_id || ''));
