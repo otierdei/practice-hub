@@ -53,7 +53,7 @@ let n = 0; const ok = (m) => console.log('ok ' + (++n) + ' ' + m);
   await t.reload(); await t.click('[data-tab=heute]'); await t.click('section[aria-label="Gerade dran"] [data-act=lesson]');
   assert.equal(await t.inputValue('#l_shared'), 'Hi Hat locker lassen.'); ok('Stundenentwurf überlebt Neuladen');
   await t.screenshot({ path: OUT + '/t-stunde-1440.png' });
-  await t.click('[data-act=finishLesson]'); await t.getByText('Stunde gespeichert').waitFor(); ok('Stunde beendet');
+  await t.click('[data-act=finishLesson]'); await t.getByText(/Stunde (gespeichert|von heute ergänzt)/).waitFor(); ok('Stunde beendet');
 
   // Schüler am iPhone öffnet Link
   const sc = await ctx({ colorScheme: 'dark' }); const s = await sc.newPage(); s.on('pageerror', (e) => errors.push('Schüler: ' + e.message));
@@ -142,7 +142,7 @@ let n = 0; const ok = (m) => console.log('ok ' + (++n) + ' ' + m);
   assert.ok(await t.locator('.item:has-text("Rock Beat 1") .nt-svg').count() === 1); ok('Beat gespeichert, Notenbild in der Bibliothek');
   await t.click('[data-tab=heute]'); await t.click('section[aria-label="Gerade dran"] [data-act=lesson]');
   await t.selectOption('#a_ex', { label: 'Grooves: Rock Beat 1' }); await t.click('#assignForm button[type=submit]');
-  await t.click('[data-act=finishLesson]'); await t.getByText('Stunde gespeichert').waitFor();
+  await t.click('[data-act=finishLesson]'); await t.getByText(/Stunde (gespeichert|von heute ergänzt)/).waitFor();
   await s.reload(); await s.getByRole('heading', { name: 'Heute üben' }).waitFor();
   const card = s.locator('.card:has-text("Rock Beat 1")'); assert.equal(await card.locator('.nt-svg').count(), 1); ok('Schüler sieht die Noten');
   await card.locator('[data-act=practice]').click(); await s.click('[data-act=beatPlay]');
@@ -169,7 +169,7 @@ let n = 0; const ok = (m) => console.log('ok ' + (++n) + ' ' + m);
   // Jonas auf Gitarre umstellen und Übung geben
   await t.click('[data-tab=schueler]'); await t.click('text=Jonas'); await t.click('[data-act=editStudent]'); await t.selectOption('#f_instr', 'Gitarre'); await t.click('#studentForm button[type=submit]');
   await t.getByText('Gitarre ·').waitFor();
-  await t.click('.btn.primary[data-act=lesson]'); await t.selectOption('#a_ex', { label: 'Gitarre: Worship Pattern G' }); await t.click('#assignForm button[type=submit]'); await t.click('[data-act=finishLesson]'); await t.getByText('Stunde gespeichert').waitFor();
+  await t.click('.btn.primary[data-act=lesson]'); await t.selectOption('#a_ex', { label: 'Gitarre: Worship Pattern G' }); await t.click('#assignForm button[type=submit]'); await t.click('[data-act=finishLesson]'); await t.getByText(/Stunde (gespeichert|von heute ergänzt)/).waitFor();
   await s.reload(); await s.getByRole('heading', { name: 'Heute üben' }).waitFor();
   assert.equal(await s.locator('nav [data-tab=stimmen]').count(), 1, 'Gitarrenschüler hat Stimmen'); ok('Gitarrenschüler sieht Tab Stimmen');
   await s.locator('.card:has-text("Worship Pattern G") [data-act=practice]').click();

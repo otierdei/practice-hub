@@ -125,8 +125,8 @@ async function studentView(s, studentId, role) {
   const since = new Date(Date.now() - 90 * DAY).toISOString();
   const [assignments, sessions, goals, lessons, consent] = await Promise.all([
     s.all(`SELECT a.id, a.exercise_id, a.free_text, a.target_bpm, a.start_bpm, a.minutes_per_day, a.due_date, a.status, a.done_at, a.created_at,
-             e.title, e.category, e.source_type, e.url, e.book_ref, e.notes AS exercise_notes, e.notation
-           FROM assignments a LEFT JOIN exercises e ON e.id = a.exercise_id
+             e.title, e.category, e.source_type, e.url, e.book_ref, e.notes AS exercise_notes, e.notation, c.student_done_at
+           FROM assignments a LEFT JOIN exercises e ON e.id = a.exercise_id LEFT JOIN assignment_checks c ON c.assignment_id = a.id
            WHERE a.student_id = ? AND (a.status = 'offen' OR a.done_at > ?) ORDER BY a.created_at DESC`, studentId, new Date(Date.now() - 21 * DAY).toISOString()),
     s.all(`SELECT id, client_id, assignment_id, exercise_id, started_at, local_date, seconds, bpm_reached, feeling, note
            FROM practice_sessions WHERE student_id = ? AND started_at > ? ORDER BY started_at DESC`, studentId, since),
@@ -201,7 +201,8 @@ async function teacherStudent(s, id) {
   if (!st) throw new HttpError(404, 'Schüler nicht gefunden.');
   const [lessons, assignments, sessions, goals, access, consents] = await Promise.all([
     s.all('SELECT * FROM lessons WHERE student_id = ? ORDER BY date DESC', id),
-    s.all(`SELECT a.*, e.title, e.category, e.source_type, e.url, e.book_ref, e.notation FROM assignments a LEFT JOIN exercises e ON e.id = a.exercise_id
+    s.all(`SELECT a.*, e.title, e.category, e.source_type, e.url, e.book_ref, e.notation, c.student_done_at FROM assignments a LEFT JOIN exercises e ON e.id = a.exercise_id
+           LEFT JOIN assignment_checks c ON c.assignment_id = a.id
            WHERE a.student_id = ? ORDER BY a.created_at DESC LIMIT 200`, id),
     s.all('SELECT id, assignment_id, exercise_id, started_at, local_date, seconds, bpm_reached, feeling, note FROM practice_sessions WHERE student_id = ? ORDER BY started_at DESC LIMIT 400', id),
     s.all('SELECT * FROM goals WHERE student_id = ? ORDER BY created_at', id),
@@ -406,21 +407,41 @@ async function importLessons(s, who, b) {
   return { imported: n, assignments: stmts.length ? stmts.length - 1 - n : 0 };
 }
 
+// Notizen zusammenführen: neue Zeilen anhängen, doppelte Zeilen weglassen
+export function mergeNotes(a, b) {
+  if (!a) return b || null; if (!b) return a;
+  const have = new Set(a.split('\n').map((x) => x.trim().toLowerCase()).filter(Boolean));
+  const add = b.split('\n').filter((x) => x.trim() && !have.has(x.trim().toLowerCase()));
+  return (add.length ? a + '\n' + add.join('\n') : a).slice(0, 3000);
+}
+
 async function finishLesson(s, who, b) {
   const st = await s.first('SELECT id, first_name FROM students WHERE id = ?', b.student_id);
   if (!st) throw new HttpError(404, 'Schüler nicht gefunden.');
   const date = isDate(b.date) ? b.date : new Date().toISOString().slice(0, 10);
-  const lessonId = uid();
   const t = now();
-  const stmts = [[
-    'INSERT INTO lessons (id, student_id, date, minutes, notes_teacher, notes_shared, created_at) VALUES (?, ?, ?, ?, ?, ?, ?)',
-    [lessonId, st.id, date, int(b.minutes, 5, 240), str(b.notes_teacher, 3000), str(b.notes_shared, 3000), t],
-  ]];
+  // Gibt es am selben Tag schon eine Stunde, wird sie ergänzt statt doppelt angelegt
+  const same = await s.first('SELECT id, minutes, notes_teacher, notes_shared FROM lessons WHERE student_id = ? AND date = ? ORDER BY created_at DESC LIMIT 1', st.id, date);
+  const lessonId = same ? same.id : uid();
+  const stmts = [same
+    ? ['UPDATE lessons SET minutes = ?, notes_teacher = ?, notes_shared = ? WHERE id = ?', [Math.max(same.minutes || 0, int(b.minutes, 5, 240) || 0) || null, mergeNotes(same.notes_teacher, str(b.notes_teacher, 3000)), mergeNotes(same.notes_shared, str(b.notes_shared, 3000)), same.id]]
+    : ['INSERT INTO lessons (id, student_id, date, minutes, notes_teacher, notes_shared, created_at) VALUES (?, ?, ?, ?, ?, ?, ?)',
+      [lessonId, st.id, date, int(b.minutes, 5, 240), str(b.notes_teacher, 3000), str(b.notes_shared, 3000), t]]];
+  const skipped = [];
+  const closing = new Set((Array.isArray(b.close_assignments) ? b.close_assignments : []).map(String));
+  // Kleinschreibung in JS, weil SQLite LOWER keine Umlaute kennt
+  const openRows = (await s.all("SELECT id, exercise_id, free_text FROM assignments WHERE student_id = ? AND status = 'offen'", st.id)).map((r) => ({ ...r, ft: (r.free_text || '').trim().toLowerCase() }));
+  const openEx = new Set(openRows.filter((r) => !closing.has(r.id) && r.exercise_id).map((r) => r.exercise_id));
+  const openFt = new Set(openRows.filter((r) => !closing.has(r.id) && r.ft).map((r) => r.ft));
   for (const a of (Array.isArray(b.new_assignments) ? b.new_assignments : []).slice(0, 20)) {
     let exId = str(a.exercise_id, 64);
     if (exId && !(await s.first('SELECT id FROM exercises WHERE id = ?', exId))) exId = null;
     const free = str(a.free_text, 300);
     if (!exId && !free) continue;
+    // Keine doppelte Hausaufgabe: gleiche Übung oder gleicher Text ist schon offen
+    const ft = (free || '').trim().toLowerCase();
+    if ((exId && openEx.has(exId)) || (!exId && ft && openFt.has(ft))) { skipped.push(free || exId); continue; }
+    if (exId) openEx.add(exId); if (ft) openFt.add(ft);
     const link = cleanUrl(a.url);
     if (!exId && link) {
       exId = uid();
@@ -439,9 +460,9 @@ async function finishLesson(s, who, b) {
     const title = str(g.title || g, 160);
     if (title) stmts.push(['INSERT INTO goals (id, student_id, title, status, created_at) VALUES (?, ?, ?, ?, ?)', [uid(), st.id, title, 'offen', t]]);
   }
-  stmts.push(logRow(who, 'lesson', 'lessons', lessonId, `Stunde mit ${st.first_name}`));
+  stmts.push(logRow(who, 'lesson', 'lessons', lessonId, `Stunde mit ${st.first_name}${same ? ' (ergänzt)' : ''}`));
   await s.batch(stmts);
-  return { id: lessonId };
+  return { id: lessonId, merged: !!same, skipped };
 }
 
 // ---------- Aufräumen (täglich) ----------
@@ -509,12 +530,13 @@ async function route(env, req, path, body) {
     if (who.role !== 'student') throw new HttpError(403, 'Nur Schüler können Hausaufgaben abhaken.');
     const a = await s.first('SELECT id, status FROM assignments WHERE id = ? AND student_id = ?', String(body.id || ''), who.studentId);
     if (!a) throw new HttpError(403, 'Diese Hausaufgabe gehört nicht zu dir.');
+    // Der Schüler hakt nur für sich ab; schließen kann die Hausaufgabe nur der Lehrer
     const done = !!body.done;
     await s.batch([
-      ['UPDATE assignments SET status = ?, done_at = ? WHERE id = ?', [done ? 'erledigt' : 'offen', done ? now() : null, a.id]],
-      logRow(who, done ? 'done' : 'undone', 'assignments', a.id, done ? 'erledigt' : 'wieder offen'),
+      done ? ['INSERT OR REPLACE INTO assignment_checks (assignment_id, student_done_at) VALUES (?, ?)', [a.id, now()]] : ['DELETE FROM assignment_checks WHERE assignment_id = ?', [a.id]],
+      logRow(who, done ? 'done' : 'undone', 'assignments', a.id, done ? 'Schüler hat abgehakt' : 'Schüler Haken entfernt'),
     ]);
-    return { ok: true };
+    return { ok: true, student_done: done };
   }
   if (path === '/api/consent') {
     if (who.role !== 'parent') {
@@ -611,6 +633,19 @@ async function route(env, req, path, body) {
       await s.batch([['UPDATE exercises SET archived = 1 WHERE id = ?', [String(body.id || '')]], logRow(who, 'archive', 'exercises', String(body.id || ''), 'archiviert')]);
       return { ok: true };
     case '/api/t/lesson/finish': return finishLesson(s, who, body);
+    case '/api/t/lessons/merge': {
+      // Mehrere Stunden eines Schülers am selben Tag zu einer zusammenführen (Notizen, Hausaufgaben, Minuten)
+      const keep = await s.first('SELECT * FROM lessons WHERE id = ?', String(body.keep_id || ''));
+      if (!keep) throw new HttpError(404, 'Stunde nicht gefunden.');
+      const others = await s.all('SELECT * FROM lessons WHERE student_id = ? AND date = ? AND id != ? ORDER BY created_at', keep.student_id, keep.date, keep.id);
+      let nt = keep.notes_teacher, ns = keep.notes_shared, mn = keep.minutes;
+      for (const o of others) { nt = mergeNotes(nt, o.notes_teacher); ns = mergeNotes(ns, o.notes_shared); mn = Math.max(mn || 0, o.minutes || 0) || null; }
+      const ops = [['UPDATE lessons SET notes_teacher = ?, notes_shared = ?, minutes = ? WHERE id = ?', [nt, ns, mn, keep.id]]];
+      for (const o of others) { ops.push(['UPDATE assignments SET lesson_id = ? WHERE lesson_id = ?', [keep.id, o.id]]); ops.push(['DELETE FROM lessons WHERE id = ?', [o.id]]); }
+      ops.push(logRow(who, 'update', 'lessons', keep.id, `${others.length} Stunden zusammengeführt`));
+      await s.batch(ops);
+      return { merged: others.length, notes_teacher: nt };
+    }
     case '/api/t/import/lessons': return importLessons(s, who, body);
     case '/api/t/assignment/status': {
       const status = body.status === 'erledigt' ? 'erledigt' : 'offen';

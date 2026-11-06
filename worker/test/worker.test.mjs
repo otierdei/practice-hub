@@ -107,7 +107,13 @@ test('Hausaufgabe abhaken nur eigene', async () => {
   const ha = (await w.call('/api/home', {}, w.ta)).data.assignments[0];
   assert.equal((await w.call('/api/assignment/toggle', { id: ha.id, done: true }, w.tb)).status, 403);
   assert.equal((await w.call('/api/assignment/toggle', { id: ha.id, done: true }, w.ta)).status, 200);
-  assert.equal((await w.call('/api/home', {}, w.ta)).data.assignments[0].status, 'erledigt');
+  const after = (await w.call('/api/home', {}, w.ta)).data.assignments[0];
+  assert.equal(after.status, 'offen', 'Schüler Haken schließt die Aufgabe nicht');
+  assert.ok(after.student_done_at, 'Schüler Haken ist gespeichert');
+  const t = (await w.call('/api/t/student', { id: w.a }, w.t)).data.assignments.find((x) => x.id === ha.id);
+  assert.ok(t.student_done_at, 'Lehrer sieht den Schüler Haken');
+  await w.call('/api/assignment/toggle', { id: ha.id, done: false }, w.ta);
+  assert.equal((await w.call('/api/home', {}, w.ta)).data.assignments[0].student_done_at, null);
 });
 
 test('Eltern sehen Kind lesend und geben Einwilligung; minderjähriger Schüler nicht', async () => {
@@ -350,4 +356,21 @@ test('Kurs: Übung mit Noten (3/4, Handsatz) in einer Lektion', async () => {
   const n = JSON.parse(it.exercise.notation);
   assert.equal(n.sig, '3/4'); assert.deepEqual(n.tracks.bd, [0], 'Schritte außerhalb von 12 fliegen raus');
   assert.deepEqual(n.stick, { 0: 'R', 2: 'L' }, 'nur R und L');
+});
+
+test('Stunde: eine pro Tag, keine doppelte Hausaufgabe, Zusammenführen', async () => {
+  const w = await world();
+  const r1 = await w.call('/api/t/lesson/finish', { student_id: w.b, date: '2026-10-01', minutes: 40, notes_teacher: 'Flam Übung\nRL KK', new_assignments: [{ free_text: 'RL KK Übung' }] }, w.t);
+  const r2 = await w.call('/api/t/lesson/finish', { student_id: w.b, date: '2026-10-01', minutes: 40, notes_teacher: 'flam übung\nAllelujah weiter', new_assignments: [{ free_text: 'rl kk übung ' }, { free_text: 'Allelujah' }] }, w.t);
+  assert.equal(r2.data.id, r1.data.id, 'gleicher Tag = gleiche Stunde'); assert.equal(r2.data.merged, true);
+  assert.deepEqual(r2.data.skipped, ['rl kk übung'], 'doppelte Hausaufgabe übersprungen');
+  const f = (await w.call('/api/t/student', { id: w.b }, w.t)).data;
+  const day = f.lessons.filter((l) => l.date === '2026-10-01');
+  assert.equal(day.length, 1); assert.equal(day[0].notes_teacher, 'Flam Übung\nRL KK\nAllelujah weiter');
+  assert.equal(f.assignments.filter((a) => /kk/i.test(a.free_text || '')).length, 1);
+  // Altbestand: zwei Stunden am selben Tag direkt in der Datenbank, dann zusammenführen
+  w.env.DB.raw.exec("INSERT INTO lessons (id, student_id, date, minutes, notes_teacher, created_at) VALUES ('x1', '" + w.b + "', '2026-11-04', 40, 'A', '2026-11-04T10:00:00Z'), ('x2', '" + w.b + "', '2026-11-04', 40, 'B', '2026-11-04T10:05:00Z')");
+  assert.equal((await w.call('/api/t/lessons/merge', { keep_id: 'x2' }, w.ta)).status, 403);
+  const m = await w.call('/api/t/lessons/merge', { keep_id: 'x2' }, w.t);
+  assert.equal(m.data.merged, 1); assert.equal(m.data.notes_teacher, 'B\nA');
 });

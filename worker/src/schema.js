@@ -119,4 +119,10 @@ CREATE INDEX IF NOT EXISTS i_assign_student ON assignments(student_id, status);
 CREATE INDEX IF NOT EXISTS i_sessions_student ON practice_sessions(student_id, started_at);
 CREATE INDEX IF NOT EXISTS i_goals_student ON goals(student_id);
 CREATE INDEX IF NOT EXISTS i_attempts ON attempts(ip, at);
+
+-- Schüler Haken getrennt vom Lehrer Status (nur Oti schließt eine Hausaufgabe)
+CREATE TABLE IF NOT EXISTS assignment_checks (
+  assignment_id TEXT PRIMARY KEY,
+  student_done_at TEXT NOT NULL
+);
 `;

@@ -89,6 +89,7 @@ body.kid{--bg:#fbf3e4;--surface:#ffffff;--sunk:#f6ead3;--ink:#23241f;--muted:#4a
 .lesson-dot.fertig{background:var(--accent);color:var(--accent-ink);border-color:var(--accent)}
 .lesson-dot.offen{border-color:var(--ring2);color:var(--ring2)}
 .kid .level-card{border:3px solid #23241f;background:#fff}.kid .lv-badge{background:#2e86ab;border:3px solid #23241f}
+.pill.ok{background:color-mix(in srgb,var(--accent) 18%,transparent);color:var(--ink)}
 .tiles{display:grid;grid-template-columns:repeat(auto-fit,minmax(96px,1fr));gap:10px}
 .tile{display:flex;flex-direction:column;align-items:center;gap:6px;padding:14px 8px;border:1px solid var(--line);border-radius:20px;background:var(--surface);color:var(--ink);font:inherit;font-size:.95rem;cursor:pointer}
 .thumb{position:relative;display:block;flex:none;width:118px;border-radius:12px;overflow:hidden;aspect-ratio:16/9;background:var(--track)}
@@ -424,7 +425,7 @@ function studentFileView() {
     <section class="card"><div class="row between"><span class="col" style="gap:0"><b>Spielt im Lobpreis</b><span class="muted small">Sieht dann die Sonntags Setlist</span></span><button class="check ${f.worship ? 'on' : ''}" data-act="worship" aria-pressed="${!!f.worship}" aria-label="Spielt im Lobpreis">${f.worship ? '✓' : ''}</button></div></section>
     <section class="card"><h3>Übezeit pro Woche</h3>${weeksCircles(f.sessions)}</section>
     <div class="grid2">
-      <section class="card"><h3>Offene Hausaufgaben</h3><div class="list">${open.length ? open.map((a) => `<div class="item" style="flex-wrap:wrap"><span class="t">${esc(a.title || a.free_text)}${a.target_bpm ? ' <span class="muted small">Ziel ' + a.target_bpm + '</span>' : ''}<br><span class="muted small">${practicedFor(a, f.sessions)}</span></span>${a.url ? `<a class="btn small" href="${esc(a.url)}" target="_blank" rel="noopener">${linkLabel(a)}</a>` : ''}<button class="btn small" data-act="addLink" data-id="${a.id}">${a.url ? 'Link ändern' : 'Link hinzufügen'}</button>
+      <section class="card"><h3>Offene Hausaufgaben</h3><div class="list">${open.length ? open.map((a) => `<div class="item" style="flex-wrap:wrap"><span class="t">${esc(a.title || a.free_text)}${a.target_bpm ? ' <span class="muted small">Ziel ' + a.target_bpm + '</span>' : ''}<br><span class="muted small">${practicedFor(a, f.sessions)}</span><br>${assignBadges(a)}</span>${a.url ? `<a class="btn small" href="${esc(a.url)}" target="_blank" rel="noopener">${linkLabel(a)}</a>` : ''}<button class="btn small" data-act="addLink" data-id="${a.id}">${a.url ? 'Link ändern' : 'Link hinzufügen'}</button>
         <div id="lk_${a.id}" class="row hidden" style="width:100%;flex-wrap:nowrap"><input id="lki_${a.id}" type="url" inputmode="url" placeholder="YouTube Link einfügen" style="flex:1"><button class="btn small primary" data-act="saveLink" data-id="${a.id}">Speichern</button></div></div>`).join('') : '<p class="muted">Keine.</p>'}</div></section>
       <section class="card"><h3>Ziele</h3><div class="list">${f.goals.length ? f.goals.map((g) => `<div class="item"><span class="t">${esc(g.title)}</span><span class="pill">${g.status === 'erreicht' ? 'erreicht' : 'offen'}</span></div>`).join('') : '<p class="muted">Noch keine Ziele.</p>'}</div></section>
     </div>
@@ -495,6 +496,15 @@ async function openLesson(id) {
     openOverlay(lessonView);
   } catch (e) { toast(e.message); }
 }
+function assignBadges(a) {
+  const weeks = Math.floor((Date.now() - new Date(a.created_at).getTime()) / (7 * 864e5));
+  return [a.student_done_at ? `<span class="pill ok">Schüler ✓ ${esc(fmtDate(a.student_done_at))}</span>` : '', weeks >= 1 ? `<span class="pill">${weeks === 1 ? 'seit 1 Woche' : 'seit ' + weeks + ' Wochen'} offen</span>` : ''].join('');
+}
+function isDuplicateAssignment(f, draft, exId, free) {
+  const ft = (free || '').trim().toLowerCase();
+  const same = (x) => (exId && x.exercise_id === exId) || (!exId && ft && (x.free_text || '').trim().toLowerCase() === ft);
+  return f.assignments.some((a) => a.status === 'offen' && same(a)) || (draft || []).some(same);
+}
 function saveDraft() { if (S.lesson) store.set('draft_' + S.lesson.student_id, S.lesson); }
 function lessonView() {
   const f = S.file, st = f.student, L = S.lesson;
@@ -517,7 +527,7 @@ function lessonView() {
           ${last && last.notes_shared ? `<p class="small"><span class="muted">Letzte Notiz:</span> ${esc(last.notes_shared)}</p>` : ''}
           ${last && last.notes_teacher ? `<details><summary class="small muted">Letzte Stunde, deine Notiz</summary><p class="small" style="white-space:pre-line">${esc(last.notes_teacher)}</p></details>` : ''}
         </section>
-        <section class="card"><h3>Hausaufgaben</h3><div class="list">${open.length ? open.map((a) => { const on = L.close_assignments.includes(a.id); return `<div class="item"><span class="t">${esc(a.title || a.free_text)}<br><span class="muted small">${practicedFor(a, f.sessions)}${a.target_bpm ? ' · Ziel ' + a.target_bpm : ''}</span></span><button class="check ${on ? 'on' : ''}" data-act="toggleClose" data-id="${a.id}" aria-pressed="${on}" aria-label="Als erledigt markieren">${on ? '✓' : ''}</button></div>`; }).join('') : '<p class="muted">Keine offenen Hausaufgaben.</p>'}</div></section>
+        <section class="card"><h3>Hausaufgaben</h3><div class="list">${open.length ? open.map((a) => { const on = L.close_assignments.includes(a.id); return `<div class="item"><span class="t">${esc(a.title || a.free_text)}<br><span class="muted small">${practicedFor(a, f.sessions)}${a.target_bpm ? ' · Ziel ' + a.target_bpm : ''}</span><br>${assignBadges(a)}</span><button class="check ${on ? 'on' : ''}" data-act="toggleClose" data-id="${a.id}" aria-pressed="${on}" aria-label="Als erledigt markieren">${on ? '✓' : ''}</button></div>`; }).join('') : '<p class="muted">Keine offenen Hausaufgaben.</p>'}</div></section>
         <section class="card"><h3>Ziele</h3><div class="list">${f.goals.filter((g) => g.status !== 'erreicht').map((g) => { const on = L.goals_reached.includes(g.id); return `<div class="item"><span class="t">${esc(g.title)}</span><button class="check ${on ? 'on' : ''}" data-act="toggleGoal" data-id="${g.id}" aria-pressed="${on}" aria-label="Ziel erreicht">${on ? '✓' : ''}</button></div>`; }).join('') || '<p class="muted small">Keine offenen Ziele.</p>'}
           ${L.new_goals.map((g, i) => `<div class="item"><span class="t">${esc(g.title)} <span class="pill">neu</span></span><button class="btn small" data-act="rmGoal" data-i="${i}">Entfernen</button></div>`).join('')}</div>
           <form id="goalForm" class="row" style="flex-wrap:nowrap"><label for="g_title" class="hidden">Neues Ziel</label><input id="g_title" placeholder="Neues Ziel, z. B. Groove sauber auf 96" maxlength="160"><button class="btn small" type="submit">Hinzufügen</button></form></section>
@@ -550,14 +560,14 @@ function studentView(d = S.data, t = S.tab) {
   const today = localDate(), ws = weekStart();
   const todayMin = mins(sessions.filter((s) => s.local_date === today).reduce((x, s) => x + s.seconds, 0));
   const weekMin = mins(sessions.filter((s) => s.local_date >= ws).reduce((x, s) => x + s.seconds, 0));
-  const open = d.assignments.filter((a) => a.status === 'offen');
+  const open = d.assignments.filter((a) => a.status === 'offen' && !a.student_done_at);
   const dailyGoal = Math.max(10, open.reduce((x, a) => x + (a.minutes_per_day || 0), 0) || 20);
   const pending = S.preview ? 0 : store.get('outbox', []).length;
   const running = !S.preview && store.get('run', null);
   let html = '';
   if (t === 'ueben') {
     const streak = weekStreak(sessions);
-    const done = d.assignments.filter((a) => a.status === 'erledigt');
+    const done = d.assignments.filter((a) => a.status === 'erledigt' || a.student_done_at);
     const kidHead = isKid(d.student);
     html = `${kidHead ? `<div class="row" style="flex-wrap:nowrap;gap:14px">${/Gitarre/.test(d.student.instrument || '') ? GUITAR_FACE : DRUM_FACE}<div class="col" style="gap:0"><span style="font-weight:600">Hey ${esc(d.student.first_name)}!</span><h1>Los geht's!</h1></div></div>` : `<div class="col" style="gap:2px"><span class="muted">Hallo ${esc(d.student.first_name)}</span><h1>Heute üben</h1></div>`}
     <button class="practice-hero" data-act="${running ? 'resumePractice' : 'practiceFree'}">
@@ -576,7 +586,7 @@ function studentView(d = S.data, t = S.tab) {
       ${openLessonCards()}
       ${open.length ? open.map((a) => assignmentCard(a, sessions)).join('') : openLessonCards() ? '' : '<div class="empty">Keine offenen Aufgaben. Tipp oben auf Üben und spiel frei.</div>'}
     </section>
-    ${done.length ? `<details class="card"><summary>Erledigt (${done.length})</summary><div class="list">${done.map((a) => `<div class="item"><span class="t">${esc(a.title || a.free_text)}</span><button class="check on" data-act="toggleDone" data-id="${a.id}" aria-pressed="true" aria-label="Wieder öffnen">✓</button></div>`).join('')}</div></details>` : ''}
+    ${done.length ? `<details class="card"><summary>Erledigt (${done.length})</summary><div class="list">${done.map((a) => `<div class="item"><span class="t">${esc(a.title || a.free_text)}${a.status === 'erledigt' ? '<br><span class="small muted">Von Oti bestätigt</span>' : '<br><span class="small muted">Oti schaut es sich in der Stunde an</span>'}</span><button class="check on" data-act="toggleDone" data-id="${a.id}" aria-pressed="true" aria-label="Wieder öffnen">✓</button></div>`).join('')}</div></details>` : ''}
     ${d.student.is_minor && !d.consent ? `<p class="small muted">Deine Eltern bekommen von Oti einen eigenen Link und stimmen dort zu, dass deine Übezeiten gespeichert werden.</p>` : ''}`;
   } else if (t === 'fortschritt') {
     const perEx = {};
@@ -1099,8 +1109,9 @@ document.addEventListener('click', async (ev) => {
       case 'finishLesson': {
         el.disabled = true;
         const L = S.lesson;
-        await api('/api/t/lesson/finish', { student_id: L.student_id, date: localDate(), minutes: S.file.student.lesson_minutes, notes_shared: L.notes_shared, notes_teacher: L.notes_teacher, new_assignments: L.new_assignments, close_assignments: L.close_assignments, goals_reached: L.goals_reached, new_goals: L.new_goals });
-        store.del('draft_' + L.student_id); S.lesson = null; closeOverlay(); toast('Stunde gespeichert'); load(); break;
+        const res = await api('/api/t/lesson/finish', { student_id: L.student_id, date: localDate(), minutes: S.file.student.lesson_minutes, notes_shared: L.notes_shared, notes_teacher: L.notes_teacher, new_assignments: L.new_assignments, close_assignments: L.close_assignments, goals_reached: L.goals_reached, new_goals: L.new_goals });
+        store.del('draft_' + L.student_id); S.lesson = null; closeOverlay();
+        toast((res.merged ? 'Stunde von heute ergänzt' : 'Stunde gespeichert') + (res.skipped && res.skipped.length ? '. Du hast die Hausaufgabe schon aufgegeben: ' + res.skipped.join(', ') : '')); load(); break;
       }
       case 'preview': { const data = await api('/api/t/preview', { id: S.file.student.id }); S.preview = { data, tab: 'ueben' }; S.overlay = null; stopTick(); render(); window.scrollTo(0, 0); break; }
       case 'endPreview': S.preview = null; openOverlay(studentFileView); break;
@@ -1162,8 +1173,8 @@ document.addEventListener('click', async (ev) => {
       case 'backToPractice': openOverlay(practiceView); tickTimer = setInterval(updateClock, 250); break;
       case 'feel': S.feeling = Number(el.dataset.v); document.querySelectorAll('[data-act="feel"]').forEach((b) => b.setAttribute('aria-pressed', String(b === el))); break;
       case 'toggleDone': {
-        const a = S.data.assignments.find((x) => x.id === id); const done = a.status !== 'erledigt';
-        await api('/api/assignment/toggle', { id, done }); a.status = done ? 'erledigt' : 'offen'; render(); if (done) toast('Abgehakt'); break;
+        const a = S.data.assignments.find((x) => x.id === id); const done = !a.student_done_at;
+        await api('/api/assignment/toggle', { id, done }); a.student_done_at = done ? new Date().toISOString() : null; render(); if (done) toast('Abgehakt. Oti sieht es in der Stunde.'); break;
       }
       case 'consent': await api('/api/consent', { version: S.data.consentVersion }); toast('Danke, gespeichert'); load(); break;
     }
@@ -1273,6 +1284,7 @@ document.addEventListener('submit', async (ev) => {
     } else if (fid === 'assignForm') {
       const exId = $('#a_ex').value, free = $('#a_free').value.trim();
       if (!exId && !free) { toast('Übung wählen oder Aufgabe beschreiben'); return; }
+      if (isDuplicateAssignment(S.file, S.lesson.new_assignments, exId || null, exId ? null : free)) { toast('Du hast die Hausaufgabe schon aufgegeben'); return; }
       const ex = S.exercises.find((e) => e.id === exId);
       S.lesson.new_assignments.push({ exercise_id: exId || null, free_text: exId ? null : free, url: exId ? null : ($('#a_url').value.trim() || null), label: ex ? ex.title : free, target_bpm: Number($('#a_bpm').value) || (ex && ex.target_bpm) || null, minutes_per_day: Number($('#a_min').value) || 10 });
       saveDraft(); render();
