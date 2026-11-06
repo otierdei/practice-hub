@@ -415,3 +415,13 @@ test('Absagen: drei Arten, eine pro Tag, rückgängig, nur Lehrer', async () => 
   assert.equal((await w.call('/api/t/student', { id: w.a }, w.t)).data.cancellations.length, 0);
   assert.ok(Array.isArray((await w.call('/api/home', {}, w.t)).data.cancellations));
 });
+
+test('Kurs: leeres Level entfernen, Level rücken nach', async () => {
+  const w = await world();
+  await w.call('/api/t/course/import', { course: 'drums', levels: [{ level: 1, name: 'A' }, { level: 2, name: 'B' }, { level: 3, name: 'C' }], lessons: [{ num: 1, level: 1, title: 'x', items: [] }, { num: 2, level: 3, title: 'y', items: [] }] }, w.t);
+  assert.equal((await w.call('/api/t/course/level/remove', { level: 1 }, w.t)).status, 409);
+  assert.equal((await w.call('/api/t/course/level/remove', { level: 2 }, w.t)).status, 200);
+  const c = (await w.call('/api/course', {}, w.ta)).data;
+  assert.deepEqual(c.levels.map((l) => l.level + l.name), ['1A', '2C']);
+  assert.equal(c.lessons.find((l) => l.title === 'y').level, 2);
+});

@@ -68,8 +68,9 @@ export async function courseData(s, course, studentId, teacher = false) {
 export function currentLevel(levels, lessons, progress) {
   for (const lv of levels) {
     const ls = lessons.filter((l) => l.level === lv.level);
+    if (!ls.length) continue; // leere Level überspringen
     const done = ls.filter((l) => progress[l.id] && progress[l.id].status === 'fertig').length;
-    if (!ls.length || done < ls.length) return { level: lv.level, name: lv.name, done, total: ls.length };
+    if (done < ls.length) return { level: lv.level, name: lv.name, done, total: ls.length };
   }
   const last = levels[levels.length - 1];
   return last ? { level: last.level, name: last.name, done: 1, total: 1, complete: true } : null;

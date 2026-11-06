@@ -650,6 +650,19 @@ async function route(env, req, path, body) {
       await s.run('INSERT INTO lesson_items (id, lesson_id, kind, title, url, song_title, notes, sort) VALUES (?, ?, ?, ?, ?, ?, ?, ?)', id, l.id, kind, title, url, kind === 'song' ? (str(body.song_title, 160) || title) : null, str(body.notes, 500), n);
       return { id };
     }
+    case '/api/t/course/level/remove': {
+      // Leeres Level entfernen, die Level darüber rücken eins nach unten
+      const course = 'drums', level = int(body.level, 1, 20);
+      if (!level) throw new HttpError(400, 'Level fehlt.');
+      if ((await s.first('SELECT COUNT(*) AS n FROM course_lessons WHERE course = ? AND level = ?', course, level)).n) throw new HttpError(409, 'In diesem Level sind noch Lektionen.');
+      await s.batch([
+        ['DELETE FROM course_levels WHERE course = ? AND level = ?', [course, level]],
+        ['UPDATE course_levels SET level = level - 1 WHERE course = ? AND level > ?', [course, level]],
+        ['UPDATE course_lessons SET level = level - 1 WHERE course = ? AND level > ?', [course, level]],
+        logRow(who, 'update', 'course_levels', String(level), 'Level entfernt'),
+      ]);
+      return { ok: true };
+    }
     case '/api/t/course/item/delete': await s.run('DELETE FROM lesson_items WHERE id = ?', String(body.id || '')); return { ok: true };
     case '/api/t/course/assign': {
       const sid = String(body.student_id || ''), lid = String(body.lesson_id || '');
