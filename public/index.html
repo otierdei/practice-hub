@@ -500,6 +500,7 @@ async function openLesson(id) {
   try {
     const f = await api('/api/t/student', { id });
     if (!S.exercises) S.exercises = (await api('/api/t/exercises')).exercises;
+    try { f.course = await api('/api/course', { student_id: id }); } catch (e) { f.course = null; }
     S.file = f;
     S.lesson = store.get('draft_' + id, null) || { student_id: id, notes_shared: '', notes_teacher: '', new_assignments: [], close_assignments: [], goals_reached: [], new_goals: [], started: Date.now() };
     S.nt = S.nt || {}; if (S.lesson.beat) S.nt.lb = S.lesson.beat; else delete S.nt.lb;
@@ -514,6 +515,32 @@ function isDuplicateAssignment(f, draft, exId, free) {
   const ft = (free || '').trim().toLowerCase();
   const same = (x) => (exId && x.exercise_id === exId) || (!exId && ft && (x.free_text || '').trim().toLowerCase() === ft);
   return f.assignments.some((a) => a.status === 'offen' && same(a)) || (draft || []).some(same);
+}
+// Vorschläge ohne KI: Kurs Stand, Stichworte aus deinen Notizen, Übezeit, Tempo Ziele
+const KEYS = [[/ghost/i, /ghost/i], [/paradiddle/i, /paradiddle/i], [/double/i, /double/i], [/single/i, /single/i], [/5 ?stroke/i, /5 stroke/i], [/6 ?stroke/i, /6 stroke/i],
+  [/16tel|sechzehntel/i, /16tel/i], [/triole|12\/8/i, /triole/i], [/6\/8|3\/4/i, /6\/8|3\/4/i], [/fill/i, /^fill|fill \d/i], [/ride/i, /ride/i], [/offene? hi ?hat/i, /offener hi hat/i],
+  [/bass|kick|fu(ß|ss)/i, /rl kk|bassdrum/i], [/metronom|timing|tempo/i, /singles 16tel mit bass|rlrl übers set/i], [/aufwärm|warm ?up/i, /^aufwärmen/i]];
+function suggestions(f) {
+  const out = [], seen = new Set();
+  const openEx = new Set(f.assignments.filter((a) => a.status === 'offen' && a.exercise_id).map((a) => a.exercise_id));
+  const draftEx = new Set((S.lesson ? S.lesson.new_assignments : []).map((a) => a.exercise_id).filter(Boolean));
+  const ex = (S.exercises || []).filter((e) => !openEx.has(e.id) && !draftEx.has(e.id));
+  const add = (e, why) => { if (e && !seen.has(e.id) && out.length < 5) { seen.add(e.id); out.push({ e, why }); } };
+  const c = f.course;
+  if (c && c.lessons.length) {
+    const next = c.lessons.find((l) => l.level === (c.level || {}).level && !c.progress[l.id]);
+    if (next) out.push({ lesson: next, why: `Nächste Lektion in Level ${next.level}` });
+  }
+  const notes = f.lessons.slice(0, 3).map((l) => [l.date, (l.notes_teacher || '') + ' ' + (l.notes_shared || '')]).concat([['Steckbrief', f.student.profile_note || '']]);
+  for (const [from, text] of notes) for (const [k, pat] of KEYS) { const m = k.exec(text); if (m) add(ex.find((e) => pat.test(e.title)), `Notiz ${from === 'Steckbrief' ? 'im Steckbrief' : 'vom ' + fmtDate(from)}: "${m[0]}"`); }
+  const st = S.data.students.find((x) => x.id === f.student.id);
+  if (st && st.minutes_since < 20) add(ex.find((e) => /^Aufwärmen 1/.test(e.title)) || ex.find((e) => e.category === 'Aufwärmen'), `Nur ${st.minutes_since} min geübt seit der letzten Stunde: kurze tägliche Übung`);
+  return out;
+}
+function suggestBlock(f) {
+  const list = suggestions(f); if (!list.length) return '';
+  return `<section class="card"><h3>Vorschläge</h3><div class="list">${list.map((x) => `<div class="item"><span class="t col" style="gap:2px"><b>${esc(x.lesson ? 'Lektion ' + x.lesson.num + ': ' + x.lesson.title : x.e.title)}</b><span class="small muted">${esc(x.why)}</span></span>
+    ${x.lesson ? `<button class="btn small" data-act="sugLesson" data-id="${x.lesson.id}">Aufgeben</button>` : `<button class="btn small" data-act="sugEx" data-id="${x.e.id}">Aufgeben</button>`}</div>`).join('')}</div></section>`;
 }
 function historyBlock(f) {
   const rows = f.lessons.map((l) => ({ date: l.date, l })).concat((f.cancellations || []).map((c) => ({ date: c.date, c }))).sort((a, b) => (a.date < b.date ? 1 : -1));
@@ -563,6 +590,7 @@ function lessonView() {
           ${last && last.notes_teacher ? `<details open><summary class="small muted">Letzte Stunde, deine Notiz</summary><p class="small" style="white-space:pre-line">${esc(last.notes_teacher)}</p></details>` : ''}
           ${historyBlock(f)}
         </section>
+        ${suggestBlock(f)}
         <section class="card"><h3>Hausaufgaben</h3><div class="list">${open.length ? open.map((a) => { const on = L.close_assignments.includes(a.id); return `<div class="item"><span class="t">${esc(a.title || a.free_text)}<br><span class="muted small">${practicedFor(a, f.sessions)}${a.target_bpm ? ' · Ziel ' + a.target_bpm : ''}</span><br>${assignBadges(a)}</span><button class="check ${on ? 'on' : ''}" data-act="toggleClose" data-id="${a.id}" aria-pressed="${on}" aria-label="Als erledigt markieren">${on ? '✓' : ''}</button></div>`; }).join('') : '<p class="muted">Keine offenen Hausaufgaben.</p>'}</div></section>
         <section class="card"><h3>Ziele</h3><div class="list">${f.goals.filter((g) => g.status !== 'erreicht').map((g) => { const on = L.goals_reached.includes(g.id); return `<div class="item"><span class="t">${esc(g.title)}</span><button class="check ${on ? 'on' : ''}" data-act="toggleGoal" data-id="${g.id}" aria-pressed="${on}" aria-label="Ziel erreicht">${on ? '✓' : ''}</button></div>`; }).join('') || '<p class="muted small">Keine offenen Ziele.</p>'}
           ${L.new_goals.map((g, i) => `<div class="item"><span class="t">${esc(g.title)} <span class="pill">neu</span></span><button class="btn small" data-act="rmGoal" data-i="${i}">Entfernen</button></div>`).join('')}</div>
@@ -1194,6 +1222,16 @@ document.addEventListener('click', async (ev) => {
         S.file = await api('/api/t/student', { id: S.file.student.id }); openOverlay(studentFileView); toast('Link gespeichert'); break;
       }
       case 'metroOpen': openOverlay(metronomeView); break;
+      case 'sugEx': {
+        const e = S.exercises.find((x) => x.id === id); const n = DrumNotation.parse(e.notation);
+        if (isDuplicateAssignment(S.file, S.lesson.new_assignments, e.id, null)) { toast('Du hast die Hausaufgabe schon aufgegeben'); break; }
+        S.lesson.new_assignments.push({ exercise_id: e.id, free_text: null, label: e.title, start_bpm: (n && n.bpm) || null, target_bpm: e.target_bpm || null, minutes_per_day: 10 });
+        saveDraft(); openOverlay(lessonView); toast(e.title + ' aufgegeben'); break;
+      }
+      case 'sugLesson': {
+        await api('/api/t/course/assign', { student_id: S.file.student.id, lesson_id: id, status: 'offen' });
+        S.file.course = await api('/api/course', { student_id: S.file.student.id }); openOverlay(lessonView); toast('Lektion aufgegeben'); break;
+      }
       case 'warmAdd': {
         const e = S.exercises.find((x) => x.id === id); const n = DrumNotation.parse(e.notation);
         if (isDuplicateAssignment(S.file, S.lesson.new_assignments, e.id, null)) { toast('Du hast die Hausaufgabe schon aufgegeben'); break; }
