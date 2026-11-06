@@ -347,7 +347,7 @@ test('Kurs: eigene Unterlagen sieht nur der Lehrer', async () => {
 });
 test('Kurs: Übung mit Noten (3/4, Handsatz) in einer Lektion', async () => {
   const w = await world();
-  const ex = (await w.call('/api/t/exercise/save', { title: 'Walzer Beat', category: 'Kurs L16', notation: { v: 2, sig: '3/4', bars: 1, bpm: 90, tracks: { hh: [0, 2, 4, 6, 8, 10], sn: [4, 8], bd: [0, 12, 99] }, stick: { 0: 'R', 2: 'L', 5: 'X' } } }, w.t)).data.id;
+  const ex = (await w.call('/api/t/exercise/save', { title: 'Walzer Beat', category: 'Kurs L16', notation: { v: 2, sig: '3/4', bars: 1, bpm: 90, tracks: { hh: [0, 2, 4, 6, 8, 10], sn: [4, 8], bd: [0, 12, 99] }, stick: { 0: 'R', 2: 'L', 4: 'K', 5: 'X' } } }, w.t)).data.id;
   await w.call('/api/t/course/import', { course: 'drums', levels: [{ level: 1, name: 'Starter' }], lessons: [{ num: 1, level: 1, title: '3/4', items: [] }] }, w.t);
   const l = (await w.call('/api/course', {}, w.t)).data.lessons[0];
   assert.equal((await w.call('/api/t/course/item/save', { lesson_id: l.id, kind: 'exercise', title: 'x', exercise_id: 'gibtsnicht' }, w.t)).status, 404);
@@ -355,7 +355,7 @@ test('Kurs: Übung mit Noten (3/4, Handsatz) in einer Lektion', async () => {
   const it = (await w.call('/api/course', {}, w.ta)).data.lessons[0].items[0];
   const n = JSON.parse(it.exercise.notation);
   assert.equal(n.sig, '3/4'); assert.deepEqual(n.tracks.bd, [0], 'Schritte außerhalb von 12 fliegen raus');
-  assert.deepEqual(n.stick, { 0: 'R', 2: 'L' }, 'nur R und L');
+  assert.deepEqual(n.stick, { 0: 'R', 2: 'L', 4: 'K' }, 'nur R, L und K');
 });
 
 test('Stunde: eine pro Tag, keine doppelte Hausaufgabe, Zusammenführen', async () => {

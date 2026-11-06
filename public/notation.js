@@ -1,5 +1,5 @@
 // Practice Hub Noten Editor für Schlagzeug: Raster, Notenbild (SVG), Song Chart und Wiedergabe mit Web Audio.
-// Beat: { v:2, sig:'4/4'|'3/4'|'6/8'|'12/8', bars:1..16, bpm, tracks:{ cr:[schritte], ... }, stick:{ schritt:'R'|'L' }, marks:{ takt: 'Refrain' }, repeat:[takt, ...] }
+// Beat: { v:2, sig:'4/4'|'3/4'|'6/8'|'12/8', bars:1..16, bpm, tracks:{ cr:[schritte], ... }, stick:{ schritt:'R'|'L'|'K' (K = Bassdrum) }, marks:{ takt: 'Refrain' }, repeat:[takt, ...] }
 // Ein Schritt ist eine 16tel. Ein Takt in repeat wiederholt den vorherigen ausgeschriebenen Takt (Prozentzeichen).
 'use strict';
 (function () {
@@ -36,7 +36,7 @@
       const o = typeof s === 'string' ? JSON.parse(s) : s;
       if (o.kind === 'guitar') return null;
       const n = empty(SIGS.includes(o.sig) ? o.sig : '4/4', Math.min(MAX_BARS, Math.max(1, o.bars | 0 || 1)), o.bpm || 80);
-      for (const [k, v] of Object.entries(o.stick || {})) if (Number(k) >= 0 && Number(k) < total(n) && (v === 'R' || v === 'L')) n.stick[Number(k)] = v;
+      for (const [k, v] of Object.entries(o.stick || {})) if (Number(k) >= 0 && Number(k) < total(n) && (v === 'R' || v === 'L' || v === 'K')) n.stick[Number(k)] = v;
       ROWS.forEach((r) => { n.tracks[r.k] = (o.tracks && o.tracks[r.k] || []).filter((x) => x >= 0 && x < total(n)); });
       for (const [k, v] of Object.entries(o.marks || {})) if (Number(k) < n.bars && v) n.marks[Number(k)] = String(v).slice(0, 30);
       n.repeat = (o.repeat || []).map(Number).filter((b) => b > 0 && b < n.bars);
@@ -45,7 +45,7 @@
   }
   const has = (n, k, i) => (k === 'stick' ? !!(n.stick || {})[i] : (n.tracks[k] || []).includes(i));
   function toggle(n, k, i) {
-    if (k === 'stick') { n.stick = n.stick || {}; const v = n.stick[i]; if (!v) n.stick[i] = 'R'; else if (v === 'R') n.stick[i] = 'L'; else delete n.stick[i]; return; }
+    if (k === 'stick') { n.stick = n.stick || {}; const v = n.stick[i]; if (!v) n.stick[i] = 'R'; else if (v === 'R') n.stick[i] = 'L'; else if (v === 'L') n.stick[i] = 'K'; else delete n.stick[i]; return; }
     const t = n.tracks[k];
     if (t.includes(i)) n.tracks[k] = t.filter((x) => x !== i);
     else { t.push(i); t.sort((a, b) => a - b); const ex = EXCLUSIVE[k]; if (ex) n.tracks[ex] = n.tracks[ex].filter((x) => x !== i); }

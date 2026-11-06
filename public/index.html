@@ -547,6 +547,7 @@ function lessonView() {
         <section class="card"><h3>Neue Hausaufgaben</h3>
           <div class="list">${L.new_assignments.map((a, i) => `<div class="item"><span class="t">${esc(a.label)}${a.target_bpm ? ' <span class="muted small">Ziel ' + a.target_bpm + '</span>' : ''}</span><button class="btn small" data-act="rmAssign" data-i="${i}">Entfernen</button></div>`).join('') || '<p class="muted small">Noch keine.</p>'}</div>
           <form id="assignForm" class="col">
+            ${(S.exercises || []).some((e) => e.category === 'Aufwärmen') ? `<div class="col" style="gap:6px"><span class="small muted">Aufwärmen mit einem Tipp</span><div class="row" style="gap:6px">${S.exercises.filter((e) => e.category === 'Aufwärmen').map((e) => `<button type="button" class="chip" data-act="warmAdd" data-id="${e.id}">${esc(e.title)}</button>`).join('')}</div></div>` : ''}
             <div class="field"><label for="a_ex">Aus der Bibliothek</label><select id="a_ex"><option value="">Freie Aufgabe</option>${exOpts}</select></div>
             <div id="a_preview"></div>
             ${S.nt && S.nt.lb ? `<div class="col" style="gap:8px"><b>Neuer Beat</b>${DrumNotation.editorHTML(S.nt.lb, 'lb')}<label class="row" style="gap:8px"><input type="checkbox" id="a_lib" style="width:22px;min-height:22px"> Auch in meine Bibliothek</label><button type="button" class="btn small" data-act="lessonBeatOff">Beat verwerfen</button></div>` : '<button type="button" class="btn small" data-act="lessonBeat">Beat schreiben</button>'}
@@ -1135,6 +1136,12 @@ document.addEventListener('click', async (ev) => {
         S.file = await api('/api/t/student', { id: S.file.student.id }); openOverlay(studentFileView); toast('Link gespeichert'); break;
       }
       case 'metroOpen': openOverlay(metronomeView); break;
+      case 'warmAdd': {
+        const e = S.exercises.find((x) => x.id === id); const n = DrumNotation.parse(e.notation);
+        if (isDuplicateAssignment(S.file, S.lesson.new_assignments, e.id, null)) { toast('Du hast die Hausaufgabe schon aufgegeben'); break; }
+        S.lesson.new_assignments.push({ exercise_id: e.id, free_text: null, label: e.title, start_bpm: Number($('#a_from') && $('#a_from').value) || (n && n.bpm) || null, target_bpm: Number($('#a_bpm') && $('#a_bpm').value) || e.target_bpm || null, minutes_per_day: 5 });
+        saveDraft(); openOverlay(lessonView); toast(e.title + ' aufgegeben'); break;
+      }
       case 'lessonBeat': S.nt = S.nt || {}; S.nt.lb = DrumNotation.empty('4/4', 1, 70); saveDraft(); openOverlay(lessonView); break;
       case 'lessonBeatOff': delete S.nt.lb; saveDraft(); openOverlay(lessonView); break;
       case 'prevPlay': {

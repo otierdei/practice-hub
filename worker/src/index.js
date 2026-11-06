@@ -365,7 +365,7 @@ export function cleanNotation(n) {
   const repeat = [...new Set((Array.isArray(o.repeat) ? o.repeat : []).map(Number).filter((x) => Number.isInteger(x) && x > 0 && x < bars))].sort((a, b) => a - b);
   const stick = {};
   for (const [k, v] of Object.entries(o.stick && typeof o.stick === 'object' ? o.stick : {})) {
-    const i = Number(k); if (Number.isInteger(i) && i >= 0 && i < steps && (v === 'R' || v === 'L')) stick[i] = v;
+    const i = Number(k); if (Number.isInteger(i) && i >= 0 && i < steps && (v === 'R' || v === 'L' || v === 'K')) stick[i] = v;
   }
   return JSON.stringify({ v: 2, sig, bars, bpm: int(o.bpm, 30, 300) || 80, tracks, stick, marks, repeat });
 }
