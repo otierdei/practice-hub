@@ -630,7 +630,7 @@ async function route(env, req, path, body) {
       const l = await s.first('SELECT id FROM course_lessons WHERE id = ?', String(body.id || ''));
       if (!l) throw new HttpError(404, 'Lektion nicht gefunden.');
       const title = str(body.title, 120); if (!title) throw new HttpError(400, 'Titel fehlt.');
-      await s.run('UPDATE course_lessons SET title = ?, body = ?, level = COALESCE(?, level) WHERE id = ?', title, str(body.body, 2000), int(body.level, 1, 20), l.id);
+      await s.run('UPDATE course_lessons SET title = ?, body = ?, level = COALESCE(?, level), num = COALESCE(?, num) WHERE id = ?', title, str(body.body, 2000), int(body.level, 1, 20), int(body.num, 1, 500), l.id);
       return { ok: true };
     }
     case '/api/t/course/item/save': {
