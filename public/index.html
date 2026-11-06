@@ -493,6 +493,7 @@ async function openLesson(id) {
     if (!S.exercises) S.exercises = (await api('/api/t/exercises')).exercises;
     S.file = f;
     S.lesson = store.get('draft_' + id, null) || { student_id: id, notes_shared: '', notes_teacher: '', new_assignments: [], close_assignments: [], goals_reached: [], new_goals: [], started: Date.now() };
+    S.nt = S.nt || {}; if (S.lesson.beat) S.nt.lb = S.lesson.beat; else delete S.nt.lb;
     openOverlay(lessonView);
   } catch (e) { toast(e.message); }
 }
@@ -505,7 +506,17 @@ function isDuplicateAssignment(f, draft, exId, free) {
   const same = (x) => (exId && x.exercise_id === exId) || (!exId && ft && (x.free_text || '').trim().toLowerCase() === ft);
   return f.assignments.some((a) => a.status === 'offen' && same(a)) || (draft || []).some(same);
 }
-function saveDraft() { if (S.lesson) store.set('draft_' + S.lesson.student_id, S.lesson); }
+function saveDraft() { if (S.lesson) { S.lesson.beat = S.nt && S.nt.lb ? S.nt.lb : undefined; store.set('draft_' + S.lesson.student_id, S.lesson); } }
+document.addEventListener('visibilitychange', () => { if (document.hidden) saveDraft(); });
+// Vorlage gewählt: Noten sofort zeigen
+document.addEventListener('change', (ev) => {
+  if (ev.target.id !== 'a_ex') return;
+  const box = $('#a_preview'); if (!box) return;
+  const e = (S.exercises || []).find((x) => x.id === ev.target.value);
+  box.innerHTML = e && e.notation ? notationPreview(e.notation, e.title) + `<button type="button" class="btn small" data-act="prevPlay" data-id="${e.id}">Abspielen</button>` : '';
+  if (e && e.target_bpm && $('#a_bpm') && !$('#a_bpm').value) $('#a_bpm').value = e.target_bpm;
+  const n = e && DrumNotation.parse(e.notation); if (n && $('#a_from') && !$('#a_from').value) $('#a_from').value = n.bpm;
+});
 function lessonView() {
   const f = S.file, st = f.student, L = S.lesson;
   const open = f.assignments.filter((a) => a.status === 'offen');
@@ -537,9 +548,11 @@ function lessonView() {
           <div class="list">${L.new_assignments.map((a, i) => `<div class="item"><span class="t">${esc(a.label)}${a.target_bpm ? ' <span class="muted small">Ziel ' + a.target_bpm + '</span>' : ''}</span><button class="btn small" data-act="rmAssign" data-i="${i}">Entfernen</button></div>`).join('') || '<p class="muted small">Noch keine.</p>'}</div>
           <form id="assignForm" class="col">
             <div class="field"><label for="a_ex">Aus der Bibliothek</label><select id="a_ex"><option value="">Freie Aufgabe</option>${exOpts}</select></div>
+            <div id="a_preview"></div>
+            ${S.nt && S.nt.lb ? `<div class="col" style="gap:8px"><b>Neuer Beat</b>${DrumNotation.editorHTML(S.nt.lb, 'lb')}<label class="row" style="gap:8px"><input type="checkbox" id="a_lib" style="width:22px;min-height:22px"> Auch in meine Bibliothek</label><button type="button" class="btn small" data-act="lessonBeatOff">Beat verwerfen</button></div>` : '<button type="button" class="btn small" data-act="lessonBeat">Beat schreiben</button>'}
             <div class="field"><label for="a_free">Oder frei beschreiben</label><input id="a_free" maxlength="300" placeholder="z. B. Song Zentrum, Bridge mitspielen"></div>
             <div class="field"><label for="a_url">Video oder Link (optional)</label><input id="a_url" type="url" inputmode="url" placeholder="YouTube Link einfügen"></div>
-            <div class="row" style="flex-wrap:nowrap"><div class="field" style="flex:1"><label for="a_bpm">Ziel BPM</label><input id="a_bpm" inputmode="numeric"></div><div class="field" style="flex:1"><label for="a_min">Min pro Tag</label><input id="a_min" inputmode="numeric" placeholder="10"></div></div>
+            <div class="row" style="flex-wrap:nowrap"><div class="field" style="flex:1"><label for="a_from">Tempo von</label><input id="a_from" inputmode="numeric" placeholder="BPM"></div><div class="field" style="flex:1"><label for="a_bpm">Tempo bis</label><input id="a_bpm" inputmode="numeric" placeholder="BPM"></div><div class="field" style="flex:1"><label for="a_min">Min pro Tag</label><input id="a_min" inputmode="numeric" placeholder="10"></div></div>
             <button class="btn" type="submit">Hausaufgabe hinzufügen</button>
           </form></section>
         <section class="card">
@@ -1122,6 +1135,13 @@ document.addEventListener('click', async (ev) => {
         S.file = await api('/api/t/student', { id: S.file.student.id }); openOverlay(studentFileView); toast('Link gespeichert'); break;
       }
       case 'metroOpen': openOverlay(metronomeView); break;
+      case 'lessonBeat': S.nt = S.nt || {}; S.nt.lb = DrumNotation.empty('4/4', 1, 70); saveDraft(); openOverlay(lessonView); break;
+      case 'lessonBeatOff': delete S.nt.lb; saveDraft(); openOverlay(lessonView); break;
+      case 'prevPlay': {
+        const e = S.exercises.find((x) => x.id === id), n = e && DrumNotation.parse(e.notation); if (!n) break;
+        if (S.prevPlaying === id) { DrumNotation.stop(); S.prevPlaying = null; el.textContent = 'Abspielen'; break; }
+        S.prevPlaying = id; el.textContent = 'Stopp'; DrumNotation.play(n, n.bpm, DrumNotation.cursorFor($('#a_preview'))); break;
+      }
       case 'video': S.videoId = id; openOverlay(videoView); break;
       case 'goalToggle': { const r = await api('/api/goal/toggle', { id }); const g = S.data.goals.find((x) => x.id === id); g.status = r.status; render(); if (r.status === 'erreicht') toast('Ziel erreicht!'); break; }
       case 'course': S.fileCourseOpen = false; openOverlay(courseView); break;
@@ -1282,11 +1302,18 @@ document.addEventListener('submit', async (ev) => {
       data.notation = S.gt && S.gt.gx ? S.gt.gx : S.nt && S.nt.ex ? S.nt.ex : null; DrumNotation.stop(); Guitar.stop();
       await api('/api/t/exercise/save', data); S.exercises = (await api('/api/t/exercises')).exercises; closeOverlay(); toast('Gespeichert');
     } else if (fid === 'assignForm') {
-      const exId = $('#a_ex').value, free = $('#a_free').value.trim();
+      const exId = $('#a_ex').value; let free = $('#a_free').value.trim();
+      const beat = S.nt && S.nt.lb && !exId ? S.nt.lb : null;
+      if (beat && !Object.values(beat.tracks).some((t) => t.length)) { toast('Der Beat ist noch leer'); return; }
+      if (beat) {
+        if (!free) free = 'Beat vom ' + new Date().toLocaleDateString('de-DE');
+        S.lesson.new_assignments.push({ exercise_id: null, free_text: free, notation: beat, save_library: !!($('#a_lib') && $('#a_lib').checked), label: free + ' (Noten)', start_bpm: Number($('#a_from').value) || beat.bpm, target_bpm: Number($('#a_bpm').value) || null, minutes_per_day: Number($('#a_min').value) || 10 });
+        delete S.nt.lb; delete S.lesson.beat; saveDraft(); render(); return;
+      }
       if (!exId && !free) { toast('Übung wählen oder Aufgabe beschreiben'); return; }
       if (isDuplicateAssignment(S.file, S.lesson.new_assignments, exId || null, exId ? null : free)) { toast('Du hast die Hausaufgabe schon aufgegeben'); return; }
       const ex = S.exercises.find((e) => e.id === exId);
-      S.lesson.new_assignments.push({ exercise_id: exId || null, free_text: exId ? null : free, url: exId ? null : ($('#a_url').value.trim() || null), label: ex ? ex.title : free, target_bpm: Number($('#a_bpm').value) || (ex && ex.target_bpm) || null, minutes_per_day: Number($('#a_min').value) || 10 });
+      S.lesson.new_assignments.push({ exercise_id: exId || null, free_text: exId ? null : free, url: exId ? null : ($('#a_url').value.trim() || null), label: ex ? ex.title : free, start_bpm: Number($('#a_from').value) || null, target_bpm: Number($('#a_bpm').value) || (ex && ex.target_bpm) || null, minutes_per_day: Number($('#a_min').value) || 10 });
       saveDraft(); render();
     } else if (fid === 'itemForm') {
       const kind = S.itemKind || 'video'; let title = $('#it_title').value.trim();

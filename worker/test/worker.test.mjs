@@ -374,3 +374,14 @@ test('Stunde: eine pro Tag, keine doppelte Hausaufgabe, Zusammenführen', async 
   const m = await w.call('/api/t/lessons/merge', { keep_id: 'x2' }, w.t);
   assert.equal(m.data.merged, 1); assert.equal(m.data.notes_teacher, 'B\nA');
 });
+
+test('Beat direkt in der Stunde: Übung mit Noten, Tempo von bis, Bibliothek nur auf Wunsch', async () => {
+  const w = await world();
+  const beat = { v: 2, sig: '4/4', bars: 1, bpm: 50, tracks: { hh: [0, 2, 4, 6, 8, 10, 12, 14], sn: [4, 12], bd: [0, 8] } };
+  await w.call('/api/t/lesson/finish', { student_id: w.b, date: '2026-10-02', new_assignments: [{ free_text: 'Groove A', notation: beat, start_bpm: 50, target_bpm: 70 }, { free_text: 'Groove B', notation: beat, save_library: true }] }, w.t);
+  const a = (await w.call('/api/home', {}, w.tb)).data.assignments;
+  const ga = a.find((x) => x.free_text === 'Groove A');
+  assert.ok(ga.notation, 'Schüler sieht Noten'); assert.equal(ga.start_bpm, 50); assert.equal(ga.target_bpm, 70);
+  const lib = (await w.call('/api/t/exercises', {}, w.t)).data.exercises.map((e) => e.title);
+  assert.ok(lib.includes('Groove B') && !lib.includes('Groove A'), 'nur B in der Bibliothek');
+});

@@ -440,8 +440,15 @@ async function finishLesson(s, who, b) {
     if (!exId && !free) continue;
     // Keine doppelte Hausaufgabe: gleiche Übung oder gleicher Text ist schon offen
     const ft = (free || '').trim().toLowerCase();
-    if ((exId && openEx.has(exId)) || (!exId && ft && openFt.has(ft))) { skipped.push(free || exId); continue; }
+    if (!a.notation && ((exId && openEx.has(exId)) || (!exId && ft && openFt.has(ft)))) { skipped.push(free || exId); continue; }
     if (exId) openEx.add(exId); if (ft) openFt.add(ft);
+    // Beat direkt in der Stunde geschrieben: eigene Übung mit Noten anlegen (Bibliothek nur auf Wunsch)
+    const beat = !exId && a.notation ? cleanNotation(a.notation) : null;
+    if (beat) {
+      exId = uid();
+      stmts.push(['INSERT INTO exercises (id, title, category, source_type, target_bpm, notation, archived, created_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?)',
+        [exId, (free || 'Beat').slice(0, 120), a.save_library ? 'Eigene Beats' : 'Hausaufgaben', 'noten', int(a.target_bpm, 20, 400), beat, a.save_library ? 0 : 1, t]]);
+    }
     const link = cleanUrl(a.url);
     if (!exId && link) {
       exId = uid();
