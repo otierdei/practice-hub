@@ -403,3 +403,15 @@ test('Songs: Unterricht Song, Links mit Versionen, Song als Hausaufgabe, gespiel
   assert.ok((await w.call('/api/songs', {}, w.ta)).data.songs.some((x) => x.id === sid && x.lang === 'unterricht'));
   assert.ok((await w.call('/api/t/song/candidates', {}, w.t)).status === 200);
 });
+
+test('Absagen: drei Arten, eine pro Tag, rückgängig, nur Lehrer', async () => {
+  const w = await world();
+  assert.equal((await w.call('/api/t/cancel', { student_id: w.a, date: '2026-11-06', kind: 'schueler' }, w.ta)).status, 403);
+  await w.call('/api/t/cancel', { student_id: w.a, date: '2026-11-06', kind: 'schueler' }, w.t);
+  await w.call('/api/t/cancel', { student_id: w.a, date: '2026-11-06', kind: 'kurzfristig' }, w.t);
+  let c = (await w.call('/api/t/student', { id: w.a }, w.t)).data.cancellations;
+  assert.equal(c.length, 1); assert.equal(c[0].kind, 'kurzfristig');
+  await w.call('/api/t/cancel', { student_id: w.a, date: '2026-11-06', undo: true }, w.t);
+  assert.equal((await w.call('/api/t/student', { id: w.a }, w.t)).data.cancellations.length, 0);
+  assert.ok(Array.isArray((await w.call('/api/home', {}, w.t)).data.cancellations));
+});

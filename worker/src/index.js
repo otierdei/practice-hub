@@ -193,7 +193,8 @@ async function teacherOverview(s) {
     st.consent = consented.has(st.id);
     st.has_parent = hasParent.has(st.id);
   }
-  return { students };
+  const cancellations = await s.all('SELECT student_id, date, kind FROM cancellations WHERE date >= ?', new Date(Date.now() - 14 * DAY).toISOString().slice(0, 10));
+  return { students, cancellations };
 }
 
 async function teacherStudent(s, id) {
@@ -212,7 +213,8 @@ async function teacherStudent(s, id) {
     s.all('SELECT id, access_id, kind, version_text, given_at FROM consents WHERE student_id = ? ORDER BY given_at DESC', id),
   ]);
   const worship = !!(await s.first('SELECT 1 AS w FROM worship_students WHERE student_id = ?', id));
-  return { student: st, lessons, assignments, sessions, goals, access, consents, worship };
+  const cancellations = await s.all('SELECT id, date, kind, note, created_at FROM cancellations WHERE student_id = ? ORDER BY date DESC', id);
+  return { student: st, lessons, assignments, sessions, goals, access, consents, worship, cancellations };
 }
 
 async function saveStudent(s, who, b) {
@@ -265,6 +267,7 @@ function deleteStudentStatements(id) {
     ['DELETE FROM lessons WHERE student_id = ?', [id]],
     ['DELETE FROM student_songs WHERE student_id = ?', [id]],
     ['DELETE FROM student_lessons WHERE student_id = ?', [id]],
+    ['DELETE FROM cancellations WHERE student_id = ?', [id]],
     ['DELETE FROM worship_students WHERE student_id = ?', [id]],
     ['DELETE FROM students WHERE id = ?', [id]],
     ['UPDATE log SET summary = NULL WHERE entity_id = ?', [id]],
@@ -573,6 +576,19 @@ async function route(env, req, path, body) {
   switch (path) {
     case '/api/t/student': return teacherStudent(s, String(body.id || ''));
     case '/api/t/songs/sync': return syncSongs(env);
+    case '/api/t/cancel': {
+      const st = await s.first('SELECT id, first_name FROM students WHERE id = ?', String(body.student_id || ''));
+      if (!st) throw new HttpError(404, 'Schüler nicht gefunden.');
+      const date = isDate(body.date) ? body.date : new Date().toISOString().slice(0, 10);
+      if (body.undo) { await s.run('DELETE FROM cancellations WHERE student_id = ? AND date = ?', st.id, date); return { ok: true }; }
+      const kind = ['schueler', 'kurzfristig', 'lehrer'].includes(body.kind) ? body.kind : 'schueler';
+      const id = uid();
+      await s.batch([
+        ['INSERT INTO cancellations (id, student_id, date, kind, note, created_at) VALUES (?, ?, ?, ?, ?, ?) ON CONFLICT(student_id, date) DO UPDATE SET kind = excluded.kind, note = excluded.note', [id, st.id, date, kind, str(body.note, 300), now()]],
+        logRow(who, 'cancel', 'cancellations', id, `${st.first_name}: abgesagt (${kind})`),
+      ]);
+      return { ok: true };
+    }
     case '/api/t/song/create': {
       // Song aus dem Unterricht, der nicht im Lobpreis Ordner liegt
       const title = str(body.title, 160); if (!title) throw new HttpError(400, 'Titel fehlt.');

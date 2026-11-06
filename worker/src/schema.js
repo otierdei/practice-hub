@@ -125,4 +125,15 @@ CREATE TABLE IF NOT EXISTS assignment_checks (
   assignment_id TEXT PRIMARY KEY,
   student_done_at TEXT NOT NULL
 );
+
+-- Abgesagte Stunden (schueler, kurzfristig, lehrer)
+CREATE TABLE IF NOT EXISTS cancellations (
+  id TEXT PRIMARY KEY,
+  student_id TEXT NOT NULL,
+  date TEXT NOT NULL,
+  kind TEXT NOT NULL,
+  note TEXT,
+  created_at TEXT NOT NULL,
+  UNIQUE (student_id, date)
+);
 `;
