@@ -129,6 +129,12 @@ textarea{min-height:80px;resize:vertical}
 input[type=range]{accent-color:var(--ring);width:100%;min-height:32px}
 .lib-sub{border-top:1px solid var(--line);padding:10px 0 0;margin-top:10px}
 .lib-sub>summary{cursor:pointer}
+.clock-mini{display:flex;align-items:center;gap:8px;padding:4px 12px 4px 4px;border-radius:999px;border:1px solid var(--line);background:var(--card);color:var(--ink);font:inherit;cursor:pointer;min-height:48px}
+.clock-mini b{font-size:1.05rem;font-variant-numeric:tabular-nums}
+.clock-mini .clock-state{font-size:.8rem;color:var(--muted);margin-left:2px}
+.clock-mini.paused{border-color:var(--ring)}
+.drag{cursor:grab;touch-action:none;user-select:none;-webkit-user-select:none;padding:10px 8px;margin-left:-8px;color:var(--muted);font-size:1.1rem;line-height:1;letter-spacing:-3px;align-self:center}
+.item.dragging{opacity:.75;background:var(--track);border-radius:12px}
 .met-dot{width:38px;height:38px;border-radius:50%;border:3px solid var(--line);background:transparent;padding:0;cursor:pointer}
 .met-dot.acc2{border-color:var(--ring);box-shadow:inset 0 0 0 5px color-mix(in srgb,var(--ring) 35%,transparent)}
 .met-dot.acc0{border-style:dashed;opacity:.5}
@@ -188,8 +194,8 @@ details.card summary{cursor:pointer;font-family:var(--display);font-size:1.08rem
 </head>
 <body>
 <div id="app"><div class="wrap"><p class="muted">Lädt …</p></div></div>
-<script src="notation.js?v=37"></script>
-<script src="guitar.js?v=37"></script>
+<script src="notation.js?v=39"></script>
+<script src="guitar.js?v=39"></script>
 <script>
 'use strict';
 // ---------- Grundlagen ----------
@@ -508,7 +514,7 @@ function studentFileView() {
     <section class="card col">${cancelButtons(st.id)}${(f.cancellations || []).length ? `<details><summary class="small muted">Absagen (${f.cancellations.length})</summary><div class="list">${f.cancellations.map((c) => `<div class="item"><span class="t">${esc(fmtDate(c.date))}</span><span class="small muted">${CANCEL[c.kind] || c.kind}</span></div>`).join('')}</div></details>` : ''}</section>
     <section class="card"><h3>Übezeit pro Woche</h3>${weeksCircles(f.sessions)}</section>
     <div class="grid2">
-      <section class="card"><h3>Offene Hausaufgaben</h3><div class="list">${open.length ? open.map((a) => `<div class="item" style="flex-wrap:wrap"><span class="t"><button class="link" data-act="asgDetail" data-id="${a.id}"><b>${esc(a.title || a.free_text)}</b></button>${a.target_bpm ? ' <span class="muted small">Ziel ' + a.target_bpm + '</span>' : ''}<br><span class="muted small">${practicedFor(a, f.sessions)}</span><br>${assignBadges(a)}</span>${a.url ? `<a class="btn small" href="${esc(a.url)}" target="_blank" rel="noopener">${linkLabel(a)}</a>` : ''}<button class="btn small" data-act="addLink" data-id="${a.id}">${a.url ? 'Link ändern' : 'Link hinzufügen'}</button>
+      <section class="card"><h3>Offene Hausaufgaben</h3><div class="list" data-sort="asg">${open.length ? open.map((a) => `<div class="item" style="flex-wrap:wrap" data-sort-id="${a.id}">${open.length > 1 ? DRAG : ''}<span class="t"><button class="link" data-act="asgDetail" data-id="${a.id}"><b>${esc(a.title || a.free_text)}</b></button>${a.target_bpm ? ' <span class="muted small">Ziel ' + a.target_bpm + '</span>' : ''}<br><span class="muted small">${practicedFor(a, f.sessions)}</span><br>${assignBadges(a)}</span>${a.url ? `<a class="btn small" href="${esc(a.url)}" target="_blank" rel="noopener">${linkLabel(a)}</a>` : ''}<button class="btn small" data-act="addLink" data-id="${a.id}">${a.url ? 'Link ändern' : 'Link hinzufügen'}</button>
         <div id="lk_${a.id}" class="row hidden" style="width:100%;flex-wrap:nowrap"><input id="lki_${a.id}" type="url" inputmode="url" placeholder="YouTube Link einfügen" style="flex:1"><button class="btn small primary" data-act="saveLink" data-id="${a.id}">Speichern</button></div></div>`).join('') : '<p class="muted">Keine.</p>'}</div></section>
       <section class="card"><h3>Ziele</h3><div class="list">${f.goals.length ? f.goals.map((g) => `<div class="item"><span class="t">${esc(g.title)}</span><span class="pill">${g.status === 'erreicht' ? 'erreicht' : 'offen'}</span></div>`).join('') : '<p class="muted">Noch keine Ziele.</p>'}</div></section>
     </div>
@@ -683,6 +689,30 @@ document.addEventListener('change', (ev) => {
   const tp = defTempo(e); if ($('#a_from')) $('#a_from').value = tp.start; if ($('#a_bpm')) $('#a_bpm').value = tp.target;
 });
 // Neue Hausaufgabe (noch Entwurf bis zum Speichern der Stunde): antippen, Tempo, Minuten, Text ändern, Noten ansehen
+// Hausaufgaben per Ziehen sortieren (Griff links, Maus und Touch)
+const DRAG = '<span class="drag" data-drag role="button" aria-label="Ziehen, um die Reihenfolge zu ändern" title="Ziehen zum Sortieren">⋮⋮</span>';
+document.addEventListener('pointerdown', (ev) => {
+  const h = ev.target.closest('[data-drag]'); if (!h) return;
+  const item = h.closest('[data-sort-id]'), list = item && item.parentElement; if (!list) return;
+  ev.preventDefault(); item.classList.add('dragging');
+  const before = [...list.querySelectorAll(':scope > [data-sort-id]')].map((x) => x.dataset.sortId);
+  const move = (e) => {
+    const sibs = [...list.querySelectorAll(':scope > [data-sort-id]')].filter((x) => x !== item);
+    const next = sibs.find((x) => { const b = x.getBoundingClientRect(); return e.clientY < b.top + b.height / 2; });
+    if (next) { if (item.nextElementSibling !== next) list.insertBefore(item, next); } else if (sibs.length && sibs[sibs.length - 1].nextElementSibling !== item) sibs[sibs.length - 1].after(item);
+  };
+  const up = async () => {
+    window.removeEventListener('pointermove', move); window.removeEventListener('pointerup', up); window.removeEventListener('pointercancel', up); item.classList.remove('dragging');
+    const ids = [...list.querySelectorAll(':scope > [data-sort-id]')].map((x) => x.dataset.sortId);
+    if (ids.join() === before.join() || !S.file) return;
+    try {
+      await api('/api/t/assignments/reorder', { student_id: S.file.student.id, ids });
+      const pos = Object.fromEntries(ids.map((x, i) => [x, i])); S.file.assignments.sort((x, y) => (pos[x.id] ?? -1) - (pos[y.id] ?? -1));
+      toast('Reihenfolge gespeichert');
+    } catch (e) { toast(e.message); render(); }
+  };
+  window.addEventListener('pointermove', move); window.addEventListener('pointerup', up); window.addEventListener('pointercancel', up);
+});
 function newAsgNotation(a) { const e = a.exercise_id && (S.exercises || []).find((x) => x.id === a.exercise_id); return DrumNotation.parse(a.notation || (e && e.notation)); }
 function newAsgRow(a, i) {
   const meta = [a.start_bpm || a.target_bpm ? (a.start_bpm || '?') + ' bis ' + (a.target_bpm || '?') + ' BPM' : '', a.minutes_per_day ? a.minutes_per_day + ' min' : ''].filter(Boolean).join(' · ');
@@ -710,7 +740,7 @@ function lessonView() {
     ${st.profile_note ? `<details class="card"><summary>Steckbrief</summary><p style="white-space:pre-line">${esc(st.profile_note)}</p></details>` : ''}
     <div class="lesson-grid">
       <div class="col" style="gap:16px">
-        <section class="card"><h3>Hausaufgaben</h3><div class="list">${open.length ? open.map((a) => { const on = L.close_assignments.includes(a.id); return `<div class="item"><span class="t"><button class="link" data-act="asgDetail" data-id="${a.id}"><b>${esc(a.title || a.free_text)}</b></button><br><span class="muted small">${practicedFor(a, f.sessions)}${a.target_bpm ? ' · Ziel ' + a.target_bpm : ''}</span><br>${assignBadges(a)}</span><button class="check ${on ? 'on' : ''}" data-act="toggleClose" data-id="${a.id}" aria-pressed="${on}" aria-label="Als erledigt markieren">${on ? '✓' : ''}</button></div>`; }).join('') : ''}${L.new_assignments.map((a, i) => newAsgRow(a, i)).join('')}${!open.length && !L.new_assignments.length ? '<p class="muted">Keine offenen Hausaufgaben.</p>' : ''}</div>
+        <section class="card"><h3>Hausaufgaben</h3><div class="list" data-sort="asg">${open.length ? open.map((a) => { const on = L.close_assignments.includes(a.id); return `<div class="item" data-sort-id="${a.id}">${open.length > 1 ? DRAG : ''}<span class="t"><button class="link" data-act="asgDetail" data-id="${a.id}"><b>${esc(a.title || a.free_text)}</b></button><br><span class="muted small">${practicedFor(a, f.sessions)}${a.target_bpm ? ' · Ziel ' + a.target_bpm : ''}</span><br>${assignBadges(a)}</span><button class="check ${on ? 'on' : ''}" data-act="toggleClose" data-id="${a.id}" aria-pressed="${on}" aria-label="Als erledigt markieren">${on ? '✓' : ''}</button></div>`; }).join('') : ''}${L.new_assignments.map((a, i) => newAsgRow(a, i)).join('')}${!open.length && !L.new_assignments.length ? '<p class="muted">Keine offenen Hausaufgaben.</p>' : ''}</div>
           <form id="assignForm" class="col">
             ${(S.exercises || []).some((e) => e.category === 'Aufwärmen') ? `<details id="warmBox" ${S.warmOpen ? 'open' : ''}><summary class="small muted">Aufwärmen mit einem Tipp</summary><div class="row" style="gap:6px;margin-top:6px">${S.exercises.filter((e) => e.category === 'Aufwärmen').map((e) => `<button type="button" class="chip" data-act="warmAdd" data-id="${e.id}">${esc(e.title)}</button>`).join('')}</div></details>` : ''}
             <div class="row" style="flex-wrap:nowrap;align-items:flex-end"><div class="field" style="flex:1"><label for="a_song">Song</label><input id="a_song" list="a_songs" placeholder="Song suchen" autocomplete="off"><datalist id="a_songs">${(S.songs ? S.songs.songs : []).map((x) => `<option value="${esc(x.title)}"></option>`).join('')}</datalist></div><div class="field" style="width:110px"><label for="a_ver">Version</label><input id="a_ver" list="a_vers" placeholder="Original"><datalist id="a_vers"><option value="Original"></option><option value="Easy"></option></datalist></div></div>
@@ -1133,7 +1163,7 @@ function practiceView() {
   const goal = (a && a.minutes_per_day) || 10;
   const el = runElapsed(r);
   return `<div class="wrap" style="max-width:560px;align-items:stretch">
-    <div class="row between"><button class="btn small" data-act="minimize">Zurück</button><span class="pill">Ziel ${goal} min</span></div>
+    <div class="row between" style="flex-wrap:nowrap"><button class="btn small" data-act="minimize">Zurück</button><button class="clock-mini ${r.runningSince ? '' : 'paused'}" id="clockRing" data-act="startStop" aria-label="${r.runningSince ? 'Stoppuhr pausieren' : 'Stoppuhr starten'}">${clockRing(el, goal)}</button></div>
     <div class="col" style="align-items:center;gap:8px;text-align:center"><h1>${esc(a ? (a.title || a.free_text) : 'Frei üben')}</h1>
       ${a && a.book_ref ? `<span class="muted">${esc(a.book_ref)}</span>` : ''}
       ${a && a.exercise_notes ? `<span class="muted small">${esc(a.exercise_notes)}</span>` : ''}
@@ -1142,13 +1172,12 @@ function practiceView() {
     ${a && Guitar.parse(a.notation) ? `${Guitar.viewHTML(Guitar.parse(a.notation), 'practiceGuitar')}
       <div class="row">${Guitar.parse(a.notation).strum.cells.some(Boolean) ? `<button class="btn" data-act="gtPlay" data-mode="strum" style="flex:1">${Guitar.isPlaying() ? 'Stopp' : 'Schlagmuster abspielen'}</button>` : ''}${Guitar.parse(a.notation).tab.notes.length ? `<button class="btn" data-act="gtPlay" data-mode="tab" style="flex:1">Tabs abspielen</button>` : ''}</div>` : ''}
     ${a && DrumNotation.parse(a.notation) ? `<div class="nt-staff" id="practiceStaff">${DrumNotation.render(DrumNotation.parse(a.notation), { cursor: true, label: 'Noten: ' + (a.title || '') })}</div>
-      <div class="row" style="flex-wrap:nowrap;gap:8px"><button class="btn" style="flex:1" data-act="beatPlay">${DrumNotation.isPlaying() ? 'Beat stoppen' : 'Beat im Metronom Tempo abspielen'}</button>${beatClickChip()}</div>
+      <div class="row" style="flex-wrap:nowrap;gap:8px"><button class="btn" style="flex:1" data-act="beatPlay">${DrumNotation.isPlaying() ? 'Beat stoppen' : 'Beat abspielen'}</button>${beatClickChip()}</div>
+      ${metronomeCard(a)}
       <div class="col" style="gap:8px"><span class="small muted">Stumm schalten und selbst spielen:</span>
         <div class="row" style="gap:6px">${DrumNotation.usedKeys(DrumNotation.parse(a.notation)).map((k) => `<button type="button" class="chip" data-act="beatMute" data-k="${k}" aria-pressed="${(S.beatMute || []).includes(k)}">${DrumNotation.ROWS.find((r) => r.k === k).n}</button>`).join('')}</div>
         <label class="row small" style="gap:8px;color:var(--ink)"><input type="checkbox" id="beatTrainer" style="width:22px;min-height:22px" ${S.beatTrainer ? 'checked' : ''}> Tempo Trainer: alle 4 Durchläufe 5 BPM schneller${a.target_bpm ? ' bis ' + a.target_bpm : ''}</label></div>` : ''}
-    <div id="clockRing" style="display:flex;justify-content:center">${clockRing(el, goal)}</div>
-    <button class="btn ${r.runningSince ? '' : 'primary'} block" data-act="startStop">${r.runningSince ? 'Pause' : el ? 'Weiter' : 'Stoppuhr starten'}</button>
-    ${metronomeCard(a)}
+    ${a && DrumNotation.parse(a.notation) ? '' : metronomeCard(a)}
     <button class="btn primary block" data-act="endPractice" ${el < 1000 ? 'disabled' : ''}>Sitzung beenden</button>
   </div>`;
 }
@@ -1235,15 +1264,17 @@ document.addEventListener('change', (ev) => {
 function metronomeView() {
   return `<div class="wrap" style="max-width:560px;align-items:stretch"><div class="row between"><button class="btn small" data-act="closeMetro">Zurück</button></div><h1>Metronom</h1>${metronomeCard(null)}</div>`;
 }
+// Kleine Stoppuhr oben rechts: Ring, Zeit, Ziel. Antippen pausiert oder startet.
 function clockRing(el, goal) {
-  const v = el / (goal * 60000);
-  return ring(v % 1 === 0 && v > 0 ? 1 : v % 1, 230, 12, v >= 1 ? 'var(--ring2)' : 'var(--ring)', 'Übezeit ' + clock(el), clock(el), v >= 1 ? 'Ziel geschafft' : 'von ' + goal + ' min');
+  const v = el / (goal * 60000), r = store.get('run', null), on = !!(r && r.runningSince);
+  return ring(v % 1 === 0 && v > 0 ? 1 : v % 1, 40, 5, v >= 1 ? 'var(--ring2)' : 'var(--ring)', 'Übezeit ' + clock(el)) +
+    `<span class="col" style="gap:0;align-items:flex-start"><b>${clock(el)}</b><span class="small muted">${v >= 1 ? 'Ziel geschafft' : 'von ' + goal + ' min'}</span></span><span class="clock-state" aria-hidden="true">${on ? '❚❚' : '▶'}</span>`;
 }
 function updateClock() {
   const r = store.get('run', null); const box = $('#clockRing');
   if (!r || !box) return;
   const a = S.data.assignments.find((x) => x.id === r.assignment_id);
-  box.innerHTML = clockRing(runElapsed(r), (a && a.minutes_per_day) || 10);
+  box.innerHTML = clockRing(runElapsed(r), (a && a.minutes_per_day) || 10); box.classList.toggle('paused', !r.runningSince);
   const end = document.querySelector('[data-act="endPractice"]'); if (end) end.disabled = runElapsed(r) < 1000;
 }
 // Metronom: Web Audio mit Vorausplanung, damit der Takt stabil bleibt
@@ -1407,7 +1438,7 @@ document.addEventListener('click', async (ev) => {
       case 'editExercise': { const e = S.exercises.find((x) => x.id === id); S.nt = { ex: DrumNotation.parse(e.notation) }; S.gt = { gx: Guitar.parse(e.notation) }; S.gtSel = null; openOverlay(() => exerciseForm(e)); break; }
       case 'addBeat': { const f = $('#exerciseForm'); S.exDraft = Object.fromEntries(new FormData(f)); S.exDraft.source_type = 'noten'; S.nt = { ex: DrumNotation.empty() }; openOverlay(() => exerciseForm(S.exDraft)); break; }
       case 'beatPlay': {
-        if (DrumNotation.isPlaying()) { DrumNotation.stop(); el.textContent = 'Beat im Metronom Tempo abspielen'; break; }
+        if (DrumNotation.isPlaying()) { DrumNotation.stop(); el.textContent = 'Beat abspielen'; break; }
         const r = store.get('run'); const a = S.data.assignments.find((x) => x.id === r.assignment_id);
         metStop(); const mb = document.querySelector('[data-act="metronome"]'); if (mb) mb.textContent = 'Metronom starten';
         playBeat(DrumNotation.parse(a.notation), $('#practiceStaff'), MET.bpm, { mute: S.beatMute || [], trainer: beatTrainerOpts(a), onTempo: (b) => setBpm(b) }); el.textContent = 'Beat stoppen'; break;
@@ -1563,7 +1594,7 @@ document.addEventListener('click', async (ev) => {
       case 'metSub': { const s = metSet(); s.sub = Number(el.dataset.v); saveMetSet(s); document.querySelectorAll('[data-act=metSub]').forEach((b) => b.setAttribute('aria-pressed', String(b === el))); break; }
       case 'trkReset': TRK.ms = 0; TRK.bars = 0; TRK.since = MET.playing || DrumNotation.isPlaying() ? performance.now() : 0; { const k = $('#trk'); if (k) k.textContent = trkText(); } break;
       case 'beatClick': { const s = metSet(); s.beatClick = !s.beatClick; saveMetSet(s); document.querySelectorAll('[data-act=beatClick]').forEach((b) => { b.setAttribute('aria-pressed', String(s.beatClick)); b.textContent = 'Metronom ' + (s.beatClick ? 'an' : 'aus'); }); break; }
-      case 'metronome': if (MET.playing) metStop(); else { DrumNotation.stop(); const bb = document.querySelector('[data-act="beatPlay"]'); if (bb) bb.textContent = 'Beat im Metronom Tempo abspielen'; metStart(); } el.textContent = MET.playing ? 'Metronom stoppen' : 'Metronom starten'; break;
+      case 'metronome': if (MET.playing) metStop(); else { DrumNotation.stop(); const bb = document.querySelector('[data-act="beatPlay"]'); if (bb) bb.textContent = 'Beat abspielen'; metStart(); } el.textContent = MET.playing ? 'Metronom stoppen' : 'Metronom starten'; break;
       case 'endPractice': { const r = store.get('run'); if (r.runningSince) { r.accumulated += Date.now() - r.runningSince; r.runningSince = null; store.set('run', r); } metStop(); clearInterval(tickTimer); S.feeling = null; openOverlay(finishForm); break; }
       case 'backToPractice': openOverlay(practiceView); tickTimer = setInterval(updateClock, 250); break;
       case 'feel': S.feeling = Number(el.dataset.v); document.querySelectorAll('[data-act="feel"]').forEach((b) => b.setAttribute('aria-pressed', String(b === el))); break;

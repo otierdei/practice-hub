@@ -121,6 +121,11 @@ CREATE INDEX IF NOT EXISTS i_goals_student ON goals(student_id);
 CREATE INDEX IF NOT EXISTS i_attempts ON attempts(ip, at);
 
 -- Schüler Haken getrennt vom Lehrer Status (nur Oti schließt eine Hausaufgabe)
+-- Reihenfolge der Hausaufgaben, vom Lehrer per Ziehen festgelegt (neue ohne Eintrag stehen oben)
+CREATE TABLE IF NOT EXISTS assignment_order (
+  assignment_id TEXT PRIMARY KEY,
+  sort INTEGER NOT NULL
+);
 CREATE TABLE IF NOT EXISTS assignment_checks (
   assignment_id TEXT PRIMARY KEY,
   student_done_at TEXT NOT NULL

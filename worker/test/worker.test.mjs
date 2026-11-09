@@ -506,3 +506,16 @@ test('App Skripte tragen die Version des Service Worker Caches', async () => {
   }
   for (const k of ['bd', 'sn', 't1', 't2', 'ft', 'cr', 'hh', 'ho', 'rd']) assert.ok(sw.includes(`'samples/${k}.mp3?v=${v}'`), k + ' Sample im Cache mit ?v=' + v);
 });
+
+test('Hausaufgaben Reihenfolge per Ziehen, Schüler sieht sie gleich', async () => {
+  const w = await world();
+  for (const t of ['A', 'B', 'C']) await w.call('/api/t/assignment/add', { student_id: w.b, free_text: 'Reihe ' + t }, w.t);
+  const ids = (await w.call('/api/t/student', { id: w.b }, w.t)).data.assignments.filter((a) => /^Reihe/.test(a.free_text)).map((a) => a.id);
+  assert.equal((await w.call('/api/t/assignments/reorder', { student_id: w.b, ids: ids.slice().reverse() }, w.tb)).status, 403);
+  assert.equal((await w.call('/api/t/assignments/reorder', { student_id: w.a, ids }, w.t)).status, 400, 'fremde Hausaufgaben');
+  const order = [ids[1], ids[2], ids[0]];
+  assert.equal((await w.call('/api/t/assignments/reorder', { student_id: w.b, ids: order }, w.t)).status, 200);
+  const teacher = (await w.call('/api/t/student', { id: w.b }, w.t)).data.assignments.filter((a) => /^Reihe/.test(a.free_text)).map((a) => a.id);
+  const student = (await w.call('/api/home', {}, w.tb)).data.assignments.filter((a) => /^Reihe/.test(a.free_text)).map((a) => a.id);
+  assert.deepEqual(teacher, order); assert.deepEqual(student, order);
+});

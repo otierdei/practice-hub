@@ -127,8 +127,8 @@ async function studentView(s, studentId, role) {
   const [assignments, sessions, goals, lessons, consent] = await Promise.all([
     s.all(`SELECT a.id, a.exercise_id, a.free_text, a.target_bpm, a.start_bpm, a.minutes_per_day, a.due_date, a.status, a.done_at, a.created_at,
              e.title, e.category, e.source_type, e.url, e.book_ref, e.notes AS exercise_notes, e.notation, c.student_done_at, x.song_id, x.version AS song_version
-           FROM assignments a LEFT JOIN exercises e ON e.id = a.exercise_id LEFT JOIN assignment_checks c ON c.assignment_id = a.id LEFT JOIN assignment_songs x ON x.assignment_id = a.id
-           WHERE a.student_id = ? AND (a.status = 'offen' OR a.done_at > ?) ORDER BY a.created_at DESC`, studentId, new Date(Date.now() - 21 * DAY).toISOString()),
+           FROM assignments a LEFT JOIN exercises e ON e.id = a.exercise_id LEFT JOIN assignment_checks c ON c.assignment_id = a.id LEFT JOIN assignment_songs x ON x.assignment_id = a.id LEFT JOIN assignment_order o ON o.assignment_id = a.id
+           WHERE a.student_id = ? AND (a.status = 'offen' OR a.done_at > ?) ORDER BY (o.sort IS NULL) DESC, o.sort, a.created_at DESC`, studentId, new Date(Date.now() - 21 * DAY).toISOString()),
     s.all(`SELECT id, client_id, assignment_id, exercise_id, started_at, local_date, seconds, bpm_reached, feeling, note
            FROM practice_sessions WHERE student_id = ? AND started_at > ? ORDER BY started_at DESC`, studentId, since),
     s.all('SELECT id, title, status, reached_at FROM goals WHERE student_id = ? ORDER BY created_at', studentId),
@@ -204,8 +204,8 @@ async function teacherStudent(s, id) {
   const [lessons, assignments, sessions, goals, access, consents] = await Promise.all([
     s.all('SELECT * FROM lessons WHERE student_id = ? ORDER BY date DESC', id),
     s.all(`SELECT a.*, e.title, e.category, e.source_type, e.url, e.book_ref, e.notation, e.archived AS ex_archived, c.student_done_at, x.song_id, x.version AS song_version FROM assignments a LEFT JOIN exercises e ON e.id = a.exercise_id
-           LEFT JOIN assignment_checks c ON c.assignment_id = a.id LEFT JOIN assignment_songs x ON x.assignment_id = a.id
-           WHERE a.student_id = ? ORDER BY a.created_at DESC LIMIT 200`, id),
+           LEFT JOIN assignment_checks c ON c.assignment_id = a.id LEFT JOIN assignment_songs x ON x.assignment_id = a.id LEFT JOIN assignment_order o ON o.assignment_id = a.id
+           WHERE a.student_id = ? ORDER BY (o.sort IS NULL) DESC, o.sort, a.created_at DESC LIMIT 200`, id),
     s.all('SELECT id, assignment_id, exercise_id, started_at, local_date, seconds, bpm_reached, feeling, note FROM practice_sessions WHERE student_id = ? ORDER BY started_at DESC LIMIT 400', id),
     s.all('SELECT * FROM goals WHERE student_id = ? ORDER BY created_at', id),
     s.all(`SELECT a.id, a.role, a.label, a.created_at, a.revoked_at,
@@ -259,6 +259,7 @@ function deleteStudentStatements(id) {
   return [
     ['DELETE FROM assignment_songs WHERE assignment_id IN (SELECT id FROM assignments WHERE student_id = ?)', [id]],
     ['DELETE FROM assignment_checks WHERE assignment_id IN (SELECT id FROM assignments WHERE student_id = ?)', [id]],
+    ['DELETE FROM assignment_order WHERE assignment_id IN (SELECT id FROM assignments WHERE student_id = ?)', [id]],
     ['DELETE FROM devices WHERE access_id IN (SELECT id FROM access WHERE student_id = ?)', [id]],
     ['DELETE FROM access WHERE student_id = ?', [id]],
     ['DELETE FROM consents WHERE student_id = ?', [id]],
@@ -754,6 +755,14 @@ async function route(env, req, path, body) {
         [aid, st.id, exId, title, int(body.target_bpm, 20, 400), int(body.start_bpm, 20, 400), int(body.minutes_per_day, 1, 240) || 10, isDate(body.due_date) ? body.due_date : null, 'offen', t]]);
       ops.push(logRow(who, 'create', 'assignments', aid, title)); await s.batch(ops); return { id: aid };
     }
+    case '/api/t/assignments/reorder': {
+      // Reihenfolge der offenen Hausaufgaben eines Schülers festlegen
+      const ids = (Array.isArray(body.ids) ? body.ids : []).slice(0, 100).map(String);
+      const own = new Set((await s.all('SELECT id FROM assignments WHERE student_id = ?', String(body.student_id || ''))).map((x) => x.id));
+      if (!ids.length || ids.some((x) => !own.has(x))) throw new HttpError(400, 'Hausaufgaben passen nicht zum Schüler.');
+      await s.batch(ids.map((x, i) => ['INSERT INTO assignment_order (assignment_id, sort) VALUES (?, ?) ON CONFLICT(assignment_id) DO UPDATE SET sort = excluded.sort', [x, i]]));
+      return { ok: true };
+    }
     case '/api/t/assignment/update': {
       // Hausaufgabe bearbeiten: Text, Tempo, Minuten; Noten nur bei eigener Hausaufgaben Übung (nicht Bibliothek)
       const a = await s.first('SELECT a.id, a.exercise_id, e.archived FROM assignments a LEFT JOIN exercises e ON e.id = a.exercise_id WHERE a.id = ?', String(body.id || ''));
@@ -773,6 +782,7 @@ async function route(env, req, path, body) {
       if (!a) throw new HttpError(404, 'Hausaufgabe nicht gefunden.');
       await s.batch([
         ['DELETE FROM assignment_checks WHERE assignment_id = ?', [a.id]],
+        ['DELETE FROM assignment_order WHERE assignment_id = ?', [a.id]],
         ['DELETE FROM assignment_songs WHERE assignment_id = ?', [a.id]],
         ['DELETE FROM assignments WHERE id = ?', [a.id]],
         logRow(who, 'delete', 'assignments', a.id, 'Hausaufgabe entfernt' + (a.free_text ? ': ' + a.free_text.slice(0, 60) : '')),
