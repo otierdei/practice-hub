@@ -160,7 +160,7 @@ let n = 0; const ok = (m) => console.log('ok ' + (++n) + ' ' + m);
   await t.click('[data-act=finishLesson]'); await t.getByText(/Stunde (gespeichert|von heute ergänzt)/).waitFor();
   { await t.click('[data-tab=schueler]'); await t.click('[data-act=student]:has-text("Jonas")'); await t.locator('[data-sort="asg"] [data-drag]').first().waitFor();
     const ids0 = await t.locator('[data-sort="asg"] > [data-sort-id]').evaluateAll((els) => els.map((e) => e.dataset.sortId));
-    const h = t.locator('[data-sort="asg"] > [data-sort-id] >> nth=0').locator('[data-drag]'); const last = t.locator('[data-sort="asg"] > [data-sort-id]').last();
+    const h = t.locator('[data-sort="asg"] > [data-sort-id] >> nth=0').locator('[data-drag] .asg-num'); const last = t.locator('[data-sort="asg"] > [data-sort-id]').last();
     const hb = await h.boundingBox(), lb = await last.boundingBox();
     await t.mouse.move(hb.x + hb.width / 2, hb.y + hb.height / 2); await t.mouse.down(); await t.mouse.move(hb.x + 5, lb.y + lb.height - 2, { steps: 8 }); await t.mouse.up();
     await t.getByText('Reihenfolge gespeichert').waitFor();
