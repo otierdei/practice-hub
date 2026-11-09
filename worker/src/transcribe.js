@@ -74,11 +74,13 @@ async function askCloudflare(env, mediaType, data, HttpError, model) {
 }
 
 export async function transcribeImage(env, body, clean, HttpError) {
-  if (!env.ANTHROPIC_API_KEY && !env.AI) throw new HttpError(503, 'Transkription ist noch nicht eingerichtet.');
+  // Gratis Modelle nur noch auf ausdrücklichen Wunsch (Test am 09.11.2026: kein Modell las einen einfachen Beat richtig)
+  const wantFree = CF_CHAT_MODELS.includes(body.model) || body.model === CF_MODEL;
+  if (!env.ANTHROPIC_API_KEY && !(wantFree && env.AI)) throw new HttpError(503, 'Notenbilder lesen geht nur mit einem Claude API Schlüssel. Die kostenlosen Modelle lesen Schlagzeugnoten nicht zuverlässig. Bis dahin: Bild an Claude im Chat schicken.');
   const m = /^data:(image\/(?:jpeg|png|webp|gif));base64,([A-Za-z0-9+/=]+)$/.exec(String(body.image || ''));
   if (!m) throw new HttpError(400, 'Bitte ein Bild als JPG, PNG oder WebP hochladen.');
   if (m[2].length > 2800000) throw new HttpError(413, 'Das Bild ist zu groß.');
-  const free = !env.ANTHROPIC_API_KEY || CF_CHAT_MODELS.includes(body.model) || body.model === CF_MODEL;
+  const free = wantFree;
   const text = free ? await askCloudflare(env, m[1], m[2], HttpError, body.model) : await askClaude(env, m[1], m[2], HttpError);
   if (body.debug) return { raw: String(text).slice(0, 3000) };
   const a = text.indexOf('{'), b = text.lastIndexOf('}');
