@@ -67,7 +67,7 @@ let n = 0; const ok = (m) => console.log('ok ' + (++n) + ' ' + m);
   assert.equal(new URL(s.url()).hash, '', 'Code aus der Adresse entfernt'); ok('Code aus Adresszeile entfernt');
   const body = await s.textContent('body');
   assert.ok(body.includes('Paradiddle Groove') && body.includes('Heilige Braut'));
-  assert.ok(!body.includes('Wirkte müde'), 'private Notiz unsichtbar'); ok('Schüler sieht Hausaufgaben, nicht die private Notiz');
+  assert.equal(await s.locator('.task-title .asg-num').first().textContent(), '1.');   assert.ok(!body.includes('Wirkte müde'), 'private Notiz unsichtbar'); ok('Schüler sieht Hausaufgaben, nicht die private Notiz');
   await s.screenshot({ path: OUT + '/s-ueben-390-dark.png', fullPage: true });
 
   // Übungssitzung: Stoppuhr starten, 12 Minuten vorspulen, beenden
