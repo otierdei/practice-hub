@@ -194,8 +194,8 @@ details.card summary{cursor:pointer;font-family:var(--display);font-size:1.08rem
 </head>
 <body>
 <div id="app"><div class="wrap"><p class="muted">Lädt …</p></div></div>
-<script src="notation.js?v=40"></script>
-<script src="guitar.js?v=40"></script>
+<script src="notation.js?v=41"></script>
+<script src="guitar.js?v=41"></script>
 <script>
 'use strict';
 // ---------- Grundlagen ----------
@@ -958,7 +958,7 @@ function songView() {
         ${ytThumb(p.url) ? `<button class="thumb" data-act="partVideo" data-id="${p.id}" aria-label="Video ansehen: ${esc(p.title)}"><img src="${ytThumb(p.url)}" alt="" loading="lazy" onerror="this.remove()"><span class="thumb-play">${PLAY}</span></button>` : `<span class="task-icon" aria-hidden="true">${ICON_NOTE}</span>`}
         <div class="col" style="gap:2px;flex:1;min-width:0"><b class="task-title">${esc(p.title)}</b>${p.notes ? `<span class="muted small">${esc(p.notes)}</span>` : ''}</div>
         ${teacher ? `<button class="btn small danger" data-act="partDelete" data-id="${p.id}">Entfernen</button>` : ''}</div>
-        ${p.notation ? `<div id="pn_${p.id}">${notationPreview(p.notation, p.title)}</div><div class="row" style="gap:8px"><button class="btn small" data-act="partPlay" data-id="${p.id}">Abspielen</button>${beatClickChip()}</div>` : ''}
+        ${p.notation ? `<div id="pn_${p.id}">${notationPreview(p.notation, p.title)}</div><div class="row" style="gap:8px"><button class="btn small" data-act="partPlay" data-id="${p.id}">Abspielen</button>${beatClickChip()}${S.role === 'student' ? `<button class="btn small primary" data-act="partPractice" data-id="${p.id}">Üben</button>` : ''}</div>` : ''}
         ${p.url && !ytId(p.url) ? `<a class="btn small" href="${esc(p.url)}" target="_blank" rel="noopener">Link öffnen</a>` : ''}</section>`).join('') : `<div class="empty">${teacher ? 'Noch keine Bausteine. Leg unten den ersten an, z. B. Groove Vers.' : 'Oti hat für diesen Song noch keine Videos.'}</div>`}
       ${teacher ? `<form id="partForm" class="card col"><b>Baustein hinzufügen</b>
         <div class="field"><label for="pt_title">Titel</label><input id="pt_title" maxlength="120" placeholder="z. B. Groove Vers, Fill in den Chorus"></div>
@@ -1130,7 +1130,7 @@ function beatTrainerOpts(a) { return S.beatTrainer ? { every: 4, add: 5, max: (a
 document.addEventListener('change', (ev) => {
   if (ev.target.id !== 'beatTrainer') return;
   S.beatTrainer = ev.target.checked;
-  const r = store.get('run', null); const a = r && S.data && S.data.assignments.find((x) => x.id === r.assignment_id);
+  const r = store.get('run', null); const a = r && S.data && runTask(r);
   DrumNotation.setTrainer(beatTrainerOpts(a));
 });
 function stopTick() { clearInterval(tickTimer); tickTimer = null; metStop(); if (window.DrumNotation) DrumNotation.stop(); if (window.Guitar) { Guitar.stop(); Guitar.tunerStop(); } releaseWake(); }
@@ -1139,17 +1139,25 @@ function releaseWake() { try { if (wakeLock) wakeLock.release(); } catch (e) {} 
 document.addEventListener('visibilitychange', () => { const r = store.get('run', null); if (document.visibilityState === 'visible' && r && r.runningSince) requestWake(); });
 
 function runElapsed(r) { return r.accumulated + (r.runningSince ? Date.now() - r.runningSince : 0); }
-function startPractice(assignmentId) {
-  let existing = store.get('run', null);
+// Was gerade geübt wird: eine Hausaufgabe oder ein Song Baustein (part)
+function runTask(r) {
+  if (!r) return null;
+  if (r.part) return { id: null, title: r.part.title, notation: r.part.notation, exercise_notes: r.part.notes, minutes_per_day: 10, target_bpm: null };
+  return S.data.assignments.find((x) => x.id === r.assignment_id);
+}
+const runKey = (assignmentId, part) => (part ? 'p:' + part.id : assignmentId || null);
+const runKeyOf = (r) => (r ? runKey(r.assignment_id, r.part) : null);
+function startPractice(assignmentId, part = null) {
+  let existing = store.get('run', null); const key = runKey(assignmentId, part);
   // Unter einer Minute zählt nicht: dann darf man einfach zur anderen Aufgabe wechseln
-  if (existing && existing.assignment_id !== (assignmentId || null) && runElapsed(existing) < 60000) { store.del('run'); existing = null; releaseWake(); }
-  else if (existing && existing.assignment_id !== (assignmentId || null) && runElapsed(existing) > 0) {
-    toast('Erst die laufende Sitzung beenden'); assignmentId = existing.assignment_id;
+  if (existing && runKeyOf(existing) !== key && runElapsed(existing) < 60000) { store.del('run'); existing = null; releaseWake(); }
+  else if (existing && runKeyOf(existing) !== key && runElapsed(existing) > 0) {
+    toast('Erst die laufende Sitzung beenden'); assignmentId = existing.assignment_id; part = existing.part || null;
   }
-  if (!existing || existing.assignment_id !== (assignmentId || null)) {
-    const a = S.data.assignments.find((x) => x.id === assignmentId);
+  if (!existing || runKeyOf(existing) !== runKey(assignmentId, part)) {
+    const a = S.data.assignments.find((x) => x.id === assignmentId), n = part && DrumNotation.parse(part.notation);
     const best = Math.max(0, ...allSessions().filter((s) => s.assignment_id === assignmentId).map((s) => s.bpm_reached || 0));
-    store.set('run', { assignment_id: assignmentId || null, startedAt: new Date().toISOString(), accumulated: 0, runningSince: null, bpm: best || (a && (a.start_bpm || a.target_bpm && Math.round(a.target_bpm * 0.8))) || 80 });
+    store.set('run', { assignment_id: assignmentId || null, part: part || null, startedAt: new Date().toISOString(), accumulated: 0, runningSince: null, bpm: part ? (n && n.bpm) || 80 : best || (a && (a.start_bpm || a.target_bpm && Math.round(a.target_bpm * 0.8))) || 80 });
   }
   const run = store.get('run');
   if (!run.runningSince && !run.accumulated) { run.runningSince = Date.now(); store.set('run', run); requestWake(); }
@@ -1159,7 +1167,7 @@ function startPractice(assignmentId) {
 }
 function practiceView() {
   const r = store.get('run', null); if (!r) return '';
-  const a = S.data.assignments.find((x) => x.id === r.assignment_id);
+  const a = runTask(r);
   const goal = (a && a.minutes_per_day) || 10;
   const el = runElapsed(r);
   return `<div class="wrap" style="max-width:560px;align-items:stretch">
@@ -1273,7 +1281,7 @@ function clockRing(el, goal) {
 function updateClock() {
   const r = store.get('run', null); const box = $('#clockRing');
   if (!r || !box) return;
-  const a = S.data.assignments.find((x) => x.id === r.assignment_id);
+  const a = runTask(r);
   box.innerHTML = clockRing(runElapsed(r), (a && a.minutes_per_day) || 10); box.classList.toggle('paused', !r.runningSince);
   const end = document.querySelector('[data-act="endPractice"]'); if (end) end.disabled = runElapsed(r) < 1000;
 }
@@ -1325,7 +1333,7 @@ function tapTempo() {
 }
 function finishForm() {
   const r = store.get('run', null);
-  const a = S.data.assignments.find((x) => x.id === r.assignment_id);
+  const a = runTask(r);
   return `<div class="wrap" style="max-width:560px">
     <h1>Gut gemacht</h1><p class="muted">${clock(runElapsed(r))} geübt${a ? ' · ' + esc(a.title || a.free_text) : ''}</p>
     <form id="finishForm" class="card">
@@ -1339,7 +1347,7 @@ function finishForm() {
 function saveSession(feeling) {
   const r = store.get('run', null); if (!r) return;
   const el = runElapsed(r);
-  const s = { client_id: (crypto.randomUUID ? crypto.randomUUID() : String(Date.now()) + Math.random()), assignment_id: r.assignment_id, started_at: r.startedAt, ended_at: new Date().toISOString(), local_date: localDate(new Date(r.startedAt)), seconds: Math.max(1, Math.round(el / 1000)), bpm_reached: Number($('#fin_bpm').value) || null, feeling: feeling || null, note: $('#fin_note').value.trim() || null };
+  const s = { client_id: (crypto.randomUUID ? crypto.randomUUID() : String(Date.now()) + Math.random()), assignment_id: r.assignment_id, started_at: r.startedAt, ended_at: new Date().toISOString(), local_date: localDate(new Date(r.startedAt)), seconds: Math.max(1, Math.round(el / 1000)), bpm_reached: Number($('#fin_bpm').value) || null, feeling: feeling || null, note: [r.part ? 'Baustein: ' + r.part.title : '', $('#fin_note').value.trim()].filter(Boolean).join(' · ') || null };
   const ob = store.get('outbox', []); ob.push(s); store.set('outbox', ob);
   store.del('run'); stopTick();
   S.overlay = null; render(); toast(mins(s.seconds) + ' min gespeichert'); flushOutbox();
@@ -1416,7 +1424,7 @@ document.addEventListener('click', async (ev) => {
       case 'addGuitar': { const f = $('#exerciseForm'); S.exDraft = Object.fromEntries(new FormData(f)); S.exDraft.source_type = 'noten'; S.nt = {}; S.gt = { gx: Guitar.empty() }; S.gtSel = null; openOverlay(() => exerciseForm(S.exDraft)); break; }
       case 'gtPlay': {
         if (Guitar.isPlaying()) { Guitar.stop(); render(); break; }
-        const r = store.get('run'); const a = S.data.assignments.find((x) => x.id === r.assignment_id); const g = Guitar.parse(a.notation);
+        const r = store.get('run'); const a = runTask(r); const g = Guitar.parse(a.notation);
         metStop(); const root = $('#practiceGuitar');
         Guitar.play(g, el.dataset.mode, MET.bpm, Guitar.cursorFor(root && root.querySelector(el.dataset.mode === 'tab' ? '.gt-tab' : '.gt-strum')));
         el.textContent = 'Stopp'; break;
@@ -1439,7 +1447,7 @@ document.addEventListener('click', async (ev) => {
       case 'addBeat': { const f = $('#exerciseForm'); S.exDraft = Object.fromEntries(new FormData(f)); S.exDraft.source_type = 'noten'; S.nt = { ex: DrumNotation.empty() }; openOverlay(() => exerciseForm(S.exDraft)); break; }
       case 'beatPlay': {
         if (DrumNotation.isPlaying()) { DrumNotation.stop(); el.textContent = 'Beat abspielen'; break; }
-        const r = store.get('run'); const a = S.data.assignments.find((x) => x.id === r.assignment_id);
+        const r = store.get('run'); const a = runTask(r);
         metStop(); const mb = document.querySelector('[data-act="metronome"]'); if (mb) mb.textContent = 'Metronom starten';
         playBeat(DrumNotation.parse(a.notation), $('#practiceStaff'), MET.bpm, { mute: S.beatMute || [], trainer: beatTrainerOpts(a), onTempo: (b) => setBpm(b) }); el.textContent = 'Beat stoppen'; break;
       }
@@ -1584,7 +1592,8 @@ document.addEventListener('click', async (ev) => {
       case 'closeMetro': metStop(); closeOverlay(); break;
       case 'practice': startPractice(id); break;
       case 'practiceFree': startPractice(null); break;
-      case 'resumePractice': startPractice(store.get('run').assignment_id); break;
+      case 'resumePractice': { const rr = store.get('run'); startPractice(rr.assignment_id, rr.part || null); break; }
+      case 'partPractice': { const p = S.song.parts.find((x) => x.id === id); DrumNotation.stop(); S.overlay = null; startPractice(null, { id: p.id, title: S.song.song.title + ': ' + p.title, notation: p.notation, notes: p.notes, song_id: S.song.song.id }); break; }
       case 'minimize': stopTick(); S.overlay = null; render(); break;
       case 'startStop': { const r = store.get('run'); if (r.runningSince) { r.accumulated += Date.now() - r.runningSince; r.runningSince = null; releaseWake(); } else { r.runningSince = Date.now(); requestWake(); } store.set('run', r); render(); break; }
       case 'bpm': setBpm(MET.bpm + Number(el.dataset.d)); break;

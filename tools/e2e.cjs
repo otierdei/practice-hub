@@ -237,6 +237,11 @@ let n = 0; const ok = (m) => console.log('ok ' + (++n) + ' ' + m);
   assert.equal(await t.inputValue('#pt_title'), 'Beispiel 1'); assert.equal(await t.inputValue('#pt_notes'), 'Hinweis bleibt');
   await t.click('[data-act=ptPick][data-i="1"]'); await t.click('#partForm button[type=submit]'); await t.getByText('Baustein gespeichert').waitFor();
   assert.equal(await t.locator('[data-act=partPlay]').count(), 1); ok('Notenbild transkribiert, Beispiel gewählt, Baustein mit Noten gespeichert');
+  await t.evaluate(async () => { const sid = S.song.song.id, st = S.data.students[0]; S.previewFrom = S.overlay; S.file = await api('/api/t/student', { id: st.id }); startPreview(await api('/api/t/preview', { id: st.id })); S.song = await api('/api/song', { id: sid }); openOverlay(songView); });
+  await t.click('[data-act=partPractice]'); await t.locator('#clockRing').waitFor(); assert.match(await t.textContent('.sheet h1'), /Am Kreuz: /);
+  await t.evaluate(() => { const r = JSON.parse(localStorage.getItem('ph_pv_run')); r.runningSince -= 3 * 60000; localStorage.setItem('ph_pv_run', JSON.stringify(r)); });
+  await t.click('[data-act=endPractice]'); await t.click('#finishForm button[type=submit]'); await t.getByText('3 min gespeichert').waitFor();
+  assert.match(await t.evaluate(() => S.data.sessions[0].note), /^Baustein: Am Kreuz/); await t.click('[data-act=endPreview]'); ok('Baustein üben wie eine Übung (Stoppuhr, Sitzung mit Notiz)');
   await t.click('[data-act=close]');
 
   // Horizontaler Überlauf am iPhone
