@@ -41,7 +41,20 @@ async function askClaude(env, mediaType, data, HttpError) {
   const out = await res.json();
   return (out.content || []).filter((c) => c.type === 'text').map((c) => c.text).join('');
 }
-async function askCloudflare(env, mediaType, data, HttpError) {
+// Weitere Gratis Modelle mit Bildeingabe (OpenAI ähnliches Format), zum Vergleich über body.model
+const CF_CHAT_MODELS = ['@cf/meta/llama-4-scout-17b-16e-instruct', '@cf/mistralai/mistral-small-3.1-24b-instruct', '@cf/google/gemma-3-12b-it'];
+async function askCloudflareChat(env, model, mediaType, data, HttpError) {
+  let out;
+  try {
+    out = await env.AI.run(model, { max_tokens: 2048, temperature: 0, messages: [{ role: 'user', content: [
+      { type: 'text', text: PROMPT }, { type: 'image_url', image_url: { url: 'data:' + mediaType + ';base64,' + data } }] }] });
+  } catch (e) { console.error('workers-ai', model, e); throw new HttpError(502, 'Die kostenlose Transkription hat nicht geklappt (' + String(e && e.message || e).slice(0, 160) + ').'); }
+  const r = out && (out.response ?? (out.result && out.result.response) ?? (out.choices && out.choices[0] && out.choices[0].message && out.choices[0].message.content));
+  return typeof r === 'string' ? r : JSON.stringify(r || '');
+}
+async function askCloudflare(env, mediaType, data, HttpError, model) {
+  const m = model || env.FREE_MODEL || CF_MODEL;
+  if (CF_CHAT_MODELS.includes(m)) return askCloudflareChat(env, m, mediaType, data, HttpError);
   const bytes = Uint8Array.from(atob(data), (ch) => ch.charCodeAt(0));
   const input = { messages: [{ role: 'system', content: 'Du überträgst Schlagzeugnoten in JSON.' }, { role: 'user', content: PROMPT }], image: [...bytes], max_tokens: 2048, temperature: 0 };
   const run = async () => {
@@ -64,7 +77,9 @@ export async function transcribeImage(env, body, clean, HttpError) {
   const m = /^data:(image\/(?:jpeg|png|webp|gif));base64,([A-Za-z0-9+/=]+)$/.exec(String(body.image || ''));
   if (!m) throw new HttpError(400, 'Bitte ein Bild als JPG, PNG oder WebP hochladen.');
   if (m[2].length > 2800000) throw new HttpError(413, 'Das Bild ist zu groß.');
-  const text = env.ANTHROPIC_API_KEY ? await askClaude(env, m[1], m[2], HttpError) : await askCloudflare(env, m[1], m[2], HttpError);
+  const free = !env.ANTHROPIC_API_KEY || CF_CHAT_MODELS.includes(body.model) || body.model === CF_MODEL;
+  const text = free ? await askCloudflare(env, m[1], m[2], HttpError, body.model) : await askClaude(env, m[1], m[2], HttpError);
+  if (body.debug) return { raw: String(text).slice(0, 3000) };
   const a = text.indexOf('{'), b = text.lastIndexOf('}');
   let parsed;
   try { parsed = JSON.parse(text.slice(a, b + 1)); } catch (e) { throw new HttpError(502, 'Die Noten konnten nicht gelesen werden. Bitte ein schärferes Bild versuchen.'); }
@@ -72,5 +87,5 @@ export async function transcribeImage(env, body, clean, HttpError) {
   for (const [i, x] of (Array.isArray(parsed.beats) ? parsed.beats : []).slice(0, 12).entries()) {
     try { beats.push({ title: String(x.title || 'Beispiel ' + (i + 1)).slice(0, 60), notation: JSON.parse(clean({ ...x, bpm: x.bpm || 45 })) }); } catch (e) { /* kaputtes Beispiel überspringen */ }
   }
-  return { beats, hinweis: String(parsed.hinweis || '').slice(0, 300), engine: env.ANTHROPIC_API_KEY ? 'claude' : 'cloudflare' };
+  return { beats, hinweis: String(parsed.hinweis || '').slice(0, 300), engine: free ? 'cloudflare' : 'claude' };
 }
