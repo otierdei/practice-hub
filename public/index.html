@@ -125,6 +125,13 @@ textarea{min-height:80px;resize:vertical}
 .beats{display:flex;gap:12px;justify-content:center}
 .beats span{width:16px;height:16px;border-radius:50%;border:2px solid var(--line)}
 .beats span.on{background:var(--ring);border-color:var(--ring)}
+.beats{flex-wrap:wrap}
+input[type=range]{accent-color:var(--ring);width:100%;min-height:32px}
+.met-dot{width:38px;height:38px;border-radius:50%;border:3px solid var(--line);background:transparent;padding:0;cursor:pointer}
+.met-dot.acc2{border-color:var(--ring);box-shadow:inset 0 0 0 5px color-mix(in srgb,var(--ring) 35%,transparent)}
+.met-dot.acc0{border-style:dashed;opacity:.5}
+.met-dot.on{background:var(--ring);border-color:var(--ring)}
+.met-dot.acc0.on{background:transparent}
 .feel{display:flex;gap:8px;justify-content:space-between}
 .feel button{flex:1;min-height:52px;border-radius:16px;border:1px solid var(--line);background:var(--sunk);font-size:1.1rem}
 .feel button[aria-pressed="true"]{background:var(--accent);color:var(--accent-ink);border-color:transparent}
@@ -561,7 +568,7 @@ function assignmentDetailView() {
       <div class="item"><span class="t">Zuletzt geübt</span><span>${last ? esc(fmtDate(last)) : 'noch nie'}</span></div>
     </div></section>
     ${a.exercise_notes ? `<p style="white-space:pre-line">${esc(a.exercise_notes)}</p>` : ''}
-    ${n ? `<div class="nt-staff" id="asg_staff">${DrumNotation.render(n, { cursor: true, label: 'Noten', barsPerLine: 1, stepWidth: Math.max(12, Math.min(22, Math.floor(270 / DrumNotation.perBar(n.sig)))) })}</div><button class="btn small" data-act="asgPlay">${S.asgPlaying ? 'Stopp' : 'Abspielen'}</button>` : notationPreview(a.notation, a.title || '')}
+    ${n ? `<div class="nt-staff" id="asg_staff">${DrumNotation.render(n, { cursor: true, label: 'Noten', barsPerLine: 1, stepWidth: Math.max(12, Math.min(22, Math.floor(270 / DrumNotation.perBar(n.sig)))) })}</div><div class="row" style="gap:8px"><button class="btn small" data-act="asgPlay">${S.asgPlaying ? 'Stopp' : 'Abspielen'}</button>${beatClickChip()}</div><details class="card"><summary>Metronom und Tempo</summary>${metronomeCard(a)}</details>` : notationPreview(a.notation, a.title || '')}
     ${a.url ? (ytEmbed(a.url) || `<a class="btn small" href="${esc(a.url)}" target="_blank" rel="noopener">${linkLabel(a)}</a>`) : ''}
     ${a.song_id ? `<button class="btn" data-act="song" data-id="${esc(a.song_id)}" data-v="${esc(a.song_version || '')}">Song öffnen${a.song_version ? ' · ' + esc(a.song_version) : ''}</button>` : ''}
     ${S.asgEdit === a.id ? `<form id="asgEditForm" class="card col"><b>Bearbeiten</b>
@@ -843,7 +850,7 @@ function songView() {
         ${ytThumb(p.url) ? `<button class="thumb" data-act="partVideo" data-id="${p.id}" aria-label="Video ansehen: ${esc(p.title)}"><img src="${ytThumb(p.url)}" alt="" loading="lazy" onerror="this.remove()"><span class="thumb-play">${PLAY}</span></button>` : `<span class="task-icon" aria-hidden="true">${ICON_NOTE}</span>`}
         <div class="col" style="gap:2px;flex:1;min-width:0"><b class="task-title">${esc(p.title)}</b>${p.notes ? `<span class="muted small">${esc(p.notes)}</span>` : ''}</div>
         ${teacher ? `<button class="btn small danger" data-act="partDelete" data-id="${p.id}">Entfernen</button>` : ''}</div>
-        ${p.notation ? `<div id="pn_${p.id}">${notationPreview(p.notation, p.title)}</div><button class="btn small" data-act="partPlay" data-id="${p.id}">Abspielen</button>` : ''}
+        ${p.notation ? `<div id="pn_${p.id}">${notationPreview(p.notation, p.title)}</div><div class="row" style="gap:8px"><button class="btn small" data-act="partPlay" data-id="${p.id}">Abspielen</button>${beatClickChip()}</div>` : ''}
         ${p.url && !ytId(p.url) ? `<a class="btn small" href="${esc(p.url)}" target="_blank" rel="noopener">Link öffnen</a>` : ''}</section>`).join('') : `<div class="empty">${teacher ? 'Noch keine Bausteine. Leg unten den ersten an, z. B. Groove Vers.' : 'Oti hat für diesen Song noch keine Videos.'}</div>`}
       ${teacher ? `<form id="partForm" class="card col"><b>Baustein hinzufügen</b>
         <div class="field"><label for="pt_title">Titel</label><input id="pt_title" maxlength="120" placeholder="z. B. Groove Vers, Fill in den Chorus"></div>
@@ -1057,7 +1064,7 @@ function practiceView() {
     ${a && Guitar.parse(a.notation) ? `${Guitar.viewHTML(Guitar.parse(a.notation), 'practiceGuitar')}
       <div class="row">${Guitar.parse(a.notation).strum.cells.some(Boolean) ? `<button class="btn" data-act="gtPlay" data-mode="strum" style="flex:1">${Guitar.isPlaying() ? 'Stopp' : 'Schlagmuster abspielen'}</button>` : ''}${Guitar.parse(a.notation).tab.notes.length ? `<button class="btn" data-act="gtPlay" data-mode="tab" style="flex:1">Tabs abspielen</button>` : ''}</div>` : ''}
     ${a && DrumNotation.parse(a.notation) ? `<div class="nt-staff" id="practiceStaff">${DrumNotation.render(DrumNotation.parse(a.notation), { cursor: true, label: 'Noten: ' + (a.title || '') })}</div>
-      <button class="btn block" data-act="beatPlay">${DrumNotation.isPlaying() ? 'Beat stoppen' : 'Beat im Metronom Tempo abspielen'}</button>
+      <div class="row" style="flex-wrap:nowrap;gap:8px"><button class="btn" style="flex:1" data-act="beatPlay">${DrumNotation.isPlaying() ? 'Beat stoppen' : 'Beat im Metronom Tempo abspielen'}</button>${beatClickChip()}</div>
       <div class="col" style="gap:8px"><span class="small muted">Stumm schalten und selbst spielen:</span>
         <div class="row" style="gap:6px">${DrumNotation.usedKeys(DrumNotation.parse(a.notation)).map((k) => `<button type="button" class="chip" data-act="beatMute" data-k="${k}" aria-pressed="${(S.beatMute || []).includes(k)}">${DrumNotation.ROWS.find((r) => r.k === k).n}</button>`).join('')}</div>
         <label class="row small" style="gap:8px;color:var(--ink)"><input type="checkbox" id="beatTrainer" style="width:22px;min-height:22px" ${S.beatTrainer ? 'checked' : ''}> Tempo Trainer: alle 4 Durchläufe 5 BPM schneller${a.target_bpm ? ' bis ' + a.target_bpm : ''}</label></div>` : ''}
@@ -1087,20 +1094,66 @@ document.addEventListener('change', (ev) => {
   store.set('metauto', m); MET.autoStartBeat = MET.beat;
   const row = ev.target.closest('.met-auto'); if (row) row.children[1].style.opacity = m.on ? '' : '.55';
 });
+// Metronom Einstellungen (wie die Tempo App): Taktart, Betonung pro Schlag, Unterteilung, Klang, Lautstärke, Klick im Beat
+const MET_SIGS = ['2/4', '3/4', '4/4', '5/4', '6/8', '7/8', '9/8', '12/8'];
+function metSet() {
+  const s = Object.assign({ sig: '4/4', accents: null, sub: 1, sound: 'klick', vol: 0.8, beatClick: false }, store.get('metset', {}));
+  const n = Number(s.sig.split('/')[0]); if (!Array.isArray(s.accents) || s.accents.length !== n) s.accents = Array.from({ length: n }, (_, i) => (i === 0 ? 2 : 1));
+  return s;
+}
+function saveMetSet(s) { store.set('metset', s); applyBeatClick(); }
+function applyBeatClick() { const s = metSet(); DrumNotation.setClick({ on: s.beatClick, accents: s.accents, sub: s.sub, sound: s.sound, vol: s.vol }); }
+function tempoName(b) { return b < 40 ? 'Grave' : b < 60 ? 'Largo' : b < 66 ? 'Larghetto' : b < 76 ? 'Adagio' : b < 108 ? 'Andante' : b < 120 ? 'Moderato' : b < 156 ? 'Allegro' : b < 176 ? 'Vivace' : b < 200 ? 'Presto' : 'Prestissimo'; }
+const TRK = { ms: 0, since: 0, bars: 0 };
+function trkStart() { if (!TRK.since) TRK.since = performance.now(); }
+function trkStop() { if (TRK.since) { TRK.ms += performance.now() - TRK.since; TRK.since = 0; } }
+function trkText() { const ms = TRK.ms + (TRK.since ? performance.now() - TRK.since : 0); return clock(ms) + ' · ' + TRK.bars + ' Takte'; }
+function metDotsHTML(s) { return s.accents.map((v, i) => `<button type="button" class="met-dot acc${v}" data-act="metAcc" data-i="${i}" aria-label="Schlag ${i + 1}: ${['stumm', 'normal', 'betont'][v]}"></button>`).join(''); }
 function metronomeCard(a) {
+  const s = metSet();
+  const subs = [[1, '♩', 'Viertel'], [2, '♫', 'Achtel'], [3, '3', 'Triolen'], [4, '♬', '16tel']];
   return `<section class="card" aria-label="Metronom">
-      <div class="beats" id="beats" aria-hidden="true"><span></span><span></span><span></span><span></span></div>
+      <div class="beats" id="beats">${metDotsHTML(s)}</div>
+      <span class="small muted" style="text-align:center">Tippe auf einen Punkt: betont, normal, stumm</span>
       <div class="row" style="justify-content:center;flex-wrap:nowrap">
         <button class="iconbtn" data-act="bpm" data-d="-5" aria-label="5 BPM langsamer">−</button>
-        <div class="col" style="align-items:center;gap:0;min-width:110px"><b class="big-time" id="bpmVal" style="font-size:2.2rem">${MET.bpm}</b><span class="muted small">BPM${a && a.target_bpm ? ' · Ziel ' + a.target_bpm : ''}</span></div>
+        <div class="col" style="align-items:center;gap:0;min-width:120px"><b class="big-time" id="bpmVal" style="font-size:2.2rem">${MET.bpm}</b><span class="muted small"><span id="tempoName">${tempoName(MET.bpm)}</span> · BPM${a && a.target_bpm ? ' · Ziel ' + a.target_bpm : ''}</span></div>
         <button class="iconbtn" data-act="bpm" data-d="5" aria-label="5 BPM schneller">+</button>
       </div>
       <div class="row" style="flex-wrap:nowrap"><button class="btn small" data-act="bpm" data-d="-1" style="flex:1" aria-label="1 BPM langsamer">−1</button><button class="btn small" data-act="tap" style="flex:2">Tippen</button><button class="btn small" data-act="bpm" data-d="1" style="flex:1" aria-label="1 BPM schneller">+1</button></div>
+      <div class="row" style="flex-wrap:nowrap;gap:8px">
+        <div class="field" style="flex:1"><label for="met_sig">Taktart</label><select id="met_sig">${MET_SIGS.map((x) => `<option ${x === s.sig ? 'selected' : ''}>${x}</option>`).join('')}</select></div>
+        <div class="field" style="flex:1"><label for="met_sound">Klang</label><select id="met_sound">${[['klick', 'Klick'], ['holz', 'Holzblock'], ['rimclick', 'Rimclick'], ['beep', 'Beep'], ['kuhglocke', 'Kuhglocke']].map(([k, l]) => `<option value="${k}" ${k === s.sound ? 'selected' : ''}>${l}</option>`).join('')}</select></div>
+      </div>
+      <div class="col" style="gap:6px"><span class="small muted">Unterteilung</span><div class="row" style="gap:6px">${subs.map(([v, sym, l]) => `<button type="button" class="chip" data-act="metSub" data-v="${v}" aria-pressed="${s.sub === v}" aria-label="${l}">${sym} ${l}</button>`).join('')}</div></div>
+      <label class="col small" style="gap:4px">Lautstärke<input id="met_vol" type="range" min="0.1" max="1" step="0.05" value="${s.vol}"></label>
       ${metAutoHTML(a)}
+      <div class="row between small"><span>Tracker: <b id="trk">${trkText()}</b></span><button class="btn small" data-act="trkReset">Zurücksetzen</button></div>
       <button class="btn block" data-act="metronome">${MET.playing ? 'Metronom stoppen' : 'Metronom starten'}</button>
       <span class="small muted" style="text-align:center">Am iPhone muss der Stummschalter aus sein, damit du den Klick hörst.</span>
     </section>`;
 }
+// Klick beim Abspielen eines Beats ein und aus
+function beatClickChip() { const on = metSet().beatClick; return `<button type="button" class="chip" data-act="beatClick" aria-pressed="${on}">Metronom ${on ? 'an' : 'aus'}</button>`; }
+function playBeat(n, root, bpm, opts = {}) {
+  metStop(); applyBeatClick(); trkStart();
+  const cur = DrumNotation.cursorFor(root), pb = DrumNotation.perBar(n.sig), spb = /8$/.test(n.sig) ? 2 : 4;
+  DrumNotation.play(n, bpm, (i) => {
+    cur(i);
+    if (i < 0) { trkStop(); document.querySelectorAll('#beats .met-dot').forEach((d) => d.classList.remove('on')); return; }
+    if (i % pb === 0) TRK.bars++;
+    if (i % spb === 0) document.querySelectorAll('#beats .met-dot').forEach((d, k) => d.classList.toggle('on', k === Math.floor((i % pb) / spb)));
+    const t = $('#trk'); if (t) t.textContent = trkText();
+  }, opts);
+}
+document.addEventListener('change', (ev) => {
+  const id = ev.target.id; if (!['met_sig', 'met_sound', 'met_vol'].includes(id)) return;
+  const s = metSet();
+  if (id === 'met_sig') { s.sig = ev.target.value; s.accents = null; }
+  if (id === 'met_sound') { s.sound = ev.target.value; DrumNotation.click(0, 2, s.sound, s.vol); }
+  if (id === 'met_vol') s.vol = Number(ev.target.value);
+  saveMetSet(s); const b = $('#beats'); if (b) b.innerHTML = metDotsHTML(metSet());
+});
 function metronomeView() {
   return `<div class="wrap" style="max-width:560px;align-items:stretch"><div class="row between"><button class="btn small" data-act="closeMetro">Zurück</button></div><h1>Metronom</h1>${metronomeCard(null)}</div>`;
 }
@@ -1117,36 +1170,41 @@ function updateClock() {
 }
 // Metronom: Web Audio mit Vorausplanung, damit der Takt stabil bleibt
 function metStart() {
-  MET.ctx = MET.ctx || new (window.AudioContext || window.webkitAudioContext)();
+  MET.ctx = MET.ctx || DrumNotation.audio();
   if (MET.ctx.state === 'suspended') MET.ctx.resume();
-  MET.playing = true; MET.beat = 0; MET.autoStartBeat = 0; MET.next = MET.ctx.currentTime + 0.08;
-  MET.timer = setInterval(metSchedule, 25); metDraw();
+  MET.playing = true; MET.beat = 0; MET.tick = 0; MET.autoStartBeat = 0; MET.next = MET.ctx.currentTime + 0.08; MET.queue = [];
+  trkStart(); MET.timer = setInterval(metSchedule, 25); metDraw();
 }
-function metStop() { MET.playing = false; clearInterval(MET.timer); MET.timer = null; }
+function metStop() { if (MET.playing) trkStop(); MET.playing = false; clearInterval(MET.timer); MET.timer = null; }
 function metSchedule() {
+  const s = metSet(), n = s.accents.length, sub = s.sub || 1;
   while (MET.next < MET.ctx.currentTime + 0.12) {
-    const o = MET.ctx.createOscillator(), g = MET.ctx.createGain();
-    o.frequency.value = MET.beat % 4 === 0 ? 1600 : 1000;
-    g.gain.setValueAtTime(0.0001, MET.next); g.gain.exponentialRampToValueAtTime(0.6, MET.next + 0.002); g.gain.exponentialRampToValueAtTime(0.0001, MET.next + 0.05);
-    o.connect(g).connect(MET.ctx.destination); o.start(MET.next); o.stop(MET.next + 0.06);
-    MET.queue = (MET.queue || []).concat([{ t: MET.next, b: MET.beat % 4 }]);
-    MET.next += 60 / MET.bpm; MET.beat++;
-    const m = metAuto(), since = MET.beat - (MET.autoStartBeat || 0);
-    if (m.on && since > 0 && since % (4 * m.bars) === 0 && MET.bpm < m.max) { setBpm(Math.min(m.max, MET.bpm + m.add)); toast('Tempo ' + MET.bpm); }
-    if (MET.beat % 4 === 0) { const i = $('#maInfo'); if (i) i.textContent = m.on ? 'Takt ' + (Math.floor(since / 4) + 1) + (MET.bpm >= m.max ? ' · Ziel erreicht' : '') : ''; }
+    const main = MET.tick % sub === 0, b = MET.beat % n;
+    DrumNotation.click(MET.next, main ? s.accents[b] : 0.5, s.sound, s.vol);
+    if (main) {
+      MET.queue.push({ t: MET.next, b });
+      if (b === 0) TRK.bars++;
+    }
+    MET.next += 60 / MET.bpm / sub; MET.tick++;
+    if (MET.tick % sub === 0) {
+      MET.beat++;
+      const m = metAuto(), since = MET.beat - (MET.autoStartBeat || 0);
+      if (m.on && since > 0 && since % (n * m.bars) === 0 && MET.bpm < m.max) { setBpm(Math.min(m.max, MET.bpm + m.add)); toast('Tempo ' + MET.bpm); }
+      if (MET.beat % n === 0) { const i = $('#maInfo'); if (i) i.textContent = m.on ? 'Takt ' + (Math.floor(since / n) + 1) + (MET.bpm >= m.max ? ' · Ziel erreicht' : '') : ''; }
+    }
   }
 }
 function metDraw() {
-  if (!MET.playing) { document.querySelectorAll('#beats span').forEach((s) => s.classList.remove('on')); return; }
+  if (!MET.playing) { document.querySelectorAll('#beats .met-dot').forEach((s) => s.classList.remove('on')); return; }
   const t = MET.ctx.currentTime; let cur = null;
   while (MET.queue && MET.queue.length && MET.queue[0].t <= t) cur = MET.queue.shift();
-  if (cur) document.querySelectorAll('#beats span').forEach((s, i) => s.classList.toggle('on', i === cur.b));
+  if (cur) { document.querySelectorAll('#beats .met-dot').forEach((s, i) => s.classList.toggle('on', i === cur.b)); const k = $('#trk'); if (k) k.textContent = trkText(); }
   requestAnimationFrame(metDraw);
 }
 function setBpm(v) {
   MET.bpm = Math.max(30, Math.min(300, Math.round(v)));
   const r = store.get('run', null); if (r) { r.bpm = MET.bpm; store.set('run', r); }
-  const el = $('#bpmVal'); if (el) el.textContent = MET.bpm;
+  const el = $('#bpmVal'); if (el) el.textContent = MET.bpm; const tn = $('#tempoName'); if (tn) tn.textContent = tempoName(MET.bpm);
   if (window.DrumNotation) DrumNotation.setTempo(MET.bpm);
   if (window.Guitar) Guitar.setTempo(MET.bpm);
 }
@@ -1275,7 +1333,7 @@ document.addEventListener('click', async (ev) => {
         if (DrumNotation.isPlaying()) { DrumNotation.stop(); el.textContent = 'Beat im Metronom Tempo abspielen'; break; }
         const r = store.get('run'); const a = S.data.assignments.find((x) => x.id === r.assignment_id);
         metStop(); const mb = document.querySelector('[data-act="metronome"]'); if (mb) mb.textContent = 'Metronom starten';
-        DrumNotation.play(DrumNotation.parse(a.notation), MET.bpm, DrumNotation.cursorFor($('#practiceStaff')), { mute: S.beatMute || [], trainer: beatTrainerOpts(a), onTempo: (b) => setBpm(b) }); el.textContent = 'Beat stoppen'; break;
+        playBeat(DrumNotation.parse(a.notation), $('#practiceStaff'), MET.bpm, { mute: S.beatMute || [], trainer: beatTrainerOpts(a), onTempo: (b) => setBpm(b) }); el.textContent = 'Beat stoppen'; break;
       }
       case 'beatMute': { const k = el.dataset.k; S.beatMute = (S.beatMute || []).includes(k) ? S.beatMute.filter((x) => x !== k) : (S.beatMute || []).concat(k); el.setAttribute('aria-pressed', String(S.beatMute.includes(k))); DrumNotation.setMute(S.beatMute); break; }
       case 'archiveExercise': await api('/api/t/exercise/archive', { id }); S.exercises = (await api('/api/t/exercises')).exercises; closeOverlay(); toast('Entfernt'); break;
@@ -1300,9 +1358,10 @@ document.addEventListener('click', async (ev) => {
         DrumNotation.stop(); S.asgPlaying = false; openOverlay(assignmentDetailView); break;
       }
       case 'asgEditOff': S.asgEdit = null; if (S.nt) delete S.nt.ae; openOverlay(assignmentDetailView); break;
-      case 'asgDetail': S.asgEdit = null; S.asgId = id; S.asgFrom = S.overlay; S.asgConfirm = null; openOverlay(assignmentDetailView); break;
+      case 'asgDetail': { const a0 = S.file && S.file.assignments.find((x) => x.id === id), n0 = a0 && DrumNotation.parse(a0.notation); if (a0 && (a0.start_bpm || n0)) setBpm(a0.start_bpm || n0.bpm); }
+        S.asgEdit = null; S.asgId = id; S.asgFrom = S.overlay; S.asgConfirm = null; openOverlay(assignmentDetailView); break;
       case 'asgBack': DrumNotation.stop(); S.asgPlaying = false; openOverlay(S.asgFrom || studentFileView); break;
-      case 'asgPlay': { if (S.asgPlaying) { DrumNotation.stop(); S.asgPlaying = false; el.textContent = 'Abspielen'; break; } const a = S.file.assignments.find((x) => x.id === S.asgId); const n = DrumNotation.parse(a.notation); S.asgPlaying = true; el.textContent = 'Stopp'; DrumNotation.play(n, a.start_bpm || n.bpm, DrumNotation.cursorFor($('#asg_staff'))); break; }
+      case 'asgPlay': { if (S.asgPlaying) { DrumNotation.stop(); S.asgPlaying = false; el.textContent = 'Abspielen'; break; } const a = S.file.assignments.find((x) => x.id === S.asgId); const n = DrumNotation.parse(a.notation); S.asgPlaying = true; el.textContent = 'Stopp'; playBeat(n, $('#asg_staff'), MET.bpm, { onTempo: (b) => setBpm(b), trainer: metAuto().on ? { every: metAuto().bars, add: metAuto().add, max: metAuto().max } : null }); break; }
       case 'asgClose': case 'asgReopen': {
         await api('/api/t/assignment/status', { id, status: act === 'asgClose' ? 'erledigt' : 'offen' });
         S.file = Object.assign(await api('/api/t/student', { id: S.file.student.id }), { course: S.file.course }); openOverlay(assignmentDetailView); toast(act === 'asgClose' ? 'Abgehakt' : 'Wieder offen'); break;
@@ -1347,7 +1406,7 @@ document.addEventListener('click', async (ev) => {
       case 'prevPlay': {
         const e = S.exercises.find((x) => x.id === id), n = e && DrumNotation.parse(e.notation); if (!n) break;
         if (S.prevPlaying === id) { DrumNotation.stop(); S.prevPlaying = null; el.textContent = 'Abspielen'; break; }
-        S.prevPlaying = id; el.textContent = 'Stopp'; DrumNotation.play(n, n.bpm, DrumNotation.cursorFor($('#a_preview'))); break;
+        S.prevPlaying = id; el.textContent = 'Stopp'; playBeat(n, $('#a_preview'), n.bpm); break;
       }
       case 'video': S.videoId = id; openOverlay(videoView); break;
       case 'goalToggle': { const r = await api('/api/goal/toggle', { id }); const g = S.data.goals.find((x) => x.id === id); g.status = r.status; render(); if (r.status === 'erreicht') toast('Ziel erreicht!'); break; }
@@ -1386,7 +1445,7 @@ document.addEventListener('click', async (ev) => {
       case 'partPlay': {
         const p = S.song.parts.find((x) => x.id === id), n = p && DrumNotation.parse(p.notation); if (!n) break;
         if (S.prevPlaying === id) { DrumNotation.stop(); S.prevPlaying = null; el.textContent = 'Abspielen'; break; }
-        DrumNotation.stop(); S.prevPlaying = id; el.textContent = 'Stopp'; DrumNotation.play(n, n.bpm, DrumNotation.cursorFor($('#pn_' + id))); break;
+        DrumNotation.stop(); S.prevPlaying = id; el.textContent = 'Stopp'; playBeat(n, $('#pn_' + id), n.bpm); break;
       }
       case 'backToSong': openOverlay(songView); break;
       case 'songLang': S.songLang = el.dataset.v; render(); break;
@@ -1409,6 +1468,10 @@ document.addEventListener('click', async (ev) => {
       case 'startStop': { const r = store.get('run'); if (r.runningSince) { r.accumulated += Date.now() - r.runningSince; r.runningSince = null; releaseWake(); } else { r.runningSince = Date.now(); requestWake(); } store.set('run', r); render(); break; }
       case 'bpm': setBpm(MET.bpm + Number(el.dataset.d)); break;
       case 'tap': tapTempo(); break;
+      case 'metAcc': { const s = metSet(), k = Number(el.dataset.i); s.accents[k] = (s.accents[k] + 2) % 3; saveMetSet(s); el.className = 'met-dot acc' + s.accents[k]; el.setAttribute('aria-label', 'Schlag ' + (k + 1) + ': ' + ['stumm', 'normal', 'betont'][s.accents[k]]); break; }
+      case 'metSub': { const s = metSet(); s.sub = Number(el.dataset.v); saveMetSet(s); document.querySelectorAll('[data-act=metSub]').forEach((b) => b.setAttribute('aria-pressed', String(b === el))); break; }
+      case 'trkReset': TRK.ms = 0; TRK.bars = 0; TRK.since = MET.playing || DrumNotation.isPlaying() ? performance.now() : 0; { const k = $('#trk'); if (k) k.textContent = trkText(); } break;
+      case 'beatClick': { const s = metSet(); s.beatClick = !s.beatClick; saveMetSet(s); document.querySelectorAll('[data-act=beatClick]').forEach((b) => { b.setAttribute('aria-pressed', String(s.beatClick)); b.textContent = 'Metronom ' + (s.beatClick ? 'an' : 'aus'); }); break; }
       case 'metronome': if (MET.playing) metStop(); else { DrumNotation.stop(); const bb = document.querySelector('[data-act="beatPlay"]'); if (bb) bb.textContent = 'Beat im Metronom Tempo abspielen'; metStart(); } el.textContent = MET.playing ? 'Metronom stoppen' : 'Metronom starten'; break;
       case 'endPractice': { const r = store.get('run'); if (r.runningSince) { r.accumulated += Date.now() - r.runningSince; r.runningSince = null; store.set('run', r); } metStop(); clearInterval(tickTimer); S.feeling = null; openOverlay(finishForm); break; }
       case 'backToPractice': openOverlay(practiceView); tickTimer = setInterval(updateClock, 250); break;
@@ -1436,7 +1499,7 @@ document.addEventListener('click', (ev) => {
     refreshEditor(id, false);
   } else if (actBtn.dataset.ntAct === 'play') {
     if (DrumNotation.isPlaying()) { DrumNotation.stop(); actBtn.textContent = 'Abspielen'; }
-    else { DrumNotation.play(n, n.bpm, DrumNotation.cursorFor(document.querySelector('#' + id + ' .nt-staff'))); actBtn.textContent = 'Stopp'; }
+    else { playBeat(n, document.querySelector('#' + id + ' .nt-staff'), n.bpm); actBtn.textContent = 'Stopp'; }
   } else if (actBtn.dataset.ntAct === 'clear') {
     const pb = DrumNotation.perBar(n.sig), bar = ntBar(id);
     for (const k in n.tracks) n.tracks[k] = n.tracks[k].filter((i) => i < bar * pb || i >= (bar + 1) * pb);

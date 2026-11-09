@@ -150,6 +150,16 @@ let n = 0; const ok = (m) => console.log('ok ' + (++n) + ' ' + m);
   const card = s.locator('.card:has-text("Rock Beat 1")'); assert.equal(await card.locator('.nt-svg').count(), 1); ok('Schüler sieht die Noten');
   await card.locator('[data-act=practice]').click(); await s.click('[data-act=beatPlay]');
   await s.waitForTimeout(600); assert.equal(await s.textContent('[data-act=beatPlay]'), 'Beat stoppen'); await s.click('[data-act=beatPlay]'); ok('Schüler spielt den Beat ab');
+  await s.click('[data-act=beatClick]'); assert.equal(await s.getAttribute('[data-act=beatClick]', 'aria-pressed'), 'true');
+  await s.click('[data-act=beatPlay]'); await s.waitForTimeout(1500);
+  assert.ok(await s.locator('#beats .met-dot.on').count() === 1, 'Punkt leuchtet im Beat'); assert.match(await s.textContent('#trk'), /[1-9]\d* Takte/);
+  await s.click('[data-act=beatPlay]'); ok('Metronom im Beat: Klick an, Punkte laufen mit, Tracker zählt Takte');
+  await s.selectOption('#met_sig', '3/4'); assert.equal(await s.locator('#beats .met-dot').count(), 3);
+  await s.click('#beats .met-dot >> nth=1'); assert.ok(await s.locator('#beats .met-dot >> nth=1').evaluate((d) => d.classList.contains('acc0')));
+  await s.click('[data-act=metSub][data-v="3"]'); await s.selectOption('#met_sound', 'holz');
+  await s.click('[data-act=metronome]'); await s.waitForTimeout(700); assert.equal(await s.locator('#beats .met-dot.on').count(), 1); await s.click('[data-act=metronome]');
+  assert.equal(await s.evaluate(() => DrumNotation.loadSamples().then(() => fetch('samples/hh.mp3').then((r) => r.ok))), true);
+  await s.selectOption('#met_sig', '4/4'); ok('Metronom: Taktart, Betonung, Triolen, Klang, Samples geladen');
   await s.screenshot({ path: OUT + '/s-beat-390-dark.png', fullPage: true });
   await s.click('[data-act=minimize]');
 

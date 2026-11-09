@@ -197,7 +197,40 @@
     t2: (t) => tone(t, 200, 140, 0.25, 0.6),
     ft: (t) => tone(t, 130, 85, 0.35, 0.7),
   };
-  function hit(k, t) { audio(); (SOUND[k] || SOUND.sn)(t || ctx.currentTime + 0.01); }
+  // Echte Samples aus Otis Bibliothek: Kick, Snare, Toms, Crash, HiHat. Nur das Ride bleibt synthetisch.
+  const SAMPLE = { bd: 0.95, sn: 0.8, gh: 0.18, t1: 0.75, t2: 0.75, ft: 0.8, cr: 0.45, hh: 0.45, ho: 0.45, hf: 0.3 };
+  const SRC = { gh: 'sn', hf: 'hh' };
+  const BUF = {}; let loading = null;
+  function loadSamples() {
+    if (loading || !ctx || typeof fetch !== 'function') return loading;
+    loading = Promise.all(['bd', 'sn', 't1', 't2', 'ft', 'cr', 'hh', 'ho'].map((k) => fetch(new URL('samples/' + k + '.mp3', location.href)).then((r) => (r.ok ? r.arrayBuffer() : null))
+      .then((ab) => ab && new Promise((ok) => ctx.decodeAudioData(ab, ok, () => ok(null)))).then((b) => { if (b) BUF[k] = b; }).catch(() => {})));
+    return loading;
+  }
+  function sample(k, t) {
+    const b = BUF[SRC[k] || k]; if (!b) return false;
+    const s = ctx.createBufferSource(), g = ctx.createGain(); s.buffer = b; g.gain.value = SAMPLE[k] * (P.vol == null ? 1 : P.vol);
+    s.connect(g).connect(ctx.destination); s.start(t);
+    // Offene HiHat wird von der geschlossenen abgedämpft
+    if ((k === 'hh' || k === 'hf') && P.openHat) { try { P.openHat.stop(t); } catch (e) { /* schon zu Ende */ } P.openHat = null; }
+    if (k === 'ho') P.openHat = s;
+    return true;
+  }
+  function hit(k, t) { audio(); loadSamples(); t = t || ctx.currentTime + 0.01; if (!(SAMPLE[k] && sample(k, t))) (SOUND[k] || SOUND.sn)(t); }
+
+  // ---------- Metronom Klick (auch für das Metronom der App) ----------
+  // level: 2 betont, 1 normal, 0.5 Unterteilung
+  const CLICKS = {
+    klick: (t, l, v) => { const o = ctx.createOscillator(), g = ctx.createGain(); o.frequency.value = l >= 2 ? 1600 : l >= 1 ? 1000 : 800; env(g, t, 0.6 * v * (l >= 1 ? 1 : 0.45), 0.05); o.connect(g).connect(ctx.destination); o.start(t); o.stop(t + 0.07); },
+    holz: (t, l, v) => { const o = ctx.createOscillator(), f = ctx.createBiquadFilter(), g = ctx.createGain(); o.type = 'triangle'; o.frequency.value = l >= 2 ? 1250 : l >= 1 ? 950 : 800; f.type = 'bandpass'; f.frequency.value = o.frequency.value; f.Q.value = 4; env(g, t, 0.9 * v * (l >= 1 ? 1 : 0.4), 0.06); o.connect(f).connect(g).connect(ctx.destination); o.start(t); o.stop(t + 0.08); },
+    beep: (t, l, v) => { const o = ctx.createOscillator(), g = ctx.createGain(); o.type = 'square'; o.frequency.value = l >= 2 ? 1320 : l >= 1 ? 880 : 660; env(g, t, 0.18 * v * (l >= 1 ? 1 : 0.5), 0.08); o.connect(g).connect(ctx.destination); o.start(t); o.stop(t + 0.1); },
+    kuhglocke: (t, l, v) => { [540, 800].forEach((fr) => { const o = ctx.createOscillator(), g = ctx.createGain(); o.type = 'square'; o.frequency.value = fr * (l >= 2 ? 1.25 : 1); env(g, t, 0.09 * v * (l >= 1 ? 1 : 0.45), 0.18); o.connect(g).connect(ctx.destination); o.start(t); o.stop(t + 0.2); }); },
+    rimclick: (t, l, v) => { noise(t, 0.03, 0.5 * v * (l >= 1 ? (l >= 2 ? 1 : 0.7) : 0.3), 'highpass', 2500); tone(t, 1700, 1500, 0.02, 0.2 * v); },
+  };
+  function click(t, level, sound, vol) { audio(); if (!level) return; (CLICKS[sound] || CLICKS.klick)(t || ctx.currentTime + 0.01, level, vol == null ? 0.8 : vol); }
+  // Klick beim Beat: { on, accents: [2,1,1,1], sub: 1|2|4, sound, vol }
+  let CLICK = { on: false, accents: null, sub: 1, sound: 'klick', vol: 0.8 };
+  function setClick(o) { CLICK = Object.assign({}, CLICK, o || {}); }
 
   // ---------- Wiedergabe: Schleife, Tempo Trainer, Stummschalten ----------
   const P = { playing: false, timer: null, next: 0, step: 0, n: null, bpm: 80, queue: [], onStep: null, mute: new Set(), trainer: null, onTempo: null };
@@ -224,6 +257,12 @@
       }
       const bar = Math.floor(i / pb), src = sourceBar(n, bar) * pb + (i % pb);
       for (const r of ROWS) if (!P.mute.has(r.k) && n.tracks[r.k].includes(src)) hit(r.k, P.next);
+      if (CLICK.on) {
+        const spb = EIGHTH(n.sig) ? 2 : 4, j = i % pb, beats = pb / spb, acc = CLICK.accents && CLICK.accents.length === beats ? CLICK.accents : null;
+        const sub = Math.max(1, Math.min(spb, CLICK.sub || 1)), every = spb / sub;
+        if (j % spb === 0) click(P.next, acc ? acc[j / spb] : (j === 0 ? 2 : 1), CLICK.sound, CLICK.vol);
+        else if (Number.isInteger(every) && j % every === 0) click(P.next, 0.5, CLICK.sound, CLICK.vol);
+      }
       P.queue.push({ t: P.next, i });
       P.next += EIGHTH(n.sig) ? 60 / P.bpm / 2 : 60 / P.bpm / 4;
       P.step++;
@@ -279,5 +318,5 @@
     </div>`;
   }
 
-  window.DrumNotation = { SIGS, ROWS, MAX_BARS, empty, parse, render, toggle, has, play, stop, setTempo, setMute, setTrainer, hit, editorHTML, cursorFor, total, perBar, setBars, usedKeys, isPlaying: () => P.playing, audio };
+  window.DrumNotation = { SIGS, ROWS, MAX_BARS, empty, parse, render, toggle, has, play, stop, setTempo, setMute, setTrainer, hit, editorHTML, cursorFor, total, perBar, setBars, usedKeys, isPlaying: () => P.playing, audio, click, setClick, loadSamples: () => { audio(); return loadSamples(); } };
 })();
