@@ -593,13 +593,20 @@ document.addEventListener('input', (ev) => {
 function saveDraft() { if (S.lesson) { S.lesson.beat = S.nt && S.nt.lb ? S.nt.lb : undefined; store.set('draft_' + S.lesson.student_id, S.lesson); } }
 document.addEventListener('visibilitychange', () => { if (document.hidden) saveDraft(); });
 // Vorlage gewählt: Noten sofort zeigen
+// Standard Tempo für neue Hausaufgaben: 45 bis 100. Eigenes Ziel einer Übung gilt, Aufwärmen behält seine Tempi.
+const DEF_TEMPO = { start: 45, target: 100 };
+function defTempo(e) {
+  if (!e) return { ...DEF_TEMPO };
+  const n = DrumNotation.parse(e.notation);
+  if (e.category === 'Aufwärmen') return { start: (n && n.bpm) || DEF_TEMPO.start, target: e.target_bpm || DEF_TEMPO.target };
+  return { start: DEF_TEMPO.start, target: e.target_bpm || DEF_TEMPO.target };
+}
 document.addEventListener('change', (ev) => {
   if (ev.target.id !== 'a_ex') return;
   const box = $('#a_preview'); if (!box) return;
   const e = (S.exercises || []).find((x) => x.id === ev.target.value);
   box.innerHTML = e && e.notation ? notationPreview(e.notation, e.title) + `<button type="button" class="btn small" data-act="prevPlay" data-id="${e.id}">Abspielen</button>` : '';
-  if (e && e.target_bpm && $('#a_bpm') && !$('#a_bpm').value) $('#a_bpm').value = e.target_bpm;
-  const n = e && DrumNotation.parse(e.notation); if (n && $('#a_from') && !$('#a_from').value) $('#a_from').value = n.bpm;
+  const tp = defTempo(e); if ($('#a_from')) $('#a_from').value = tp.start; if ($('#a_bpm')) $('#a_bpm').value = tp.target;
 });
 function lessonView() {
   const f = S.file, st = f.student, L = S.lesson;
@@ -640,7 +647,7 @@ function lessonView() {
             ${S.nt && S.nt.lb ? `<div class="col" style="gap:8px"><b>Neuer Beat</b>${DrumNotation.editorHTML(S.nt.lb, 'lb')}<label class="row" style="gap:8px"><input type="checkbox" id="a_lib" style="width:22px;min-height:22px"> Auch in meine Bibliothek</label><button type="button" class="btn small" data-act="lessonBeatOff">Beat verwerfen</button></div>` : '<button type="button" class="btn small" data-act="lessonBeat">Beat schreiben</button>'}
             <div class="field"><label for="a_free">Oder frei beschreiben</label><input id="a_free" maxlength="300" placeholder="z. B. Song Zentrum, Bridge mitspielen"></div>
             <div class="field"><label for="a_url">Video oder Link (optional)</label><input id="a_url" type="url" inputmode="url" placeholder="YouTube Link einfügen"></div>
-            <div class="row" style="flex-wrap:nowrap"><div class="field" style="flex:1"><label for="a_from">Tempo von</label><input id="a_from" inputmode="numeric" placeholder="BPM"></div><div class="field" style="flex:1"><label for="a_bpm">Tempo bis</label><input id="a_bpm" inputmode="numeric" placeholder="BPM"></div><div class="field" style="flex:1"><label for="a_min">Min pro Tag</label><input id="a_min" inputmode="numeric" placeholder="10"></div></div>
+            <div class="row" style="flex-wrap:nowrap"><div class="field" style="flex:1"><label for="a_from">Tempo von</label><input id="a_from" inputmode="numeric" placeholder="BPM" value="45"></div><div class="field" style="flex:1"><label for="a_bpm">Tempo bis</label><input id="a_bpm" inputmode="numeric" placeholder="BPM" value="100"></div><div class="field" style="flex:1"><label for="a_min">Min pro Tag</label><input id="a_min" inputmode="numeric" placeholder="10"></div></div>
             <button class="btn" type="submit">Hausaufgabe hinzufügen</button>
           </form></section>
         <section class="card">
@@ -1277,7 +1284,7 @@ document.addEventListener('click', async (ev) => {
       case 'sugEx': {
         const e = S.exercises.find((x) => x.id === id); const n = DrumNotation.parse(e.notation);
         if (isDuplicateAssignment(S.file, S.lesson.new_assignments, e.id, null)) { toast('Du hast die Hausaufgabe schon aufgegeben'); break; }
-        S.lesson.new_assignments.push({ exercise_id: e.id, free_text: null, label: e.title, start_bpm: (n && n.bpm) || null, target_bpm: e.target_bpm || null, minutes_per_day: 10 });
+        S.lesson.new_assignments.push({ exercise_id: e.id, free_text: null, label: e.title, start_bpm: defTempo(e).start, target_bpm: defTempo(e).target, minutes_per_day: 10 });
         saveDraft(); openOverlay(lessonView); toast(e.title + ' aufgegeben'); break;
       }
       case 'sugLesson': {
@@ -1287,7 +1294,7 @@ document.addEventListener('click', async (ev) => {
       case 'warmAdd': {
         const e = S.exercises.find((x) => x.id === id); const n = DrumNotation.parse(e.notation);
         if (isDuplicateAssignment(S.file, S.lesson.new_assignments, e.id, null)) { toast('Du hast die Hausaufgabe schon aufgegeben'); break; }
-        S.lesson.new_assignments.push({ exercise_id: e.id, free_text: null, label: e.title, start_bpm: Number($('#a_from') && $('#a_from').value) || (n && n.bpm) || null, target_bpm: Number($('#a_bpm') && $('#a_bpm').value) || e.target_bpm || null, minutes_per_day: 5 });
+        S.lesson.new_assignments.push({ exercise_id: e.id, free_text: null, label: e.title, start_bpm: defTempo(e).start, target_bpm: defTempo(e).target, minutes_per_day: 5 });
         saveDraft(); openOverlay(lessonView); toast(e.title + ' aufgegeben'); break;
       }
       case 'cancel': case 'cancelUndo': {
