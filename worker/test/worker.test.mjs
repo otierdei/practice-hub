@@ -544,3 +544,13 @@ test('Eine Quelle: Baustein und Bibliothek Änderungen gelten überall', async (
   const aa = (await w.call('/api/t/student', { id: w.a }, w.t)).data.assignments.find((x) => x.exercise_id === ex);
   assert.equal(aa.title, 'Groove Y'); assert.deepEqual(JSON.parse(aa.notation).tracks.bd, [0, 8]);
 });
+
+test('Song Hausaufgabe: Ziel Tempo ist immer das Original BPM des Songs', async () => {
+  const w = await world();
+  const sid = (await w.call('/api/t/song/create', { title: 'Tempo Song' }, w.t)).data.id;
+  await w.env.DB.prepare("INSERT INTO song_files (drive_id, song_id, name, key_sig, bpm, kind, seen_at) VALUES ('f1', ?, 'Tempo Song-E-74.pdf', 'E', 74, 'pdf', '2026-11-09')").bind(sid).run();
+  await w.call('/api/t/lesson/finish', { student_id: w.b, date: '2026-10-07', new_assignments: [{ song_id: sid, version: 'Original', start_bpm: 45, target_bpm: 100 }] }, w.t);
+  const t = (await w.call('/api/t/student', { id: w.b }, w.t)).data.assignments.find((a) => a.song_id === sid);
+  const s = (await w.call('/api/home', {}, w.tb)).data.assignments.find((a) => a.song_id === sid);
+  assert.equal(t.target_bpm, 74); assert.equal(s.target_bpm, 74); assert.equal(s.song_bpm, 74);
+});

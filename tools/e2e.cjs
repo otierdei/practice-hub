@@ -237,6 +237,15 @@ let n = 0; const ok = (m) => console.log('ok ' + (++n) + ' ' + m);
   assert.equal(await t.inputValue('#pt_title'), 'Beispiel 1'); assert.equal(await t.inputValue('#pt_notes'), 'Hinweis bleibt');
   await t.click('[data-act=ptPick][data-i="1"]'); await t.click('#partForm button[type=submit]'); await t.getByText('Baustein gespeichert').waitFor();
   assert.equal(await t.locator('[data-act=partPlay]').count(), 1); ok('Notenbild transkribiert, Beispiel gewählt, Baustein mit Noten gespeichert');
+  { const sid = await t.evaluate(() => S.song.song.id); await t.evaluate(async (sid) => { await api('/api/t/song/links/add', { song_id: sid, lines: 'Original | https://youtu.be/abcdefghijk', version: 'Original' }).catch(() => {}); }, sid);
+    const st = await t.evaluate(() => S.data.students[0].id);
+    await t.evaluate(async ([st, sid]) => { await api('/api/t/lesson/finish', { student_id: st, date: localDate(), new_assignments: [{ song_id: sid, version: 'Original', start_bpm: 45, target_bpm: 100 }] }); S.file = await api('/api/t/student', { id: st }); }, [st, sid]);
+    const aid = await t.evaluate((sid) => S.file.assignments.find((a) => a.song_id === sid).id, sid);
+    const keep = await t.evaluate(() => S.overlay);
+    await t.evaluate(async (aid) => { const b = document.createElement('button'); b.dataset.act = 'asgDetail'; b.dataset.id = aid; document.body.append(b); b.click(); }, aid);
+    await t.locator('.sheet [data-act=partPlay]').first().waitFor(); assert.ok(await t.locator('.sheet .yt iframe').count() >= 1, 'Video direkt eingebettet');
+    ok('Song Hausaufgabe zeigt Video und Bausteine direkt');
+    await t.evaluate(async (sid) => { S.song = await api('/api/song', { id: sid }); openOverlay(songView); }, sid); }
   await t.click('[data-act=partEdit]'); await t.fill('#pe_title', 'Groove Vers neu'); await t.click('#pe [data-k=sn][data-i="2"]'); await t.click('#partEditForm button[type=submit]');
   await t.getByText('Gespeichert, gilt überall').waitFor(); assert.ok((await t.evaluate(() => JSON.parse(S.song.parts[0].notation).tracks.sn)).includes(2)); assert.equal(await t.evaluate(() => S.song.parts[0].title), 'Groove Vers neu'); ok('Baustein bearbeiten: Titel und Noten');
   await t.evaluate(async () => { const sid = S.song.song.id, st = S.data.students[0]; S.previewFrom = S.overlay; S.file = await api('/api/t/student', { id: st.id }); startPreview(await api('/api/t/preview', { id: st.id })); S.song = await api('/api/song', { id: sid }); openOverlay(songView); });
