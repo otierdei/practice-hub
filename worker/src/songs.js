@@ -15,6 +15,10 @@ CREATE TABLE IF NOT EXISTS song_files (
   kind TEXT,
   seen_at TEXT NOT NULL
 );
+CREATE TABLE IF NOT EXISTS song_part_notation (
+  part_id TEXT PRIMARY KEY,
+  notation TEXT NOT NULL
+);
 CREATE TABLE IF NOT EXISTS song_parts (
   id TEXT PRIMARY KEY,
   song_id TEXT NOT NULL,
@@ -174,7 +178,7 @@ export async function songDetail(s, id, teacher = false) {
   if (!song) return null;
   const [files, parts, links, playedBy] = await Promise.all([
     s.all('SELECT drive_id, name, key_sig, bpm, kind FROM song_files WHERE song_id = ? ORDER BY kind DESC, name', song.id),
-    s.all('SELECT id, title, url, notes, sort FROM song_parts WHERE song_id = ? ORDER BY sort, created_at', song.id),
+    s.all('SELECT p.id, p.title, p.url, p.notes, p.sort, n.notation FROM song_parts p LEFT JOIN song_part_notation n ON n.part_id = p.id WHERE p.song_id = ? ORDER BY p.sort, p.created_at', song.id),
     s.all('SELECT id, version, title, url, sort FROM song_links WHERE song_id = ? ORDER BY sort, created_at', song.id),
     teacher ? s.all(`SELECT DISTINCT st.first_name FROM students st WHERE st.id IN (
         SELECT a.student_id FROM assignment_songs x JOIN assignments a ON a.id = x.assignment_id WHERE x.song_id = ?

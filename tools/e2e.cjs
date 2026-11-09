@@ -44,7 +44,7 @@ let n = 0; const ok = (m) => console.log('ok ' + (++n) + ' ' + m);
   await t.click('[data-act=close]'); await t.click('[data-tab=heute]');
   await t.getByText('Gerade dran').waitFor(); ok('Heute zeigt Jonas als gerade dran');
   await t.click('section[aria-label="Gerade dran"] [data-act=lesson]');
-  await t.getByText('Hausaufgabe hinzufügen').waitFor(); assert.match(await t.textContent('#lessonPractice'), /Geübt seit .*: \d+ min an \d von 7 Tagen/); ok('Übungszeit oben in der Stunde');
+  await t.getByText('Hausaufgabe hinzufügen').waitFor(); if (await t.locator('#sugBox').count()) { assert.equal(await t.locator('#sugBox').evaluate((d) => d.open), false); ok('Vorschläge zugeklappt'); } assert.match(await t.textContent('#lessonPractice'), /Geübt seit .*: \d+ min an \d von 7 Tagen/); ok('Übungszeit oben in der Stunde');
   assert.equal(await t.inputValue('#a_from'), '45'); assert.equal(await t.inputValue('#a_bpm'), '100');
   await t.selectOption('#a_ex', { label: 'Grooves: Paradiddle Groove' });
   assert.equal(await t.inputValue('#a_from'), '45'); assert.equal(await t.inputValue('#a_bpm'), '96'); ok('Tempo Standard 45 bis 100, eigenes Ziel der Übung gilt');
@@ -186,6 +186,17 @@ let n = 0; const ok = (m) => console.log('ok ' + (++n) + ' ' + m);
   // Sperren
   await t.click('[data-tab=schueler]'); await t.click('[data-act=student]:has-text("Jonas")'); await t.click('.item:has-text("Schüler") [data-act=revoke]'); await t.locator('.toast', { hasText: 'Gesperrt' }).waitFor();
   await s.reload(); await s.getByText('Anmelden').waitFor(); ok('Gesperrter Schüler fliegt raus');
+
+  // Baustein mit Notenbild (Claude Antwort lokal gestellt)
+  await t.reload(); await t.getByRole('heading', { name: 'Heute', exact: true }).waitFor();
+  await t.click('[data-tab=songs]'); await t.click('[data-act=songNew]'); await t.fill('#sn_title', 'Am Kreuz'); await t.click('#songNewForm button[type=submit]');
+  await t.waitForTimeout(600); if (!(await t.getByText('Baustein hinzufügen').count())) await t.getByText('Am Kreuz').first().click();
+  await t.getByText('Baustein hinzufügen').waitFor(); await t.fill('#pt_notes', 'Hinweis bleibt');
+  await t.setInputFiles('#pt_img', __dirname + '/../t-akte-1440.png'); await t.getByText('2 Beispiele erkannt').waitFor();
+  assert.equal(await t.inputValue('#pt_title'), 'Beispiel 1'); assert.equal(await t.inputValue('#pt_notes'), 'Hinweis bleibt');
+  await t.click('[data-act=ptPick][data-i="1"]'); await t.click('#partForm button[type=submit]'); await t.getByText('Baustein gespeichert').waitFor();
+  assert.equal(await t.locator('[data-act=partPlay]').count(), 1); ok('Notenbild transkribiert, Beispiel gewählt, Baustein mit Noten gespeichert');
+  await t.click('[data-act=close]');
 
   // Horizontaler Überlauf am iPhone
   for (const [pg, name] of [[s, 'Schüler'], [p, 'Eltern'], [tp, 'Lehrer iPhone']]) {

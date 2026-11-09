@@ -451,3 +451,28 @@ test('Bibliothek: kein Name doppelt, auch beim Beat aus der Stunde', async () =>
   await w.call('/api/t/exercise/archive', { id }, w.t);
   assert.equal((await w.call('/api/t/exercise/save', { title: 'Beat 1' }, w.t)).status, 200);
 });
+
+test('Notenbild transkribieren: ohne Schlüssel 503, mit Schlüssel Beats, Baustein speichert Noten', async () => {
+  const w = await world();
+  const img = 'data:image/png;base64,iVBORw0KGgo=';
+  assert.equal((await w.call('/api/t/transcribe', { image: img }, w.t)).status, 503);
+  w.env.ANTHROPIC_API_KEY = 'test';
+  assert.equal((await w.call('/api/t/transcribe', { image: img }, w.ta)).status, 403);
+  assert.equal((await w.call('/api/t/transcribe', { image: 'nein' }, w.t)).status, 400);
+  const orig = globalThis.fetch; let sent;
+  globalThis.fetch = async (u, o) => { sent = { u, body: JSON.parse(o.body), key: o.headers['x-api-key'] }; return new Response(JSON.stringify({ content: [{ type: 'text', text: 'Hier:\n{"beats":[{"title":"1)","sig":"4/4","bars":1,"tracks":{"hh":[0,2,4,6,8,10,12,14],"sn":[4,12],"bd":[0,8,99]}},{"sig":"4/4","bars":1,"tracks":{"bd":[0,10]}}],"hinweis":""}' }] }), { status: 200 }); };
+  try {
+    const r = (await w.call('/api/t/transcribe', { image: img }, w.t)).data;
+    assert.equal(sent.u, 'https://api.anthropic.com/v1/messages'); assert.equal(sent.key, 'test');
+    assert.equal(sent.body.messages[0].content[0].source.media_type, 'image/png');
+    assert.equal(r.beats.length, 2); assert.deepEqual(r.beats[0].notation.tracks.bd, [0, 8]); assert.equal(r.beats[1].title, 'Beispiel 2');
+    globalThis.fetch = async () => new Response('{}', { status: 401 });
+    assert.equal((await w.call('/api/t/transcribe', { image: img }, w.t)).status, 502);
+  } finally { globalThis.fetch = orig; }
+  const sid = (await w.call('/api/t/song/create', { title: 'Am Kreuz' }, w.t)).data.id;
+  const pid = (await w.call('/api/t/song/part/save', { song_id: sid, title: 'Groove Vers', notation: { sig: '4/4', bars: 1, tracks: { bd: [0, 8] } } }, w.t)).data.id;
+  const det = (await w.call('/api/song', { id: sid }, w.ta)).data;
+  assert.deepEqual(JSON.parse(det.parts.find((p) => p.id === pid).notation).tracks.bd, [0, 8]);
+  await w.call('/api/t/song/part/delete', { id: pid }, w.t);
+  assert.equal((await w.call('/api/song', { id: sid }, w.ta)).data.parts.length, 0);
+});

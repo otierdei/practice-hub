@@ -1,4 +1,5 @@
 import { COURSE_SCHEMA, courseData, courseImport } from './course.js';
+import { transcribeImage } from './transcribe.js';
 import { SONG_SCHEMA, syncSongs, songsHome, songDetail, parseLinkLines, slug } from './songs.js';
 // Practice Hub Worker v1 (04.11.2026)
 // Rechte werden bei jeder Anfrage aus dem Gerätetoken abgeleitet, nie aus der Anfrage.
@@ -696,10 +697,14 @@ async function route(env, req, path, body) {
       const url = cleanUrl(body.url);
       const n = (await s.first('SELECT COUNT(*) AS n FROM song_parts WHERE song_id = ?', song.id)).n;
       const id = uid();
-      await s.batch([['INSERT INTO song_parts (id, song_id, title, url, notes, sort, created_at) VALUES (?, ?, ?, ?, ?, ?, ?)', [id, song.id, title, url, str(body.notes, 500), n, now()]], logRow(who, 'create', 'song_parts', id, title)]);
+      const nt = cleanNotation(body.notation);
+      const ops = [['INSERT INTO song_parts (id, song_id, title, url, notes, sort, created_at) VALUES (?, ?, ?, ?, ?, ?, ?)', [id, song.id, title, url, str(body.notes, 500), n, now()]], logRow(who, 'create', 'song_parts', id, title)];
+      if (nt) ops.push(['INSERT INTO song_part_notation (part_id, notation) VALUES (?, ?)', [id, nt]]);
+      await s.batch(ops);
       return { id };
     }
-    case '/api/t/song/part/delete': await s.run('DELETE FROM song_parts WHERE id = ?', String(body.id || '')); return { ok: true };
+    case '/api/t/song/part/delete': await s.batch([['DELETE FROM song_parts WHERE id = ?', [String(body.id || '')]], ['DELETE FROM song_part_notation WHERE part_id = ?', [String(body.id || '')]]]); return { ok: true };
+    case '/api/t/transcribe': return transcribeImage(env, body, cleanNotation, HttpError);
     case '/api/t/preview': return studentView(s, String(body.id || ''), 'student');
     case '/api/t/assignment/link': return linkAssignment(s, who, body);
     case '/api/t/student/save': return saveStudent(s, who, body);
@@ -786,7 +791,7 @@ export default {
       let body = {};
       if (req.method === 'POST') {
         const text = await req.text();
-        if (text.length > 100000) throw new HttpError(413, 'Anfrage zu groß.');
+        if (text.length > (url.pathname === '/api/t/transcribe' ? 3000000 : 100000)) throw new HttpError(413, 'Anfrage zu groß.');
         body = text ? JSON.parse(text) : {};
         if (!body || typeof body !== 'object' || Array.isArray(body)) throw new HttpError(400, 'Ungültige Anfrage.');
       }

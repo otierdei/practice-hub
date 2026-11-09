@@ -540,9 +540,10 @@ function suggestions(f) {
 }
 function suggestBlock(f) {
   const list = suggestions(f); if (!list.length) return '';
-  return `<section class="card"><h3>Vorschläge</h3><div class="list">${list.map((x) => `<div class="item"><span class="t col" style="gap:2px"><b>${esc(x.lesson ? 'Lektion ' + x.lesson.num + ': ' + x.lesson.title : x.e.title)}</b><span class="small muted">${esc(x.why)}</span></span>
-    ${x.lesson ? `<button class="btn small" data-act="sugLesson" data-id="${x.lesson.id}">Aufgeben</button>` : `<button class="btn small" data-act="sugEx" data-id="${x.e.id}">Aufgeben</button>`}</div>`).join('')}</div></section>`;
+  return `<details class="card" id="sugBox" ${S.sugOpen ? 'open' : ''}><summary><h3 style="display:inline">Vorschläge</h3> <span class="small muted">(${list.length})</span></summary><div class="list">${list.map((x) => `<div class="item"><span class="t col" style="gap:2px"><b>${esc(x.lesson ? 'Lektion ' + x.lesson.num + ': ' + x.lesson.title : x.e.title)}</b><span class="small muted">${esc(x.why)}</span></span>
+    ${x.lesson ? `<button class="btn small" data-act="sugLesson" data-id="${x.lesson.id}">Aufgeben</button>` : `<button class="btn small" data-act="sugEx" data-id="${x.e.id}">Aufgeben</button>`}</div>`).join('')}</div></details>`;
 }
+document.addEventListener('toggle', (ev) => { if (ev.target.id === 'sugBox') S.sugOpen = ev.target.open; }, true);
 function assignmentDetailView() {
   const f = S.file, a = f && f.assignments.find((x) => x.id === S.asgId); if (!a) return '';
   const ss = f.sessions.filter((x) => x.assignment_id === a.id);
@@ -842,16 +843,55 @@ function songView() {
         ${ytThumb(p.url) ? `<button class="thumb" data-act="partVideo" data-id="${p.id}" aria-label="Video ansehen: ${esc(p.title)}"><img src="${ytThumb(p.url)}" alt="" loading="lazy" onerror="this.remove()"><span class="thumb-play">${PLAY}</span></button>` : `<span class="task-icon" aria-hidden="true">${ICON_NOTE}</span>`}
         <div class="col" style="gap:2px;flex:1;min-width:0"><b class="task-title">${esc(p.title)}</b>${p.notes ? `<span class="muted small">${esc(p.notes)}</span>` : ''}</div>
         ${teacher ? `<button class="btn small danger" data-act="partDelete" data-id="${p.id}">Entfernen</button>` : ''}</div>
+        ${p.notation ? `<div id="pn_${p.id}">${notationPreview(p.notation, p.title)}</div><button class="btn small" data-act="partPlay" data-id="${p.id}">Abspielen</button>` : ''}
         ${p.url && !ytId(p.url) ? `<a class="btn small" href="${esc(p.url)}" target="_blank" rel="noopener">Link öffnen</a>` : ''}</section>`).join('') : `<div class="empty">${teacher ? 'Noch keine Bausteine. Leg unten den ersten an, z. B. Groove Vers.' : 'Oti hat für diesen Song noch keine Videos.'}</div>`}
       ${teacher ? `<form id="partForm" class="card col"><b>Baustein hinzufügen</b>
         <div class="field"><label for="pt_title">Titel</label><input id="pt_title" maxlength="120" placeholder="z. B. Groove Vers, Fill in den Chorus"></div>
         <div class="field"><label for="pt_url">YouTube Link</label><input id="pt_url" type="url" inputmode="url" placeholder="Link einfügen"></div>
         <div class="field"><label for="pt_notes">Hinweis (optional)</label><input id="pt_notes" maxlength="500"></div>
+        ${partNotationField()}
         <button class="btn primary" type="submit">Speichern</button></form>` : ''}
     </section>
     ${pdfs.length ? `<section class="col"><h2>Leadsheets</h2><div class="row">${pdfs.map((f) => `<a class="btn small" href="${driveUrl(f.drive_id)}" target="_blank" rel="noopener">${esc(f.key_sig || 'PDF')}${f.bpm ? ' · ' + f.bpm : ''}</a>`).join('')}</div></section>` : ''}
   </div>`;
 }
+// Baustein Noten: Notenbild hochladen (Claude liest es) oder selbst schreiben
+function partNotationField() {
+  const P = S.pt && S.pt.song === S.song.song.id ? S.pt : (S.pt = { song: S.song.song.id });
+  const nt = S.nt && S.nt.pt;
+  return `<div class="col" style="gap:8px"><b>Noten (optional)</b>
+    <label class="btn small" for="pt_img" style="text-align:center">${P.busy ? 'Noten werden gelesen …' : 'Notenbild hochladen'}</label><input id="pt_img" type="file" accept="image/*" class="hidden" ${P.busy ? 'disabled' : ''}>
+    ${P.img ? `<img src="${P.img}" alt="Hochgeladenes Notenbild" style="max-width:100%;max-height:260px;object-fit:contain;border-radius:10px;background:#fff">` : ''}
+    ${P.beats && P.beats.length > 1 ? `<span class="small muted">${P.beats.length} Beispiele erkannt. Welches soll in den Baustein?</span><div class="row" style="gap:6px">${P.beats.map((b, i) => `<button type="button" class="chip" data-act="ptPick" data-i="${i}" aria-pressed="${P.pick === i}">${esc(b.title)}</button>`).join('')}</div>` : ''}
+    ${P.hinweis ? `<p class="small muted">${esc(P.hinweis)}</p>` : ''}
+    ${nt ? `<span class="small muted">Prüfe die Noten und korrigiere sie direkt im Editor.</span>${DrumNotation.editorHTML(nt, 'pt')}<button type="button" class="btn small" data-act="ptOff">Noten verwerfen</button>` : '<button type="button" class="btn small" data-act="ptNew">Beat selbst schreiben</button>'}
+  </div>`;
+}
+function keepPartForm() { S.pt = S.pt || {}; for (const k of ['pt_title', 'pt_url', 'pt_notes']) if ($('#' + k)) S.pt[k] = $('#' + k).value; }
+function restorePartForm() { for (const k of ['pt_title', 'pt_url', 'pt_notes']) if ($('#' + k) && S.pt && S.pt[k] != null) $('#' + k).value = S.pt[k]; }
+function rerenderSong(keep = true) { if (keep) keepPartForm(); const sh = $('.sheet'); const y = sh ? sh.scrollTop : 0; openOverlay(songView); restorePartForm(); const sh2 = $('.sheet'); if (sh2) sh2.scrollTop = y; }
+function shrinkImage(file, max = 1600) {
+  return new Promise((ok, bad) => {
+    const img = new Image(); const url = URL.createObjectURL(file);
+    img.onload = () => { const k = Math.min(1, max / Math.max(img.width, img.height)); const cv = document.createElement('canvas'); cv.width = Math.round(img.width * k); cv.height = Math.round(img.height * k);
+      const g = cv.getContext('2d'); g.fillStyle = '#fff'; g.fillRect(0, 0, cv.width, cv.height); g.drawImage(img, 0, 0, cv.width, cv.height); URL.revokeObjectURL(url); ok(cv.toDataURL('image/jpeg', 0.85)); };
+    img.onerror = () => { URL.revokeObjectURL(url); bad(new Error('Das Bild konnte nicht geöffnet werden.')); };
+    img.src = url;
+  });
+}
+document.addEventListener('change', async (ev) => {
+  if (ev.target.id !== 'pt_img' || !ev.target.files || !ev.target.files[0]) return;
+  const P = S.pt;
+  try {
+    P.img = await shrinkImage(ev.target.files[0]); P.busy = true; P.beats = null; P.hinweis = ''; rerenderSong();
+    const r = await api('/api/t/transcribe', { image: P.img });
+    P.beats = r.beats; P.hinweis = r.hinweis || (r.beats.length ? '' : 'Keine Noten erkannt.'); P.pick = 0;
+    S.nt = S.nt || {}; if (r.beats.length) S.nt.pt = DrumNotation.parse(r.beats[0].notation); else delete S.nt.pt;
+    keepPartForm(); if (r.beats.length && !(S.pt.pt_title || '').trim()) S.pt.pt_title = r.beats[0].title;
+    P.busy = false; rerenderSong(false); return;
+  } catch (e) { P.hinweis = e.message; toast(e.message); }
+  P.busy = false; rerenderSong();
+});
 function songLinksSection(d, teacher) {
   const versions = [...new Set(d.links.map((l) => l.version))];
   const cur = versions.includes(S.songVersion) ? S.songVersion : versions[0];
@@ -1340,6 +1380,14 @@ document.addEventListener('click', async (ev) => {
       case 'candAdd': { const x = S.songCand[Number(el.dataset.i)]; await api('/api/t/song/create', { title: x.t }); S.songCand.splice(Number(el.dataset.i), 1); S.songs = await api('/api/songs'); openOverlay(songCandView); toast(x.t + ' angelegt'); break; }
       case 'sheet': window.open(driveUrl(id), '_blank', 'noopener'); break;
       case 'partVideo': S.partId = id; openOverlay(partVideoView); break;
+      case 'ptNew': S.nt = S.nt || {}; S.nt.pt = DrumNotation.empty('4/4', 1, 45); rerenderSong(); break;
+      case 'ptOff': delete S.nt.pt; S.pt.beats = null; S.pt.img = null; S.pt.hinweis = ''; rerenderSong(); break;
+      case 'ptPick': { const i = Number(el.dataset.i); S.pt.pick = i; S.nt.pt = DrumNotation.parse(S.pt.beats[i].notation); rerenderSong(); break; }
+      case 'partPlay': {
+        const p = S.song.parts.find((x) => x.id === id), n = p && DrumNotation.parse(p.notation); if (!n) break;
+        if (S.prevPlaying === id) { DrumNotation.stop(); S.prevPlaying = null; el.textContent = 'Abspielen'; break; }
+        DrumNotation.stop(); S.prevPlaying = id; el.textContent = 'Stopp'; DrumNotation.play(n, n.bpm, DrumNotation.cursorFor($('#pn_' + id))); break;
+      }
       case 'backToSong': openOverlay(songView); break;
       case 'songLang': S.songLang = el.dataset.v; render(); break;
       case 'songVideos': S.songVideos = !S.songVideos; render(); break;
@@ -1519,7 +1567,8 @@ document.addEventListener('submit', async (ev) => {
       await api('/api/goal/add', { title }); S.data = await api('/api/home'); render(); toast('Ziel gespeichert');
     } else if (fid === 'partForm') {
       const title = $('#pt_title').value.trim(); if (!title) { toast('Titel fehlt'); return; }
-      await api('/api/t/song/part/save', { song_id: S.song.song.id, title, url: $('#pt_url').value.trim() || null, notes: $('#pt_notes').value.trim() || null });
+      await api('/api/t/song/part/save', { song_id: S.song.song.id, title, url: $('#pt_url').value.trim() || null, notes: $('#pt_notes').value.trim() || null, notation: S.nt && S.nt.pt ? S.nt.pt : null });
+      DrumNotation.stop(); if (S.nt) delete S.nt.pt; S.pt = null;
       S.song = await api('/api/song', { id: S.song.song.id }); S.songs = await api('/api/songs'); openOverlay(songView); toast('Baustein gespeichert');
     } else if (fid === 'goalForm') {
       const t = $('#g_title').value.trim(); if (!t) return;
