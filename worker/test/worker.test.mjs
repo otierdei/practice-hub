@@ -564,3 +564,14 @@ test('Neue Hausaufgaben kommen hinten an, in der Reihenfolge der Stunde', async 
   assert.deepEqual(now.slice(0, before.length).map((a) => a.id), before, 'alte bleiben vorne');
   assert.deepEqual(now.slice(before.length).map((a) => a.free_text), ['Neu A', 'Neu B', 'Neu C']);
 });
+
+test('Song BPM festlegen: gilt für Song und Ziel Tempo der Hausaufgaben', async () => {
+  const w = await world();
+  const sid = (await w.call('/api/t/song/create', { title: 'Never walk alone' }, w.t)).data.id;
+  await w.call('/api/t/lesson/finish', { student_id: w.b, date: '2026-10-09', new_assignments: [{ song_id: sid, version: 'Original', start_bpm: 45, target_bpm: 100 }] }, w.t);
+  assert.equal((await w.call('/api/t/song/bpm', { song_id: sid, bpm: 72 }, w.tb)).status, 403);
+  await w.call('/api/t/song/bpm', { song_id: sid, bpm: 72, source: 'worshiptogether.com' }, w.t);
+  const d = (await w.call('/api/song', { id: sid }, w.ta)).data.song; assert.equal(d.bpm, 72); assert.equal(d.bpm_source, 'worshiptogether.com');
+  assert.equal((await w.call('/api/home', {}, w.tb)).data.assignments.find((a) => a.song_id === sid).target_bpm, 72);
+  assert.equal((await w.call('/api/songs', {}, w.ta)).data.songs.find((s) => s.id === sid).bpm, 72);
+});

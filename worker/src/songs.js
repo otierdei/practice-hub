@@ -59,6 +59,12 @@ CREATE INDEX IF NOT EXISTS i_song_links ON song_links(song_id, sort);
 CREATE INDEX IF NOT EXISTS i_assignment_songs ON assignment_songs(song_id);
 CREATE INDEX IF NOT EXISTS i_song_files ON song_files(song_id);
 CREATE INDEX IF NOT EXISTS i_song_parts ON song_parts(song_id, sort);
+-- Original BPM pro Song (aus dem Internet oder von Oti), hat Vorrang vor BPM aus Dateinamen
+CREATE TABLE IF NOT EXISTS song_meta (
+  song_id TEXT PRIMARY KEY,
+  bpm INTEGER,
+  bpm_source TEXT
+);
 CREATE TABLE IF NOT EXISTS assignment_parts (
   assignment_id TEXT PRIMARY KEY,
   part_id TEXT NOT NULL
@@ -167,8 +173,8 @@ async function sundaySetlist(s) {
 export async function songsHome(s, who) {
   const studentId = who.role === 'teacher' ? null : who.studentId;
   const [lib, parts, mine, worship, meta] = await Promise.all([
-    s.all(`SELECT s.id, s.title, s.lang, GROUP_CONCAT(DISTINCT f.key_sig) AS keys, MAX(f.bpm) AS bpm
-           FROM songs s LEFT JOIN song_files f ON f.song_id = s.id GROUP BY s.id
+    s.all(`SELECT s.id, s.title, s.lang, GROUP_CONCAT(DISTINCT f.key_sig) AS keys, COALESCE(MAX(m.bpm), MAX(f.bpm)) AS bpm
+           FROM songs s LEFT JOIN song_files f ON f.song_id = s.id LEFT JOIN song_meta m ON m.song_id = s.id GROUP BY s.id
            HAVING COUNT(f.drive_id) > 0 OR s.lang = 'unterricht' OR EXISTS (SELECT 1 FROM song_parts p WHERE p.song_id = s.id) OR EXISTS (SELECT 1 FROM song_links k WHERE k.song_id = s.id) ORDER BY s.title COLLATE NOCASE`),
     s.all('SELECT song_id, COUNT(*) AS n FROM (SELECT song_id FROM song_parts UNION ALL SELECT song_id FROM song_links) GROUP BY song_id'),
     studentId ? s.all('SELECT song_id FROM student_songs WHERE student_id = ? ORDER BY added_at', studentId) : [],
@@ -181,7 +187,8 @@ export async function songsHome(s, who) {
 }
 
 export async function songDetail(s, id, teacher = false) {
-  const song = await s.first('SELECT id, title, lang FROM songs WHERE id = ?', String(id || ''));
+  const song = await s.first(`SELECT s.id, s.title, s.lang, COALESCE(m.bpm, (SELECT MAX(bpm) FROM song_files WHERE song_id = s.id)) AS bpm, m.bpm_source
+    FROM songs s LEFT JOIN song_meta m ON m.song_id = s.id WHERE s.id = ?`, String(id || ''));
   if (!song) return null;
   const [files, parts, links, playedBy] = await Promise.all([
     s.all('SELECT drive_id, name, key_sig, bpm, kind FROM song_files WHERE song_id = ? ORDER BY kind DESC, name', song.id),

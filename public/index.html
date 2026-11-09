@@ -200,8 +200,8 @@ details.card summary{cursor:pointer;font-family:var(--display);font-size:1.08rem
 </head>
 <body>
 <div id="app"><div class="wrap"><p class="muted">Lädt …</p></div></div>
-<script src="notation.js?v=47"></script>
-<script src="guitar.js?v=47"></script>
+<script src="notation.js?v=48"></script>
+<script src="guitar.js?v=48"></script>
 <script>
 'use strict';
 // ---------- Grundlagen ----------
@@ -966,7 +966,8 @@ function songView() {
   const teacher = S.role === 'teacher' && !S.preview;
   return `<div class="wrap" style="max-width:720px;align-items:stretch">
     <div class="row between"><button class="btn small" data-act="close">Zurück</button>${S.role === 'student' ? `<button class="btn small ${mine ? '' : 'primary'}" data-act="mySong" data-id="${esc(d.song.id)}">${mine ? 'In meiner Setlist ✓' : 'Zu meiner Setlist'}</button>` : ''}</div>
-    <div class="col" style="gap:4px"><h1>${esc(d.song.title)}</h1><span class="muted">${esc(x ? songMeta({ ...x, parts: 0 }) : '')}</span></div>
+    <div class="col" style="gap:4px"><h1>${esc(d.song.title)}</h1><span class="muted">${esc(x ? songMeta({ ...x, parts: 0 }) : '')}</span>
+      ${teacher ? `<form id="songBpmForm" class="row" style="gap:8px;flex-wrap:nowrap;align-items:center"><label for="sb_bpm" class="small">Original Tempo</label><input id="sb_bpm" inputmode="numeric" style="width:80px;min-height:40px;text-align:center" value="${d.song.bpm || ''}" placeholder="BPM"><button class="btn small" type="submit">Speichern</button>${d.song.bpm_source ? `<span class="small muted">Quelle: ${esc(d.song.bpm_source)}</span>` : ''}</form>` : d.song.bpm ? `<span class="small muted">Original Tempo ${d.song.bpm} BPM</span>` : ''}</div>
     ${songLinksSection(d, teacher)}
     ${teacher && d.playedBy && d.playedBy.length ? `<p class="small muted">Gespielt von: ${d.playedBy.map(esc).join(', ')}</p>` : ''}
     <section class="col"><h2>Bausteine</h2>
@@ -1808,6 +1809,9 @@ document.addEventListener('submit', async (ev) => {
       await api('/api/t/song/part/save', { song_id: S.song.song.id, title, url: $('#pt_url').value.trim() || null, notes: $('#pt_notes').value.trim() || null, notation: S.nt && S.nt.pt ? S.nt.pt : null });
       DrumNotation.stop(); if (S.nt) delete S.nt.pt; S.pt = null;
       S.song = await api('/api/song', { id: S.song.song.id }); S.songs = await api('/api/songs'); openOverlay(songView); toast('Baustein gespeichert');
+    } else if (fid === 'songBpmForm') {
+      await api('/api/t/song/bpm', { song_id: S.song.song.id, bpm: Number($('#sb_bpm').value) || null, source: 'Oti' });
+      S.song = await api('/api/song', { id: S.song.song.id }); S.songs = await api('/api/songs'); rerenderSong(); toast('Tempo gespeichert, gilt für alle Hausaufgaben mit diesem Song');
     } else if (fid === 'partEditForm') {
       await api('/api/t/song/part/update', { id: S.partEdit, title: $('#pe_title').value.trim(), url: $('#pe_url').value.trim() || null, notes: $('#pe_notes').value.trim() || null, notation: S.nt && S.nt.pe ? S.nt.pe : null });
       DrumNotation.stop(); S.partEdit = null; if (S.nt) delete S.nt.pe;

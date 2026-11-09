@@ -127,7 +127,7 @@ async function studentView(s, studentId, role) {
   const [assignments, sessions, goals, lessons, consent] = await Promise.all([
     s.all(`SELECT a.id, a.exercise_id, a.free_text, CASE WHEN ap.part_id IS NULL AND sb.bpm IS NOT NULL THEN sb.bpm ELSE a.target_bpm END AS target_bpm, sb.bpm AS song_bpm, a.start_bpm, a.minutes_per_day, a.due_date, a.status, a.done_at, a.created_at,
              COALESCE(e.title, psg.title || ': ' || sp.title) AS title, e.category, e.source_type, COALESCE(e.url, sp.url) AS url, e.book_ref, COALESCE(sp.notes, e.notes) AS exercise_notes, COALESCE(spn.notation, e.notation) AS notation, c.student_done_at, x.song_id, x.version AS song_version, ap.part_id
-           FROM assignments a LEFT JOIN exercises e ON e.id = a.exercise_id LEFT JOIN assignment_checks c ON c.assignment_id = a.id LEFT JOIN assignment_songs x ON x.assignment_id = a.id LEFT JOIN assignment_order o ON o.assignment_id = a.id LEFT JOIN assignment_parts ap ON ap.assignment_id = a.id LEFT JOIN song_parts sp ON sp.id = ap.part_id LEFT JOIN songs psg ON psg.id = sp.song_id LEFT JOIN song_part_notation spn ON spn.part_id = ap.part_id LEFT JOIN (SELECT song_id, MAX(bpm) AS bpm FROM song_files GROUP BY song_id) sb ON sb.song_id = x.song_id
+           FROM assignments a LEFT JOIN exercises e ON e.id = a.exercise_id LEFT JOIN assignment_checks c ON c.assignment_id = a.id LEFT JOIN assignment_songs x ON x.assignment_id = a.id LEFT JOIN assignment_order o ON o.assignment_id = a.id LEFT JOIN assignment_parts ap ON ap.assignment_id = a.id LEFT JOIN song_parts sp ON sp.id = ap.part_id LEFT JOIN songs psg ON psg.id = sp.song_id LEFT JOIN song_part_notation spn ON spn.part_id = ap.part_id LEFT JOIN (SELECT s0.id AS song_id, COALESCE((SELECT bpm FROM song_meta WHERE song_id = s0.id), (SELECT MAX(bpm) FROM song_files WHERE song_id = s0.id)) AS bpm FROM songs s0) sb ON sb.song_id = x.song_id
            WHERE a.student_id = ? AND (a.status = 'offen' OR a.done_at > ?) ORDER BY (o.sort IS NULL) DESC, o.sort, a.created_at DESC`, studentId, new Date(Date.now() - 21 * DAY).toISOString()),
     s.all(`SELECT id, client_id, assignment_id, exercise_id, started_at, local_date, seconds, bpm_reached, feeling, note
            FROM practice_sessions WHERE student_id = ? AND started_at > ? ORDER BY started_at DESC`, studentId, since),
@@ -204,7 +204,7 @@ async function teacherStudent(s, id) {
   const [lessons, assignments, sessions, goals, access, consents] = await Promise.all([
     s.all('SELECT * FROM lessons WHERE student_id = ? ORDER BY date DESC', id),
     s.all(`SELECT a.*, CASE WHEN ap.part_id IS NULL AND sb.bpm IS NOT NULL THEN sb.bpm ELSE a.target_bpm END AS eff_target, sb.bpm AS song_bpm, COALESCE(e.title, psg.title || ': ' || sp.title) AS title, e.category, e.source_type, COALESCE(e.url, sp.url) AS url, e.book_ref, COALESCE(spn.notation, e.notation) AS notation, e.archived AS ex_archived, c.student_done_at, x.song_id, x.version AS song_version, ap.part_id, sp.title AS part_title FROM assignments a LEFT JOIN exercises e ON e.id = a.exercise_id
-           LEFT JOIN assignment_checks c ON c.assignment_id = a.id LEFT JOIN assignment_songs x ON x.assignment_id = a.id LEFT JOIN assignment_order o ON o.assignment_id = a.id LEFT JOIN assignment_parts ap ON ap.assignment_id = a.id LEFT JOIN song_parts sp ON sp.id = ap.part_id LEFT JOIN songs psg ON psg.id = sp.song_id LEFT JOIN song_part_notation spn ON spn.part_id = ap.part_id LEFT JOIN (SELECT song_id, MAX(bpm) AS bpm FROM song_files GROUP BY song_id) sb ON sb.song_id = x.song_id
+           LEFT JOIN assignment_checks c ON c.assignment_id = a.id LEFT JOIN assignment_songs x ON x.assignment_id = a.id LEFT JOIN assignment_order o ON o.assignment_id = a.id LEFT JOIN assignment_parts ap ON ap.assignment_id = a.id LEFT JOIN song_parts sp ON sp.id = ap.part_id LEFT JOIN songs psg ON psg.id = sp.song_id LEFT JOIN song_part_notation spn ON spn.part_id = ap.part_id LEFT JOIN (SELECT s0.id AS song_id, COALESCE((SELECT bpm FROM song_meta WHERE song_id = s0.id), (SELECT MAX(bpm) FROM song_files WHERE song_id = s0.id)) AS bpm FROM songs s0) sb ON sb.song_id = x.song_id
            WHERE a.student_id = ? ORDER BY (o.sort IS NULL) DESC, o.sort, a.created_at DESC LIMIT 200`, id),
     s.all('SELECT id, assignment_id, exercise_id, started_at, local_date, seconds, bpm_reached, feeling, note FROM practice_sessions WHERE student_id = ? ORDER BY started_at DESC LIMIT 400', id),
     s.all('SELECT * FROM goals WHERE student_id = ? ORDER BY created_at', id),
@@ -713,6 +713,14 @@ async function route(env, req, path, body) {
       if (nt) ops.push(['INSERT INTO song_part_notation (part_id, notation) VALUES (?, ?)', [id, nt]]);
       await s.batch(ops);
       return { id };
+    }
+    case '/api/t/song/bpm': {
+      const sg = await s.first('SELECT id, title FROM songs WHERE id = ?', String(body.song_id || ''));
+      if (!sg) throw new HttpError(404, 'Song nicht gefunden.');
+      const bpm = int(body.bpm, 30, 300);
+      await s.batch([bpm ? ['INSERT INTO song_meta (song_id, bpm, bpm_source) VALUES (?, ?, ?) ON CONFLICT(song_id) DO UPDATE SET bpm = excluded.bpm, bpm_source = excluded.bpm_source', [sg.id, bpm, str(body.source, 200) || 'Oti']] : ['DELETE FROM song_meta WHERE song_id = ?', [sg.id]],
+        logRow(who, 'update', 'songs', sg.id, 'BPM ' + (bpm || 'gelöscht'))]);
+      return { ok: true };
     }
     case '/api/t/song/part/update': {
       const p = await s.first('SELECT id FROM song_parts WHERE id = ?', String(body.id || ''));
