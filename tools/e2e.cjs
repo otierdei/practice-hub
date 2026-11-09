@@ -44,7 +44,7 @@ let n = 0; const ok = (m) => console.log('ok ' + (++n) + ' ' + m);
   await t.click('[data-act=close]'); await t.click('[data-tab=heute]');
   await t.getByText('Gerade dran').waitFor(); ok('Heute zeigt Jonas als gerade dran');
   await t.click('section[aria-label="Gerade dran"] [data-act=lesson]');
-  await t.getByText('Neue Hausaufgaben').waitFor();
+  await t.getByText('Hausaufgabe hinzufügen').waitFor();
   assert.equal(await t.inputValue('#a_from'), '45'); assert.equal(await t.inputValue('#a_bpm'), '100');
   await t.selectOption('#a_ex', { label: 'Grooves: Paradiddle Groove' });
   assert.equal(await t.inputValue('#a_from'), '45'); assert.equal(await t.inputValue('#a_bpm'), '96'); ok('Tempo Standard 45 bis 100, eigenes Ziel der Übung gilt');
