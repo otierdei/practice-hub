@@ -50,6 +50,8 @@ let n = 0; const ok = (m) => console.log('ok ' + (++n) + ' ' + m);
   assert.equal(await t.inputValue('#a_from'), '45'); assert.equal(await t.inputValue('#a_bpm'), '96'); ok('Tempo Standard 45 bis 100, eigenes Ziel der Übung gilt');
   await t.fill('#a_min', '15'); await t.click('#assignForm button[type=submit]');
   await t.fill('#a_free', 'Heilige Braut, Strophe mitspielen'); await t.click('#assignForm button[type=submit]');
+  await t.click('[data-act=newAsgOpen][data-i="1"]'); await t.fill('#na_from', '50'); await t.fill('#na_to', '80'); await t.fill('#na_text', 'Heilige Braut, Strophe und Refrain'); await t.click('[data-act=newAsgSave]');
+  await t.getByText('Heilige Braut, Strophe und Refrain').waitFor(); assert.match(await t.textContent('.item:has-text("Strophe und Refrain")'), /50 bis 80 BPM/); ok('Neue Hausaufgabe antippen und vor dem Speichern ändern');
   await t.fill('#g_title', 'Groove sauber auf 96'); await t.click('#goalForm button[type=submit]');
   await t.fill('#l_shared', 'Hi Hat locker lassen.'); await t.fill('#l_priv', 'Wirkte müde');
   // Entwurf überlebt Neuladen
