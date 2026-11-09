@@ -186,8 +186,8 @@ details.card summary{cursor:pointer;font-family:var(--display);font-size:1.08rem
 </head>
 <body>
 <div id="app"><div class="wrap"><p class="muted">Lädt …</p></div></div>
-<script src="notation.js?v=35"></script>
-<script src="guitar.js?v=35"></script>
+<script src="notation.js?v=36"></script>
+<script src="guitar.js?v=36"></script>
 <script>
 'use strict';
 // ---------- Grundlagen ----------
@@ -378,6 +378,33 @@ function currentStudent() {
   return list.find((s) => { const t = toMin(s.lesson_time); return t != null && n >= t - 10 && n < t + (s.lesson_minutes || 45); })
     || list.find((s) => (toMin(s.lesson_time) || 0) > n) || null;
 }
+// Bibliothek: Hauptkategorien, Suche, Kurs nach Lektionen
+const LIB_ORDER = ['Aufwärmen', 'Grooves', 'Eigene Beats', 'Fills', 'Beat + Fill', 'Rudiments', 'Technik', 'Build', 'Lesen', 'Worship Songs', 'Gitarre', 'Kurs'];
+const libMain = (e) => (/^Kurs L\d+/.test(e.category || '') ? 'Kurs' : e.category || 'Ohne Kategorie');
+function libMatch(e, q) { if (!q) return true; const h = [e.title, e.category, e.notes, e.book_ref].join(' ').toLowerCase(); return q.toLowerCase().split(/\s+/).filter(Boolean).every((w) => h.includes(w)); }
+function libMains(ex) { const set = [...new Set(ex.map(libMain))]; return set.sort((a, b) => ((LIB_ORDER.indexOf(a) + 1) || 99) - ((LIB_ORDER.indexOf(b) + 1) || 99) || a.localeCompare(b, 'de')); }
+function libCatsHTML(ex) {
+  const hits = ex.filter((e) => libMatch(e, S.libQ)); const cur = S.libCat || '';
+  return [`<button type="button" class="chip" data-act="libCat" data-v="" aria-pressed="${!cur}">Alle ${hits.length}</button>`].concat(libMains(ex).map((m) => { const n = hits.filter((e) => libMain(e) === m).length; return `<button type="button" class="chip" data-act="libCat" data-v="${esc(m)}" aria-pressed="${cur === m}" ${n ? '' : 'disabled'}>${esc(m)} ${n}</button>`; })).join('');
+}
+function libItem(e) { return `<div class="item" style="flex-direction:column;align-items:stretch"><button class="link t" data-act="editExercise" data-id="${e.id}"><b>${esc(e.title)}</b><br><span class="muted small">${esc(sourceLabel(e))}${e.target_bpm ? ' · Ziel ' + e.target_bpm + ' BPM' : ''}</span></button>${notationPreview(e.notation, e.title)}</div>`; }
+function libListHTML(ex) {
+  const q = S.libQ || '', hits = ex.filter((e) => libMatch(e, q) && (!S.libCat || libMain(e) === S.libCat));
+  if (!hits.length) return `<div class="empty">Nichts gefunden${q ? ' für „' + esc(q) + '“' : ''}.</div>`;
+  const open = !!(q || S.libCat);
+  return libMains(hits).map((m) => {
+    const list = hits.filter((e) => libMain(e) === m).sort((a, b) => a.title.localeCompare(b.title, 'de', { numeric: true }));
+    let body;
+    if (m === 'Kurs') {
+      const subs = [...new Set(list.map((e) => e.category))].sort((a, b) => Number(a.replace(/\D/g, '')) - Number(b.replace(/\D/g, '')));
+      body = subs.map((sc) => `<h4 style="margin:10px 0 0">Lektion ${esc(sc.replace(/^Kurs L/, ''))}</h4><div class="list">${list.filter((e) => e.category === sc).map(libItem).join('')}</div>`).join('');
+    } else body = `<div class="list">${list.map(libItem).join('')}</div>`;
+    return `<details class="card" ${open || (S.libOpen || []).includes(m) ? 'open' : ''} data-lib="${esc(m)}"><summary><h3 style="display:inline">${esc(m)}</h3> <span class="small muted">${list.length}</span></summary>${body}</details>`;
+  }).join('');
+}
+function libRefresh() { const ex = S.exercises || []; const l = $('#libList'), c = $('#libCats'); if (l) l.innerHTML = libListHTML(ex); if (c) c.innerHTML = libCatsHTML(ex); }
+document.addEventListener('input', (ev) => { if (ev.target.id === 'libQ') { S.libQ = ev.target.value; libRefresh(); } });
+document.addEventListener('toggle', (ev) => { const m = ev.target.dataset && ev.target.dataset.lib; if (m == null || S.libQ || S.libCat) return; S.libOpen = (S.libOpen || []).filter((x) => x !== m).concat(ev.target.open ? [m] : []); }, true);
 function teacherView() {
   const t = S.tab;
   let html = '';
@@ -402,10 +429,9 @@ function teacherView() {
     html = songsTab(true);
   } else if (t === 'bibliothek') {
     const ex = S.exercises || [];
-    const cats = [...new Set(ex.map((e) => e.category || 'Ohne Kategorie'))];
     html = `<div class="row between"><h1>Bibliothek</h1><div class="row"><button class="btn primary small" data-act="course">Schlagzeug Kurs</button><button class="btn small" data-act="newBeat">Beat schreiben</button><button class="btn small" data-act="newGuitar">Gitarre schreiben</button><button class="btn primary small" data-act="newExercise">Übung anlegen</button></div></div>
-    ${ex.length ? cats.map((c) => `<section class="card"><h3>${esc(c)}</h3><div class="list">${ex.filter((e) => (e.category || 'Ohne Kategorie') === c).map((e) =>
-      `<div class="item" style="flex-direction:column;align-items:stretch"><button class="link t" data-act="editExercise" data-id="${e.id}"><b>${esc(e.title)}</b><br><span class="muted small">${esc(sourceLabel(e))}${e.target_bpm ? ' · Ziel ' + e.target_bpm + ' BPM' : ''}</span></button>${notationPreview(e.notation, e.title)}</div>`).join('')}</div></section>`).join('')
+    ${ex.length ? `<div class="field"><label for="libQ" class="hidden">Bibliothek durchsuchen</label><input id="libQ" type="search" placeholder="Suchen: Titel, Kategorie, Hinweis" value="${esc(S.libQ || '')}" autocomplete="off"></div>
+    <div class="row" style="gap:6px" id="libCats">${libCatsHTML(ex)}</div><div class="col" style="gap:12px" id="libList">${libListHTML(ex)}</div>`
       : `<div class="empty">Noch keine Übungen. Lege Grooves, Fills, Rudiments oder Worship Songs mit Link oder Buchseite an.</div>`}`;
   } else {
     html = `<h1>Mehr</h1>
@@ -1521,6 +1547,7 @@ document.addEventListener('click', async (ev) => {
       case 'startStop': { const r = store.get('run'); if (r.runningSince) { r.accumulated += Date.now() - r.runningSince; r.runningSince = null; releaseWake(); } else { r.runningSince = Date.now(); requestWake(); } store.set('run', r); render(); break; }
       case 'bpm': setBpm(MET.bpm + Number(el.dataset.d)); break;
       case 'tap': tapTempo(); break;
+      case 'libCat': S.libCat = el.dataset.v || ''; libRefresh(); break;
       case 'metAcc': { const s = metSet(), k = Number(el.dataset.i); s.accents[k] = (s.accents[k] + 2) % 3; saveMetSet(s); el.className = 'met-dot acc' + s.accents[k]; el.setAttribute('aria-label', 'Schlag ' + (k + 1) + ': ' + ['stumm', 'normal', 'betont'][s.accents[k]]); break; }
       case 'metSub': { const s = metSet(); s.sub = Number(el.dataset.v); saveMetSet(s); document.querySelectorAll('[data-act=metSub]').forEach((b) => b.setAttribute('aria-pressed', String(b === el))); break; }
       case 'trkReset': TRK.ms = 0; TRK.bars = 0; TRK.since = MET.playing || DrumNotation.isPlaying() ? performance.now() : 0; { const k = $('#trk'); if (k) k.textContent = trkText(); } break;
@@ -1637,7 +1664,7 @@ document.addEventListener('submit', async (ev) => {
       const data = Object.fromEntries(new FormData(f)); if (!data.id) delete data.id;
       for (const k of Object.keys(data)) if (k.startsWith('nt_')) delete data[k];
       data.notation = S.gt && S.gt.gx ? S.gt.gx : S.nt && S.nt.ex ? S.nt.ex : null; DrumNotation.stop(); Guitar.stop();
-      await api('/api/t/exercise/save', data); S.exercises = (await api('/api/t/exercises')).exercises; closeOverlay(); toast('Gespeichert');
+      await api('/api/t/exercise/save', data); S.exercises = (await api('/api/t/exercises')).exercises; S.libOpen = (S.libOpen || []).concat(libMain({ category: data.category })); closeOverlay(); toast('Gespeichert');
     } else if (fid === 'assignForm') {
       const songTitle = $('#a_song') ? $('#a_song').value.trim() : '';
       if (songTitle) {

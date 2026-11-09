@@ -176,6 +176,10 @@ let n = 0; const ok = (m) => console.log('ok ' + (++n) + ' ' + m);
   await s.click('[data-act=minimize]');
 
   // Song Chart: Teile und Wiederholungstakte
+  await t.click('[data-tab=bibliothek]'); await t.fill('#libQ', 'rock'); await t.waitForTimeout(100);
+  assert.equal(await t.locator('#libList details[open] .item').count(), 1); assert.ok(await t.locator('#libList').textContent().then((x) => x.includes('Rock Beat 1')));
+  await t.fill('#libQ', ''); await t.click('[data-act=libCat][data-v="Grooves"]'); assert.ok(await t.locator('#libList details').count() === 1);
+  await t.click('[data-act=libCat][data-v=""]'); ok('Bibliothek: Suche und Kategorien');
   await t.click('[data-tab=bibliothek]'); await t.click('[data-act=newBeat]'); await t.fill('#e_title', 'Song Chart Test');
   await t.selectOption('#ex-bars', '8'); await t.click('[data-nt-bar="4"]'); await t.fill('#ex-mark', 'Refrain'); await t.press('#ex-mark', 'Tab');
   await t.click('[data-nt-bar="4"]'); await t.uncheck('[data-nt-ctl=repeat]'); await t.click('.nt-cell[data-k=cr][data-i="64"]');
