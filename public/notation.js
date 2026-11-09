@@ -200,13 +200,14 @@
   // Echte Samples aus Otis Bibliothek: Kick, Snare (Mystery Snare Dry), Toms, Crash, HiHat. Ride: VCSL Becken mit Stock (CC0, Versilian Studios).
   const SAMPLE = { bd: 0.95, sn: 0.8, gh: 0.18, t1: 0.75, t2: 0.75, ft: 0.8, cr: 0.45, hh: 0.45, ho: 0.45, hf: 0.3, rd: 0.4 };
   const SRC = { gh: 'sn', hf: 'hh' };
-  const BUF = {}; let loading = null;
+  const BUF = {}; let loading = null, samplesReady = false;
   // Gleiche Versionsnummer wie notation.js?v=…, damit neue Samples nach Updates sicher geladen werden
   const VER = (() => { const s = document.querySelector('script[src*="notation.js"]'); const m = s && /\?v=\d+/.exec(s.getAttribute('src')); return m ? m[0] : ''; })();
   function loadSamples() {
     if (loading || !ctx || typeof fetch !== 'function') return loading;
     loading = Promise.all(['bd', 'sn', 't1', 't2', 'ft', 'cr', 'hh', 'ho', 'rd'].map((k) => fetch(new URL('samples/' + k + '.mp3' + VER, location.href)).then((r) => (r.ok ? r.arrayBuffer() : null))
-      .then((ab) => ab && new Promise((ok) => ctx.decodeAudioData(ab, ok, () => ok(null)))).then((b) => { if (b) BUF[k] = b; }).catch(() => {})));
+      .then((ab) => ab && new Promise((ok) => ctx.decodeAudioData(ab, ok, () => ok(null)))).then((b) => { if (b) BUF[k] = b; }).catch(() => {})))
+      .then(() => { samplesReady = true; });
     return loading;
   }
   function sample(k, t) {
@@ -239,13 +240,15 @@
   function play(n, bpm, onStep, opts = {}) {
     stop(); audio();
     Object.assign(P, { n, bpm: bpm || n.bpm || 80, onStep, playing: true, step: 0, queue: [], mute: new Set(opts.mute || []), trainer: opts.trainer || null, onTempo: opts.onTempo || null });
-    P.next = ctx.currentTime + 0.08;
-    P.timer = setInterval(schedule, 25); requestAnimationFrame(draw);
+    const token = P.token = (P.token || 0) + 1;
+    const go = () => { if (!P.playing || P.token !== token) return; P.next = ctx.currentTime + 0.08; P.timer = setInterval(schedule, 25); requestAnimationFrame(draw); };
+    // Erst starten, wenn die Samples da sind (höchstens 2 Sekunden warten), sonst klingt der erste Schlag synthetisch
+    if (samplesReady) go(); else Promise.race([loadSamples(), new Promise((ok) => setTimeout(ok, 2000))]).then(go);
   }
   function setTempo(bpm) { P.bpm = bpm; }
   function setMute(list) { P.mute = new Set(list || []); }
   function setTrainer(tr) { P.trainer = tr; }
-  function stop() { P.playing = false; clearInterval(P.timer); P.timer = null; if (P.onStep) P.onStep(-1); }
+  function stop() { P.token = (P.token || 0) + 1; P.playing = false; clearInterval(P.timer); P.timer = null; if (P.onStep) P.onStep(-1); }
   function schedule() {
     const n = P.n, steps = total(n), pb = perBar(n.sig);
     while (P.next < ctx.currentTime + 0.12) {
@@ -331,5 +334,7 @@
     </div>`;
   }
 
-  window.DrumNotation = { SIGS, ROWS, MAX_BARS, empty, parse, render, toggle, has, play, stop, setTempo, setMute, setTrainer, hit, editorHTML, cursorFor, total, perBar, setBars, usedKeys, isPlaying: () => P.playing, autoStick, audio, click, setClick, loadSamples: () => { audio(); return loadSamples(); } };
+  // Samples schon beim ersten Tippen irgendwo in der App vorladen
+  if (typeof document !== 'undefined') document.addEventListener('pointerdown', () => { try { audio(); loadSamples(); } catch (e) { /* ohne Audio */ } }, { once: true, capture: true });
+  window.DrumNotation = { SIGS, ROWS, MAX_BARS, empty, parse, render, toggle, has, play, stop, setTempo, setMute, setTrainer, hit, editorHTML, cursorFor, total, perBar, setBars, usedKeys, isPlaying: () => P.playing, samplesReady: () => samplesReady, autoStick, audio, click, setClick, loadSamples: () => { audio(); return loadSamples(); } };
 })();
