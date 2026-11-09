@@ -50,6 +50,12 @@ let n = 0; const ok = (m) => console.log('ok ' + (++n) + ' ' + m);
   assert.equal(await t.inputValue('#a_from'), '45'); assert.equal(await t.inputValue('#a_bpm'), '96'); ok('Tempo Standard 45 bis 100, eigenes Ziel der Übung gilt');
   await t.fill('#a_min', '15'); await t.click('#assignForm button[type=submit]');
   await t.fill('#a_free', 'Heilige Braut, Strophe mitspielen'); await t.click('#assignForm button[type=submit]');
+  { const items = t.locator('[data-sort="asg"] > [data-sort-id^="draft:"]'); const h = await items.nth(0).locator('[data-drag]').boundingBox(), l = await items.nth(1).boundingBox();
+    await t.mouse.move(h.x + 10, h.y + h.height / 2); await t.mouse.down(); await t.mouse.move(h.x + 10, l.y + l.height - 3, { steps: 8 }); await t.mouse.up(); await t.waitForTimeout(200);
+    assert.deepEqual(await t.evaluate(() => S.lesson.new_assignments.map((a) => a.label.slice(0, 7))), ['Heilige', 'Paradid']);
+    const h2 = await items.nth(0).locator('[data-drag]').boundingBox(), l2 = await items.nth(1).boundingBox();
+    await t.mouse.move(h2.x + 10, h2.y + h2.height / 2); await t.mouse.down(); await t.mouse.move(h2.x + 10, l2.y + l2.height - 3, { steps: 8 }); await t.mouse.up(); await t.waitForTimeout(200);
+    ok('Neue Hausaufgaben in der Stunde per Ziehen sortieren'); }
   await t.click('[data-act=newAsgOpen][data-i="1"]'); await t.fill('#na_from', '50'); await t.fill('#na_to', '80'); await t.fill('#na_text', 'Heilige Braut, Strophe und Refrain'); await t.click('[data-act=newAsgSave]');
   await t.getByText('Heilige Braut, Strophe und Refrain').waitFor(); assert.match(await t.textContent('.item:has-text("Strophe und Refrain")'), /50 bis 80 BPM/); ok('Neue Hausaufgabe antippen und vor dem Speichern ändern');
   await t.fill('#g_title', 'Groove sauber auf 96'); await t.click('#goalForm button[type=submit]');

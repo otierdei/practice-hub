@@ -433,6 +433,13 @@ export function mergeNotes(a, b) {
   return (add.length ? a + '\n' + add.join('\n') : a).slice(0, 3000);
 }
 
+// Neue Hausaufgaben hinten anhängen: aktuelle Anzeige Reihenfolge festschreiben, dann die neuen in ihrer Reihenfolge dahinter
+async function orderAppend(s, studentId, newIds) {
+  if (!newIds.length) return [];
+  const rows = await s.all("SELECT a.id FROM assignments a LEFT JOIN assignment_order o ON o.assignment_id = a.id WHERE a.student_id = ? AND a.status = 'offen' ORDER BY (o.sort IS NULL) DESC, o.sort, a.created_at DESC", studentId);
+  return rows.map((x) => x.id).filter((x) => !newIds.includes(x)).concat(newIds)
+    .map((x, i) => ['INSERT INTO assignment_order (assignment_id, sort) VALUES (?, ?) ON CONFLICT(assignment_id) DO UPDATE SET sort = excluded.sort', [x, i]]);
+}
 async function finishLesson(s, who, b) {
   const st = await s.first('SELECT id, first_name FROM students WHERE id = ?', b.student_id);
   if (!st) throw new HttpError(404, 'Schüler nicht gefunden.');
@@ -452,6 +459,7 @@ async function finishLesson(s, who, b) {
   const openSongs = new Set(openRows.filter((r) => !closing.has(r.id) && r.song_id).map((r) => r.song_id));
   const openEx = new Set(openRows.filter((r) => !closing.has(r.id) && r.exercise_id).map((r) => r.exercise_id));
   const openFt = new Set(openRows.filter((r) => !closing.has(r.id) && r.ft).map((r) => r.ft));
+  const newIds = [];
   for (const a of (Array.isArray(b.new_assignments) ? b.new_assignments : []).slice(0, 20)) {
     let exId = str(a.exercise_id, 64);
     if (exId && !(await s.first('SELECT id FROM exercises WHERE id = ?', exId))) exId = null;
@@ -478,7 +486,7 @@ async function finishLesson(s, who, b) {
       exId = uid();
       stmts.push(['INSERT INTO exercises (id, title, category, source_type, url, archived, created_at) VALUES (?, ?, ?, ?, ?, 1, ?)', [exId, free.slice(0, 120), 'Hausaufgaben', sourceFor(link), link, t]]);
     }
-    const aid = uid();
+    const aid = uid(); newIds.push(aid);
     if (song) stmts.push(['INSERT INTO assignment_songs (assignment_id, song_id, version) VALUES (?, ?, ?)', [aid, song.id, str(a.version, 40)]]);
     stmts.push(['INSERT INTO assignments (id, student_id, lesson_id, exercise_id, free_text, target_bpm, start_bpm, minutes_per_day, due_date, status, created_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)',
       [aid, st.id, lessonId, exId, free, int(a.target_bpm, 20, 400), int(a.start_bpm, 20, 400), int(a.minutes_per_day, 1, 240), isDate(a.due_date) ? a.due_date : null, 'offen', t]]);
@@ -495,6 +503,7 @@ async function finishLesson(s, who, b) {
   }
   stmts.push(logRow(who, 'lesson', 'lessons', lessonId, `Stunde mit ${st.first_name}${same ? ' (ergänzt)' : ''}`));
   await s.batch(stmts);
+  const ord = await orderAppend(s, st.id, newIds); if (ord.length) await s.batch(ord);
   return { id: lessonId, merged: !!same, skipped };
 }
 
@@ -763,7 +772,8 @@ async function route(env, req, path, body) {
       if (part) ops.push(['INSERT INTO assignment_songs (assignment_id, song_id, version) VALUES (?, ?, ?)', [aid, part.song_id, str(body.version, 40)]], ['INSERT INTO assignment_parts (assignment_id, part_id) VALUES (?, ?)', [aid, part.id]]);
       ops.push(['INSERT INTO assignments (id, student_id, lesson_id, exercise_id, free_text, target_bpm, start_bpm, minutes_per_day, due_date, status, created_at) VALUES (?, ?, NULL, ?, ?, ?, ?, ?, ?, ?, ?)',
         [aid, st.id, exId, title, int(body.target_bpm, 20, 400), int(body.start_bpm, 20, 400), int(body.minutes_per_day, 1, 240) || 10, isDate(body.due_date) ? body.due_date : null, 'offen', t]]);
-      ops.push(logRow(who, 'create', 'assignments', aid, title)); await s.batch(ops); return { id: aid };
+      ops.push(logRow(who, 'create', 'assignments', aid, title)); await s.batch(ops);
+      const ord = await orderAppend(s, st.id, [aid]); if (ord.length) await s.batch(ord); return { id: aid };
     }
     case '/api/t/assignments/reorder': {
       // Reihenfolge der offenen Hausaufgaben eines Schülers festlegen

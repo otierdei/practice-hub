@@ -554,3 +554,13 @@ test('Song Hausaufgabe: Ziel Tempo ist immer das Original BPM des Songs', async 
   const s = (await w.call('/api/home', {}, w.tb)).data.assignments.find((a) => a.song_id === sid);
   assert.equal(t.target_bpm, 74); assert.equal(s.target_bpm, 74); assert.equal(s.song_bpm, 74);
 });
+
+test('Neue Hausaufgaben kommen hinten an, in der Reihenfolge der Stunde', async () => {
+  const w = await world();
+  const before = (await w.call('/api/home', {}, w.tb)).data.assignments.filter((a) => a.status === 'offen').map((a) => a.id);
+  await w.call('/api/t/lesson/finish', { student_id: w.b, date: '2026-10-08', new_assignments: [{ free_text: 'Neu A' }, { free_text: 'Neu B' }] }, w.t);
+  await w.call('/api/t/assignment/add', { student_id: w.b, free_text: 'Neu C' }, w.t);
+  const now = (await w.call('/api/home', {}, w.tb)).data.assignments.filter((a) => a.status === 'offen');
+  assert.deepEqual(now.slice(0, before.length).map((a) => a.id), before, 'alte bleiben vorne');
+  assert.deepEqual(now.slice(before.length).map((a) => a.free_text), ['Neu A', 'Neu B', 'Neu C']);
+});
