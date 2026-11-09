@@ -504,4 +504,5 @@ test('App Skripte tragen die Version des Service Worker Caches', async () => {
     assert.ok(html.includes(`src="${f}?v=${v}"`), f + ' in index.html mit ?v=' + v);
     assert.ok(sw.includes(`'${f}?v=${v}'`), f + ' im Cache mit ?v=' + v);
   }
+  for (const k of ['bd', 'sn', 't1', 't2', 'ft', 'cr', 'hh', 'ho', 'rd']) assert.ok(sw.includes(`'samples/${k}.mp3?v=${v}'`), k + ' Sample im Cache mit ?v=' + v);
 });

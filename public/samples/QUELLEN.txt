@@ -1,4 +1,4 @@
 Drum Samples in Practice Hub
-bd, sn, t1, t2, ft, cr: Drum Essentials Vol 1 (Otis Bibliothek, Lizenz laut Oti für die App freigegeben)
+bd (Gretsch 22 Kick Dry), sn (Mystery Snare Dry), t1, t2, ft (Pearl Toms Dry), cr (Full Crash): Drum Essentials Vol 1 (Otis Bibliothek, Lizenz laut Oti für die App freigegeben)
 hh, ho: Otis Drum Sample Ordner (Lizenz laut Oti freigegeben)
 rd: Versilian Community Sample Library (VCSL), susCymb2_hit_stick_mp1, CC0 1.0, https://github.com/sgossner/VCSL
