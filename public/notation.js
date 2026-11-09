@@ -197,13 +197,13 @@
     t2: (t) => tone(t, 200, 140, 0.25, 0.6),
     ft: (t) => tone(t, 130, 85, 0.35, 0.7),
   };
-  // Echte Samples aus Otis Bibliothek: Kick, Snare, Toms, Crash, HiHat. Nur das Ride bleibt synthetisch.
-  const SAMPLE = { bd: 0.95, sn: 0.8, gh: 0.18, t1: 0.75, t2: 0.75, ft: 0.8, cr: 0.45, hh: 0.45, ho: 0.45, hf: 0.3 };
+  // Echte Samples aus Otis Bibliothek: Kick, Snare, Toms, Crash, HiHat. Ride: VCSL Becken mit Stock (CC0, Versilian Studios).
+  const SAMPLE = { bd: 0.95, sn: 0.8, gh: 0.18, t1: 0.75, t2: 0.75, ft: 0.8, cr: 0.45, hh: 0.45, ho: 0.45, hf: 0.3, rd: 0.4 };
   const SRC = { gh: 'sn', hf: 'hh' };
   const BUF = {}; let loading = null;
   function loadSamples() {
     if (loading || !ctx || typeof fetch !== 'function') return loading;
-    loading = Promise.all(['bd', 'sn', 't1', 't2', 'ft', 'cr', 'hh', 'ho'].map((k) => fetch(new URL('samples/' + k + '.mp3', location.href)).then((r) => (r.ok ? r.arrayBuffer() : null))
+    loading = Promise.all(['bd', 'sn', 't1', 't2', 'ft', 'cr', 'hh', 'ho', 'rd'].map((k) => fetch(new URL('samples/' + k + '.mp3', location.href)).then((r) => (r.ok ? r.arrayBuffer() : null))
       .then((ab) => ab && new Promise((ok) => ctx.decodeAudioData(ab, ok, () => ok(null)))).then((b) => { if (b) BUF[k] = b; }).catch(() => {})));
     return loading;
   }
