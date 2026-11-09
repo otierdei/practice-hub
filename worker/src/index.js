@@ -323,9 +323,19 @@ async function revokeAccess(s, who, id) {
   return { ok: true };
 }
 
+// Namen in der Bibliothek sind eindeutig (Groß und Kleinschreibung und Leerzeichen egal)
+const normTitle = (t) => String(t || '').trim().replace(/\s+/g, ' ').toLowerCase();
+async function assertFreeTitle(s, title, exceptId = '') {
+  const want = normTitle(title);
+  const rows = await s.all('SELECT id, title FROM exercises WHERE archived = 0 AND id != ?', exceptId || '');
+  const hit = rows.find((r) => normTitle(r.title) === want);
+  if (hit) throw new HttpError(409, `Den Namen „${hit.title}“ gibt es schon in der Bibliothek. Bitte wähle einen anderen.`);
+}
+
 async function saveExercise(s, who, b) {
   const title = str(b.title, 120);
   if (!title) throw new HttpError(400, 'Titel fehlt.');
+  await assertFreeTitle(s, title, b.id);
   const notation = cleanNotation(b.notation);
   const sourceType = ['youtube', 'instagram', 'drive', 'buch', 'link', 'noten', 'musora'].includes(b.source_type) ? b.source_type : (notation ? 'noten' : b.url ? 'link' : 'buch');
   let url = str(b.url, 500);
@@ -455,6 +465,7 @@ async function finishLesson(s, who, b) {
     // Beat direkt in der Stunde geschrieben: eigene Übung mit Noten anlegen (Bibliothek nur auf Wunsch)
     const beat = !exId && a.notation ? cleanNotation(a.notation) : null;
     if (beat) {
+      if (a.save_library) await assertFreeTitle(s, (free || 'Beat').slice(0, 120));
       exId = uid();
       stmts.push(['INSERT INTO exercises (id, title, category, source_type, target_bpm, notation, archived, created_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?)',
         [exId, (free || 'Beat').slice(0, 120), a.save_library ? 'Eigene Beats' : 'Hausaufgaben', 'noten', int(a.target_bpm, 20, 400), beat, a.save_library ? 0 : 1, t]]);

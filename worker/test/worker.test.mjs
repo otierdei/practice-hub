@@ -437,3 +437,17 @@ test('Hausaufgabe bearbeiten: Tempo, Text, Noten nur bei eigener Übung', async 
   assert.equal(a.free_text, 'Beat Y'); assert.equal(a.start_bpm, 70); assert.equal(a.target_bpm, 100); assert.equal(a.minutes_per_day, 15);
   assert.deepEqual(JSON.parse(a.notation).tracks.sn, [0, 8]);
 });
+
+test('Bibliothek: kein Name doppelt, auch beim Beat aus der Stunde', async () => {
+  const w = await world();
+  const id = (await w.call('/api/t/exercise/save', { title: 'Beat 1', category: 'Grooves' }, w.t)).data.id;
+  let r = await w.call('/api/t/exercise/save', { title: '  beat   1 ', category: 'Fills' }, w.t);
+  assert.equal(r.status, 409); assert.match(r.data.error, /Beat 1/);
+  assert.equal((await w.call('/api/t/exercise/save', { id, title: 'Beat 1', category: 'Grooves', target_bpm: 90 }, w.t)).status, 200);
+  const beat = { v: 2, sig: '4/4', bars: 1, bpm: 60, tracks: { sn: [0] } };
+  r = await w.call('/api/t/lesson/finish', { student_id: w.b, date: '2026-10-05', new_assignments: [{ free_text: 'Beat 1', notation: beat, save_library: true }] }, w.t);
+  assert.equal(r.status, 409);
+  assert.equal((await w.call('/api/t/lesson/finish', { student_id: w.b, date: '2026-10-05', new_assignments: [{ free_text: 'Beat 1', notation: beat }] }, w.t)).status, 200);
+  await w.call('/api/t/exercise/archive', { id }, w.t);
+  assert.equal((await w.call('/api/t/exercise/save', { title: 'Beat 1' }, w.t)).status, 200);
+});
