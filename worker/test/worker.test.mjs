@@ -494,3 +494,14 @@ test('Hausaufgabe ohne Stunde: Song Baustein mit Noten und Tempo', async () => {
   assert.equal(a.start_bpm, 50); assert.equal(a.target_bpm, 80); assert.equal(a.song_id, sid); assert.deepEqual(JSON.parse(a.notation).tracks.bd, [0, 4]);
   assert.equal((await w.call('/api/t/student', { id: w.b }, w.t)).data.lessons.length, before, 'keine Stunde angelegt');
 });
+
+test('App Skripte tragen die Version des Service Worker Caches', async () => {
+  const fs = await import('node:fs');
+  const html = fs.readFileSync(new URL('../../public/index.html', import.meta.url), 'utf8');
+  const sw = fs.readFileSync(new URL('../../public/sw.js', import.meta.url), 'utf8');
+  const v = sw.match(/ph-v(\d+)/)[1];
+  for (const f of ['notation.js', 'guitar.js']) {
+    assert.ok(html.includes(`src="${f}?v=${v}"`), f + ' in index.html mit ?v=' + v);
+    assert.ok(sw.includes(`'${f}?v=${v}'`), f + ' im Cache mit ?v=' + v);
+  }
+});
