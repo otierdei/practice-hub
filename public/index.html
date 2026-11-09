@@ -393,6 +393,7 @@ function studentRow(s, withTime) {
     <div class="row" style="flex-wrap:nowrap">${ring(s.days_7 / 7, 44, 5, 'var(--ring)', s.days_7 + ' von 7 Tagen geübt')}
     <div class="col" style="gap:0"><b>${esc(s.first_name)}${s.instrument === 'Gitarre' ? ' <span class="pill">Gitarre</span>' : ''}${s.status !== 'aktiv' ? ' <span class="muted small">(' + esc(s.status) + ')</span>' : ''}</b>
     <span class="muted small">${withTime ? esc(s.lesson_time || '') + ' · ' : (s.weekday ? WD[s.weekday] + ' ' + esc(s.lesson_time || '') + ' · ' : '')}${s.minutes_since} min seit letzter Stunde</span></div></div></button>
+    <button class="btn small" data-act="preview" data-id="${s.id}" aria-label="Schüleransicht von ${esc(s.first_name)}">Ansicht</button>
     ${withTime ? (cancelledToday(s.id) ? `<span class="col" style="gap:4px;align-items:flex-end"><span class="pill">${CANCEL[cancelledToday(s.id)]}</span><button class="btn small" data-act="cancelUndo" data-id="${s.id}">Zurücknehmen</button></span>` : `<button class="btn small" data-act="lesson" data-id="${s.id}">Starten</button>`) : consentPill(s)}</div>`;
 }
 function linkLabel(a) { return a.source_type === 'drive' ? 'Noten öffnen' : a.source_type === 'musora' ? 'In Musora öffnen' : a.source_type === 'youtube' || a.source_type === 'instagram' ? 'Video öffnen' : 'Link öffnen'; }
@@ -434,7 +435,7 @@ function studentFileView() {
     <section class="card col">${cancelButtons(st.id)}${(f.cancellations || []).length ? `<details><summary class="small muted">Absagen (${f.cancellations.length})</summary><div class="list">${f.cancellations.map((c) => `<div class="item"><span class="t">${esc(fmtDate(c.date))}</span><span class="small muted">${CANCEL[c.kind] || c.kind}</span></div>`).join('')}</div></details>` : ''}</section>
     <section class="card"><h3>Übezeit pro Woche</h3>${weeksCircles(f.sessions)}</section>
     <div class="grid2">
-      <section class="card"><h3>Offene Hausaufgaben</h3><div class="list">${open.length ? open.map((a) => `<div class="item" style="flex-wrap:wrap"><span class="t">${esc(a.title || a.free_text)}${a.target_bpm ? ' <span class="muted small">Ziel ' + a.target_bpm + '</span>' : ''}<br><span class="muted small">${practicedFor(a, f.sessions)}</span><br>${assignBadges(a)}</span>${a.url ? `<a class="btn small" href="${esc(a.url)}" target="_blank" rel="noopener">${linkLabel(a)}</a>` : ''}<button class="btn small" data-act="addLink" data-id="${a.id}">${a.url ? 'Link ändern' : 'Link hinzufügen'}</button>
+      <section class="card"><h3>Offene Hausaufgaben</h3><div class="list">${open.length ? open.map((a) => `<div class="item" style="flex-wrap:wrap"><span class="t"><button class="link" data-act="asgDetail" data-id="${a.id}"><b>${esc(a.title || a.free_text)}</b></button>${a.target_bpm ? ' <span class="muted small">Ziel ' + a.target_bpm + '</span>' : ''}<br><span class="muted small">${practicedFor(a, f.sessions)}</span><br>${assignBadges(a)}</span>${a.url ? `<a class="btn small" href="${esc(a.url)}" target="_blank" rel="noopener">${linkLabel(a)}</a>` : ''}<button class="btn small" data-act="addLink" data-id="${a.id}">${a.url ? 'Link ändern' : 'Link hinzufügen'}</button>
         <div id="lk_${a.id}" class="row hidden" style="width:100%;flex-wrap:nowrap"><input id="lki_${a.id}" type="url" inputmode="url" placeholder="YouTube Link einfügen" style="flex:1"><button class="btn small primary" data-act="saveLink" data-id="${a.id}">Speichern</button></div></div>`).join('') : '<p class="muted">Keine.</p>'}</div></section>
       <section class="card"><h3>Ziele</h3><div class="list">${f.goals.length ? f.goals.map((g) => `<div class="item"><span class="t">${esc(g.title)}</span><span class="pill">${g.status === 'erreicht' ? 'erreicht' : 'offen'}</span></div>`).join('') : '<p class="muted">Noch keine Ziele.</p>'}</div></section>
     </div>
@@ -542,6 +543,32 @@ function suggestBlock(f) {
   return `<section class="card"><h3>Vorschläge</h3><div class="list">${list.map((x) => `<div class="item"><span class="t col" style="gap:2px"><b>${esc(x.lesson ? 'Lektion ' + x.lesson.num + ': ' + x.lesson.title : x.e.title)}</b><span class="small muted">${esc(x.why)}</span></span>
     ${x.lesson ? `<button class="btn small" data-act="sugLesson" data-id="${x.lesson.id}">Aufgeben</button>` : `<button class="btn small" data-act="sugEx" data-id="${x.e.id}">Aufgeben</button>`}</div>`).join('')}</div></section>`;
 }
+function assignmentDetailView() {
+  const f = S.file, a = f && f.assignments.find((x) => x.id === S.asgId); if (!a) return '';
+  const ss = f.sessions.filter((x) => x.assignment_id === a.id);
+  const total = Math.round(ss.reduce((t, x) => t + x.seconds, 0) / 60), best = Math.max(0, ...ss.map((x) => x.bpm_reached || 0));
+  const last = ss.map((x) => x.local_date).sort().pop();
+  const n = a.notation ? DrumNotation.parse(a.notation) : null;
+  return `<div class="wrap" style="max-width:720px;align-items:stretch">
+    <div class="row between"><button class="btn small" data-act="asgBack">Zurück</button><span class="pill">${a.status === 'offen' ? 'offen' : 'erledigt'}</span></div>
+    <div class="col" style="gap:4px"><span class="muted">${esc(f.student.first_name)} · aufgegeben am ${esc(fmtDate(a.created_at))}</span><h1>${esc(a.title || a.free_text)}</h1>${assignBadges(a)}</div>
+    <section class="card"><div class="list">
+      <div class="item"><span class="t">Tempo</span><span>${a.start_bpm || '?'} bis ${a.target_bpm || '?'} BPM</span></div>
+      <div class="item"><span class="t">Pro Tag</span><span>${a.minutes_per_day || 10} min</span></div>
+      <div class="item"><span class="t">Geübt</span><span>${total} min${ss.length ? ' in ' + ss.length + ' Sitzungen' : ''}</span></div>
+      <div class="item"><span class="t">Bestes Tempo</span><span>${best ? best + ' BPM' : 'noch keins'}</span></div>
+      <div class="item"><span class="t">Zuletzt geübt</span><span>${last ? esc(fmtDate(last)) : 'noch nie'}</span></div>
+    </div></section>
+    ${a.exercise_notes ? `<p style="white-space:pre-line">${esc(a.exercise_notes)}</p>` : ''}
+    ${n ? `<div class="nt-staff" id="asg_staff">${DrumNotation.render(n, { cursor: true, label: 'Noten', barsPerLine: 1, stepWidth: Math.max(12, Math.min(22, Math.floor(270 / DrumNotation.perBar(n.sig)))) })}</div><button class="btn small" data-act="asgPlay">${S.asgPlaying ? 'Stopp' : 'Abspielen'}</button>` : notationPreview(a.notation, a.title || '')}
+    ${a.url ? (ytEmbed(a.url) || `<a class="btn small" href="${esc(a.url)}" target="_blank" rel="noopener">${linkLabel(a)}</a>`) : ''}
+    ${a.song_id ? `<button class="btn" data-act="song" data-id="${esc(a.song_id)}" data-v="${esc(a.song_version || '')}">Song öffnen${a.song_version ? ' · ' + esc(a.song_version) : ''}</button>` : ''}
+    <div class="row">
+      ${a.status === 'offen' ? `<button class="btn primary" data-act="asgClose" data-id="${a.id}">Als erledigt abhaken</button>` : `<button class="btn" data-act="asgReopen" data-id="${a.id}">Wieder öffnen</button>`}
+      <button class="btn danger" data-act="asgDelete" data-id="${a.id}">${S.asgConfirm === a.id ? 'Wirklich entfernen?' : 'Entfernen'}</button>
+    </div>
+  </div>`;
+}
 function historyBlock(f) {
   const rows = f.lessons.map((l) => ({ date: l.date, l })).concat((f.cancellations || []).map((c) => ({ date: c.date, c }))).sort((a, b) => (a.date < b.date ? 1 : -1));
   if (!rows.length) return '';
@@ -578,7 +605,7 @@ function lessonView() {
   const days = new Set(recent.map((s) => s.local_date)).size;
   const exOpts = (S.exercises || []).map((e) => `<option value="${e.id}">${esc((e.category ? e.category + ': ' : '') + e.title)}</option>`).join('');
   return `<div class="wrap">
-    <div class="row between"><button class="btn small" data-act="closeLesson">Schließen</button><span class="pill">Stunde läuft · ${esc(st.lesson_time || '')}</span></div>
+    <div class="row between"><button class="btn small" data-act="closeLesson">Schließen</button><div class="row"><button class="btn small" data-act="preview">Schüleransicht</button><span class="pill">Stunde läuft · ${esc(st.lesson_time || '')}</span></div></div>
     <h1>${esc(st.first_name)}</h1>
     ${st.profile_note ? `<details class="card"><summary>Steckbrief</summary><p style="white-space:pre-line">${esc(st.profile_note)}</p></details>` : ''}
     <div class="lesson-grid">
@@ -591,7 +618,7 @@ function lessonView() {
           ${historyBlock(f)}
         </section>
         ${suggestBlock(f)}
-        <section class="card"><h3>Hausaufgaben</h3><div class="list">${open.length ? open.map((a) => { const on = L.close_assignments.includes(a.id); return `<div class="item"><span class="t">${esc(a.title || a.free_text)}<br><span class="muted small">${practicedFor(a, f.sessions)}${a.target_bpm ? ' · Ziel ' + a.target_bpm : ''}</span><br>${assignBadges(a)}</span><button class="check ${on ? 'on' : ''}" data-act="toggleClose" data-id="${a.id}" aria-pressed="${on}" aria-label="Als erledigt markieren">${on ? '✓' : ''}</button></div>`; }).join('') : '<p class="muted">Keine offenen Hausaufgaben.</p>'}</div></section>
+        <section class="card"><h3>Hausaufgaben</h3><div class="list">${open.length ? open.map((a) => { const on = L.close_assignments.includes(a.id); return `<div class="item"><span class="t"><button class="link" data-act="asgDetail" data-id="${a.id}"><b>${esc(a.title || a.free_text)}</b></button><br><span class="muted small">${practicedFor(a, f.sessions)}${a.target_bpm ? ' · Ziel ' + a.target_bpm : ''}</span><br>${assignBadges(a)}</span><button class="check ${on ? 'on' : ''}" data-act="toggleClose" data-id="${a.id}" aria-pressed="${on}" aria-label="Als erledigt markieren">${on ? '✓' : ''}</button></div>`; }).join('') : '<p class="muted">Keine offenen Hausaufgaben.</p>'}</div></section>
         <section class="card"><h3>Ziele</h3><div class="list">${f.goals.filter((g) => g.status !== 'erreicht').map((g) => { const on = L.goals_reached.includes(g.id); return `<div class="item"><span class="t">${esc(g.title)}</span><button class="check ${on ? 'on' : ''}" data-act="toggleGoal" data-id="${g.id}" aria-pressed="${on}" aria-label="Ziel erreicht">${on ? '✓' : ''}</button></div>`; }).join('') || '<p class="muted small">Keine offenen Ziele.</p>'}
           ${L.new_goals.map((g, i) => `<div class="item"><span class="t">${esc(g.title)} <span class="pill">neu</span></span><button class="btn small" data-act="rmGoal" data-i="${i}">Entfernen</button></div>`).join('')}</div>
           <form id="goalForm" class="row" style="flex-wrap:nowrap"><label for="g_title" class="hidden">Neues Ziel</label><input id="g_title" placeholder="Neues Ziel, z. B. Groove sauber auf 96" maxlength="160"><button class="btn small" type="submit">Hinzufügen</button></form></section>
@@ -1213,8 +1240,21 @@ document.addEventListener('click', async (ev) => {
         store.del('draft_' + L.student_id); S.lesson = null; closeOverlay();
         toast((res.merged ? 'Stunde von heute ergänzt' : 'Stunde gespeichert') + (res.skipped && res.skipped.length ? '. Du hast die Hausaufgabe schon aufgegeben: ' + res.skipped.join(', ') : '')); load(); break;
       }
-      case 'preview': { const data = await api('/api/t/preview', { id: S.file.student.id }); S.preview = { data, tab: 'ueben' }; S.overlay = null; stopTick(); render(); window.scrollTo(0, 0); break; }
-      case 'endPreview': S.preview = null; openOverlay(studentFileView); break;
+      case 'preview': { const sid = id || S.file.student.id; S.previewFrom = S.overlay; if (S.overlay === lessonView) saveDraft(); const data = await api('/api/t/preview', { id: sid }); S.preview = { data, tab: 'ueben' }; S.overlay = null; stopTick(); render(); window.scrollTo(0, 0); break; }
+      case 'endPreview': S.preview = null; if (S.previewFrom) openOverlay(S.previewFrom); else render(); S.previewFrom = null; break;
+      case 'asgDetail': S.asgId = id; S.asgFrom = S.overlay; S.asgConfirm = null; openOverlay(assignmentDetailView); break;
+      case 'asgBack': DrumNotation.stop(); S.asgPlaying = false; openOverlay(S.asgFrom || studentFileView); break;
+      case 'asgPlay': { if (S.asgPlaying) { DrumNotation.stop(); S.asgPlaying = false; el.textContent = 'Abspielen'; break; } const a = S.file.assignments.find((x) => x.id === S.asgId); const n = DrumNotation.parse(a.notation); S.asgPlaying = true; el.textContent = 'Stopp'; DrumNotation.play(n, a.start_bpm || n.bpm, DrumNotation.cursorFor($('#asg_staff'))); break; }
+      case 'asgClose': case 'asgReopen': {
+        await api('/api/t/assignment/status', { id, status: act === 'asgClose' ? 'erledigt' : 'offen' });
+        S.file = Object.assign(await api('/api/t/student', { id: S.file.student.id }), { course: S.file.course }); openOverlay(assignmentDetailView); toast(act === 'asgClose' ? 'Abgehakt' : 'Wieder offen'); break;
+      }
+      case 'asgDelete': {
+        if (S.asgConfirm !== id) { S.asgConfirm = id; openOverlay(assignmentDetailView); break; }
+        await api('/api/t/assignment/delete', { id }); S.asgConfirm = null;
+        if (S.lesson) S.lesson.close_assignments = S.lesson.close_assignments.filter((x) => x !== id);
+        S.file = Object.assign(await api('/api/t/student', { id: S.file.student.id }), { course: S.file.course }); openOverlay(S.asgFrom || studentFileView); toast('Hausaufgabe entfernt'); break;
+      }
       case 'addLink': { const box = document.getElementById('lk_' + id); box.classList.toggle('hidden'); const i = box.querySelector('input'); if (i) i.focus(); break; }
       case 'saveLink': {
         const url = document.getElementById('lki_' + id).value.trim(); if (!url) { toast('Link einfügen'); break; }

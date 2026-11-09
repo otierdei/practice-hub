@@ -720,9 +720,17 @@ async function route(env, req, path, body) {
       await s.run('UPDATE assignments SET status = ?, done_at = ? WHERE id = ?', status, status === 'erledigt' ? now() : null, String(body.id || ''));
       return { ok: true };
     }
-    case '/api/t/assignment/delete':
-      await s.run('DELETE FROM assignments WHERE id = ?', String(body.id || ''));
+    case '/api/t/assignment/delete': {
+      const a = await s.first('SELECT id, free_text FROM assignments WHERE id = ?', String(body.id || ''));
+      if (!a) throw new HttpError(404, 'Hausaufgabe nicht gefunden.');
+      await s.batch([
+        ['DELETE FROM assignment_checks WHERE assignment_id = ?', [a.id]],
+        ['DELETE FROM assignment_songs WHERE assignment_id = ?', [a.id]],
+        ['DELETE FROM assignments WHERE id = ?', [a.id]],
+        logRow(who, 'delete', 'assignments', a.id, 'Hausaufgabe entfernt' + (a.free_text ? ': ' + a.free_text.slice(0, 60) : '')),
+      ]);
       return { ok: true };
+    }
     case '/api/t/feed': return { feed: await s.all('SELECT at, by_role, action, entity, summary FROM log ORDER BY at DESC LIMIT 60') };
   }
   throw new HttpError(404, 'Unbekannte Aktion.');

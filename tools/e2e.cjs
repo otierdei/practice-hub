@@ -114,7 +114,7 @@ let n = 0; const ok = (m) => console.log('ok ' + (++n) + ' ' + m);
     await t.locator('[data-act=addLink]').first().click();
     await t.locator('input[id^=lki_]').first().fill('youtu.be/dQw4w9WgXcQ');
     await t.locator('[data-act=saveLink]').first().click(); await t.getByText('Link gespeichert').waitFor(); ok('Lehrer hängt YouTube Link an Hausaufgabe');
-    await t.click('[data-act=preview]'); await t.getByText('Vorschau: so sieht').waitFor();
+    await t.click('.sheet [data-act=preview]'); await t.getByText('Vorschau: so sieht').waitFor();
     assert.ok(await t.locator('.thumb').count() >= 1); ok('Vorschau zeigt Schüleransicht mit Videobild');
     await t.click('[data-act=endPreview]'); await t.click('[data-act=close]');
   }
