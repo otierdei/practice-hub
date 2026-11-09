@@ -194,8 +194,8 @@ details.card summary{cursor:pointer;font-family:var(--display);font-size:1.08rem
 </head>
 <body>
 <div id="app"><div class="wrap"><p class="muted">Lädt …</p></div></div>
-<script src="notation.js?v=39"></script>
-<script src="guitar.js?v=39"></script>
+<script src="notation.js?v=40"></script>
+<script src="guitar.js?v=40"></script>
 <script>
 'use strict';
 // ---------- Grundlagen ----------
@@ -1622,7 +1622,9 @@ document.addEventListener('click', (ev) => {
   } else if (actBtn.dataset.ntAct === 'play') {
     if (DrumNotation.isPlaying()) { DrumNotation.stop(); actBtn.textContent = 'Abspielen'; }
     else { playBeat(n, document.querySelector('#' + id + ' .nt-staff'), n.bpm); actBtn.textContent = 'Stopp'; }
-  } else if (actBtn.dataset.ntAct === 'clear') {
+  } else if (actBtn.dataset.ntAct === 'stick') {
+    DrumNotation.autoStick(n, actBtn.dataset.p || ''); refreshEditor(id, true, ntBar(id));
+    } else if (actBtn.dataset.ntAct === 'clear') {
     const pb = DrumNotation.perBar(n.sig), bar = ntBar(id);
     for (const k in n.tracks) n.tracks[k] = n.tracks[k].filter((i) => i < bar * pb || i >= (bar + 1) * pb);
     refreshEditor(id, true, bar);

@@ -289,19 +289,28 @@
       });
     };
   }
+  // Sticking automatisch: alle Schritte mit einem Handschlag (nicht Bassdrum, nicht HiHat Fuß) der Reihe nach mit dem Muster füllen
+  function autoStick(n, pattern) {
+    n.stick = {}; if (!pattern) return n;
+    const hands = ROWS.filter((r) => r.k !== 'bd' && r.k !== 'hf').map((r) => r.k);
+    const steps = [...new Set(hands.flatMap((k) => n.tracks[k] || []))].sort((a, b) => a - b);
+    steps.forEach((i, j) => { n.stick[i] = pattern[j % pattern.length]; });
+    return n;
+  }
   const usedKeys = (n) => ROWS.filter((r) => n.tracks[r.k].length).map((r) => r.k);
 
   // ---------- Editor: Takt wählen, Raster für einen Takt ----------
   function editorHTML(n, id, curBar = 0) {
     const pb = perBar(n.sig), gs = groupSize(n.sig), from = curBar * pb, rep = n.repeat.includes(curBar);
     const head = `<tr><th scope="col"><span class="nt-sr">Instrument</span></th>${Array.from({ length: pb }, (_, j) => `<th scope="col" class="${j % gs === 0 ? 'nt-beat' : ''}">${esc(countLabel(n.sig, j))}</th>`).join('')}</tr>`;
-    const rows = ROWS.map((r) => `<tr><th scope="row">${r.n}</th>${Array.from({ length: pb }, (_, j) => {
+    const stickRow = `<tr class="nt-stickrow"><th scope="row">Sticking</th>${Array.from({ length: pb }, (_, j) => {
+      const i = from + j, v = (n.stick || {})[i] || '';
+      return `<td class="${Math.floor(j / gs) % 2 ? 'nt-alt' : ''}"><button type="button" class="nt-cell nt-stick" data-nt="${id}" data-k="stick" data-i="${i}" aria-pressed="${!!v}" aria-label="Sticking auf ${esc(countLabel(n.sig, j))}: ${v || 'keins'}" ${rep ? 'disabled' : ''}>${v}</button></td>`;
+    }).join('')}</tr>`;
+    const rows = stickRow + ROWS.map((r) => `<tr><th scope="row">${r.n}</th>${Array.from({ length: pb }, (_, j) => {
       const i = from + j;
       return `<td class="${Math.floor(j / gs) % 2 ? 'nt-alt' : ''}"><button type="button" class="nt-cell" data-nt="${id}" data-k="${r.k}" data-i="${i}" aria-pressed="${has(n, r.k, i)}" aria-label="${r.n} auf ${esc(countLabel(n.sig, j))}, Takt ${curBar + 1}" ${rep ? 'disabled' : ''}></button></td>`;
-    }).join('')}</tr>`).join('') + `<tr><th scope="row">Hand</th>${Array.from({ length: pb }, (_, j) => {
-      const i = from + j, v = (n.stick || {})[i] || '';
-      return `<td class="${Math.floor(j / gs) % 2 ? 'nt-alt' : ''}"><button type="button" class="nt-cell nt-stick" data-nt="${id}" data-k="stick" data-i="${i}" aria-pressed="${!!v}" aria-label="Hand auf ${esc(countLabel(n.sig, j))}: ${v || 'keine'}" ${rep ? 'disabled' : ''}>${v}</button></td>`;
-    }).join('')}</tr>`;
+    }).join('')}</tr>`).join('');
     const tabs = Array.from({ length: n.bars }, (_, b) => `<button type="button" class="nt-bartab" data-nt-bar="${b}" data-nt-id="${id}" aria-pressed="${b === curBar}">${b + 1}${n.repeat.includes(b) ? ' %' : ''}${n.marks[b] ? ' · ' + esc(n.marks[b]) : ''}</button>`).join('');
     return `<div class="nt-editor" id="${id}" data-bar="${curBar}">
       <div class="row" style="gap:10px">
@@ -311,6 +320,8 @@
       </div>
       <div class="nt-staff">${render(n, { cursor: true })}</div>
       <div class="row"><button type="button" class="btn small primary" data-nt-act="play" data-nt-id="${id}">Abspielen</button><button type="button" class="btn small" data-nt-act="clear" data-nt-id="${id}">Takt leeren</button></div>
+      <div class="col" style="gap:6px"><span class="small muted">Sticking: Feld antippen wechselt R, L, K (Fuß), leer. Oder automatisch für alle Handschläge:</span>
+        <div class="row" style="gap:6px"><button type="button" class="chip" data-nt-act="stick" data-p="RL" data-nt-id="${id}">R L abwechselnd</button><button type="button" class="chip" data-nt-act="stick" data-p="RRLL" data-nt-id="${id}">R R L L</button><button type="button" class="chip" data-nt-act="stick" data-p="R" data-nt-id="${id}">Alles R</button><button type="button" class="chip" data-nt-act="stick" data-p="" data-nt-id="${id}">Sticking löschen</button></div></div>
       ${n.bars > 1 ? `<div class="nt-bartabs" role="group" aria-label="Takt zum Bearbeiten">${tabs}</div>` : ''}
       <div class="row" style="gap:10px">
         <div class="field" style="flex:2;min-width:150px"><label for="${id}-mark">Teil ab Takt ${curBar + 1}</label><input id="${id}-mark" data-nt-ctl="mark" maxlength="30" placeholder="z. B. Strophe, Refrain" value="${esc(n.marks[curBar] || '')}"></div>
@@ -320,5 +331,5 @@
     </div>`;
   }
 
-  window.DrumNotation = { SIGS, ROWS, MAX_BARS, empty, parse, render, toggle, has, play, stop, setTempo, setMute, setTrainer, hit, editorHTML, cursorFor, total, perBar, setBars, usedKeys, isPlaying: () => P.playing, audio, click, setClick, loadSamples: () => { audio(); return loadSamples(); } };
+  window.DrumNotation = { SIGS, ROWS, MAX_BARS, empty, parse, render, toggle, has, play, stop, setTempo, setMute, setTrainer, hit, editorHTML, cursorFor, total, perBar, setBars, usedKeys, isPlaying: () => P.playing, autoStick, audio, click, setClick, loadSamples: () => { audio(); return loadSamples(); } };
 })();

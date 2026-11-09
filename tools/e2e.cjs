@@ -187,6 +187,10 @@ let n = 0; const ok = (m) => console.log('ok ' + (++n) + ' ' + m);
   await s.click('[data-act=minimize]');
 
   // Song Chart: Teile und Wiederholungstakte
+  await t.click('[data-tab=bibliothek]'); await t.click('[data-act=newBeat]'); await t.click('[data-nt-act=stick][data-p="RL"]');
+  assert.deepEqual(await t.evaluate(() => Object.values(S.nt.ex.stick).join('')), 'RLRLRLRL'); assert.equal(await t.locator('.nt-stickrow .nt-stick').first().textContent(), 'R');
+  await t.click('[data-nt-act=stick][data-p="RRLL"]'); assert.equal(await t.evaluate(() => Object.values(S.nt.ex.stick).join('')), 'RRLLRRLL');
+  assert.ok(await t.locator('#ex .nt-staff text:text-is("L")').count() >= 4, 'Sticking unter den Noten'); await t.click('[data-act=close]'); ok('Beat Sticking: R L und R R L L per Knopf');
   await t.click('[data-tab=bibliothek]'); await t.fill('#libQ', 'rock'); await t.waitForTimeout(100);
   assert.equal(await t.locator('#libList details[open] .item').count(), 1); assert.ok(await t.locator('#libList').textContent().then((x) => x.includes('Rock Beat 1')));
   await t.fill('#libQ', ''); await t.click('[data-act=libCat][data-v="Grooves"]'); assert.ok(await t.locator('#libList details').count() === 1);
