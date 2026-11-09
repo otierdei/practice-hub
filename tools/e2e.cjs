@@ -120,7 +120,7 @@ let n = 0; const ok = (m) => console.log('ok ' + (++n) + ' ' + m);
   await t.getByText('17 min seit letzter Stunde').waitFor(); ok('Lehrer sieht 17 min (12 + 5)');
   await t.screenshot({ path: OUT + '/t-schueler-1440.png' });
   // Lehrer: Link an Hausaufgabe hängen und Schüleransicht als Vorschau
-  await t.locator('[data-act=student]').first().click(); await t.locator('[data-act=preview]').waitFor();
+  await t.locator('[data-act=student]').first().click(); await t.locator('.sheet [data-act=preview]').waitFor();
   {
     await t.locator('[data-act=addLink]').first().click();
     await t.locator('input[id^=lki_]').first().fill('youtu.be/dQw4w9WgXcQ');
@@ -249,7 +249,7 @@ let n = 0; const ok = (m) => console.log('ok ' + (++n) + ' ' + m);
     const aid = await t.evaluate((sid) => S.file.assignments.find((a) => a.song_id === sid).id, sid);
     const keep = await t.evaluate(() => S.overlay);
     await t.evaluate(async (aid) => { const b = document.createElement('button'); b.dataset.act = 'asgDetail'; b.dataset.id = aid; document.body.append(b); b.click(); }, aid);
-    await t.locator('.sheet [data-act=partPlay]').first().waitFor(); assert.ok(await t.locator('.sheet .yt iframe').count() >= 1, 'Video direkt eingebettet');
+    await t.locator('.sheet [data-act=partPlay]').first().waitFor(); await t.locator('.sheet .yt iframe').first().waitFor({ state: 'attached' });
     ok('Song Hausaufgabe zeigt Video und Bausteine direkt');
     await t.click('.sheet summary:has-text("Metronom und Tempo")'); await t.evaluate(() => setBpm(60));
     await t.click('.sheet [data-act=partPlay]'); await t.waitForTimeout(300); assert.equal(await t.evaluate(() => DrumNotation.isPlaying()), true);

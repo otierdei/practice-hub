@@ -65,6 +65,13 @@ CREATE TABLE IF NOT EXISTS song_meta (
   bpm INTEGER,
   bpm_source TEXT
 );
+-- Baustein gehört zu einer Version (Original, Easy, ...). Ohne Eintrag gilt er für alle Versionen.
+CREATE TABLE IF NOT EXISTS song_part_version (
+  part_id TEXT PRIMARY KEY,
+  version TEXT NOT NULL
+);
+INSERT OR IGNORE INTO song_part_version (part_id, version) SELECT id, 'Easy' FROM song_parts WHERE title LIKE '%(Easy)';
+INSERT OR IGNORE INTO song_part_version (part_id, version) SELECT id, 'Original' FROM song_parts WHERE title LIKE '%(Original)';
 CREATE TABLE IF NOT EXISTS assignment_parts (
   assignment_id TEXT PRIMARY KEY,
   part_id TEXT NOT NULL
@@ -192,7 +199,7 @@ export async function songDetail(s, id, teacher = false) {
   if (!song) return null;
   const [files, parts, links, playedBy] = await Promise.all([
     s.all('SELECT drive_id, name, key_sig, bpm, kind FROM song_files WHERE song_id = ? ORDER BY kind DESC, name', song.id),
-    s.all('SELECT p.id, p.title, p.url, p.notes, p.sort, n.notation FROM song_parts p LEFT JOIN song_part_notation n ON n.part_id = p.id WHERE p.song_id = ? ORDER BY p.sort, p.created_at', song.id),
+    s.all('SELECT p.id, p.title, p.url, p.notes, p.sort, n.notation, v.version FROM song_parts p LEFT JOIN song_part_notation n ON n.part_id = p.id LEFT JOIN song_part_version v ON v.part_id = p.id WHERE p.song_id = ? ORDER BY p.sort, p.created_at', song.id),
     s.all('SELECT id, version, title, url, sort FROM song_links WHERE song_id = ? ORDER BY sort, created_at', song.id),
     teacher ? s.all(`SELECT DISTINCT st.first_name FROM students st WHERE st.id IN (
         SELECT a.student_id FROM assignment_songs x JOIN assignments a ON a.id = x.assignment_id WHERE x.song_id = ?

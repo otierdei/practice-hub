@@ -711,6 +711,7 @@ async function route(env, req, path, body) {
       const nt = cleanNotation(body.notation);
       const ops = [['INSERT INTO song_parts (id, song_id, title, url, notes, sort, created_at) VALUES (?, ?, ?, ?, ?, ?, ?)', [id, song.id, title, url, str(body.notes, 500), n, now()]], logRow(who, 'create', 'song_parts', id, title)];
       if (nt) ops.push(['INSERT INTO song_part_notation (part_id, notation) VALUES (?, ?)', [id, nt]]);
+      const ver = str(body.version, 40); if (ver) ops.push(['INSERT INTO song_part_version (part_id, version) VALUES (?, ?)', [id, ver]]);
       await s.batch(ops);
       return { id };
     }
@@ -729,9 +730,28 @@ async function route(env, req, path, body) {
       const nt = cleanNotation(body.notation);
       const ops = [['UPDATE song_parts SET title = ?, url = ?, notes = ? WHERE id = ?', [title, cleanUrl(body.url), str(body.notes, 500), p.id]]];
       ops.push(nt ? ['INSERT INTO song_part_notation (part_id, notation) VALUES (?, ?) ON CONFLICT(part_id) DO UPDATE SET notation = excluded.notation', [p.id, nt]] : ['DELETE FROM song_part_notation WHERE part_id = ?', [p.id]]);
+      if (body.version !== undefined) { const ver = str(body.version, 40); ops.push(ver ? ['INSERT INTO song_part_version (part_id, version) VALUES (?, ?) ON CONFLICT(part_id) DO UPDATE SET version = excluded.version', [p.id, ver]] : ['DELETE FROM song_part_version WHERE part_id = ?', [p.id]]); }
       ops.push(logRow(who, 'update', 'song_parts', p.id, title)); await s.batch(ops); return { ok: true };
     }
-    case '/api/t/song/part/delete': await s.batch([['DELETE FROM song_parts WHERE id = ?', [String(body.id || '')]], ['DELETE FROM song_part_notation WHERE part_id = ?', [String(body.id || '')]]]); return { ok: true };
+    case '/api/t/song/part/sync': {
+      // Baustein auf Wunsch in eine andere Version übernehmen: gleichnamigen Baustein dort überschreiben, sonst neu anlegen
+      const p = await s.first('SELECT p.id, p.song_id, p.title, p.url, p.notes, n.notation, v.version FROM song_parts p LEFT JOIN song_part_notation n ON n.part_id = p.id LEFT JOIN song_part_version v ON v.part_id = p.id WHERE p.id = ?', String(body.id || ''));
+      if (!p) throw new HttpError(404, 'Baustein nicht gefunden.');
+      const ver = str(body.version, 40); if (!ver || ver === p.version) throw new HttpError(400, 'Andere Version wählen.');
+      const base = (t) => String(t || '').replace(/\s*\([^)]*\)\s*$/, '').trim().toLowerCase();
+      const title = p.version && p.title.endsWith('(' + p.version + ')') ? p.title.slice(0, -(p.version.length + 2)).trim() + ' (' + ver + ')' : p.title;
+      const twin = (await s.all('SELECT p.id, p.title FROM song_parts p JOIN song_part_version v ON v.part_id = p.id WHERE p.song_id = ? AND v.version = ?', p.song_id, ver)).find((x) => base(x.title) === base(p.title));
+      const ops = []; let tid;
+      if (twin) { tid = twin.id; ops.push(['UPDATE song_parts SET url = ?, notes = ? WHERE id = ?', [p.url, p.notes, tid]]); }
+      else {
+        tid = uid(); const n = (await s.first('SELECT COUNT(*) AS n FROM song_parts WHERE song_id = ?', p.song_id)).n;
+        ops.push(['INSERT INTO song_parts (id, song_id, title, url, notes, sort, created_at) VALUES (?, ?, ?, ?, ?, ?, ?)', [tid, p.song_id, title, p.url, p.notes, n, now()]], ['INSERT INTO song_part_version (part_id, version) VALUES (?, ?)', [tid, ver]]);
+      }
+      ops.push(p.notation ? ['INSERT INTO song_part_notation (part_id, notation) VALUES (?, ?) ON CONFLICT(part_id) DO UPDATE SET notation = excluded.notation', [tid, p.notation]] : ['DELETE FROM song_part_notation WHERE part_id = ?', [tid]]);
+      ops.push(logRow(who, 'update', 'song_parts', tid, 'Übernommen nach ' + ver)); await s.batch(ops);
+      return { id: tid, created: !twin };
+    }
+    case '/api/t/song/part/delete': await s.batch([['DELETE FROM song_parts WHERE id = ?', [String(body.id || '')]], ['DELETE FROM song_part_notation WHERE part_id = ?', [String(body.id || '')]], ['DELETE FROM song_part_version WHERE part_id = ?', [String(body.id || '')]]]); return { ok: true };
     case '/api/t/transcribe': return transcribeImage(env, body, cleanNotation, HttpError);
     case '/api/t/preview': return studentView(s, String(body.id || ''), 'student');
     case '/api/t/assignment/link': return linkAssignment(s, who, body);

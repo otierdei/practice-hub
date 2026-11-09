@@ -575,3 +575,24 @@ test('Song BPM festlegen: gilt für Song und Ziel Tempo der Hausaufgaben', async
   assert.equal((await w.call('/api/home', {}, w.tb)).data.assignments.find((a) => a.song_id === sid).target_bpm, 72);
   assert.equal((await w.call('/api/songs', {}, w.ta)).data.songs.find((s) => s.id === sid).bpm, 72);
 });
+
+test('Bausteine pro Version, Übernehmen nur auf Wunsch', async () => {
+  const w = await world();
+  const sid = (await w.call('/api/t/song/create', { title: 'Versionen' }, w.t)).data.id;
+  const pe = (await w.call('/api/t/song/part/save', { song_id: sid, title: 'Chorus (Easy)', version: 'Easy', notation: { sig: '4/4', bars: 1, tracks: { bd: [0] } } }, w.t)).data.id;
+  await w.call('/api/t/song/part/save', { song_id: sid, title: 'Chorus (Original)', version: 'Original', notation: { sig: '4/4', bars: 1, tracks: { bd: [0, 8] } } }, w.t);
+  let parts = (await w.call('/api/song', { id: sid }, w.t)).data.parts;
+  assert.deepEqual(parts.map((p) => p.version), ['Easy', 'Original']);
+  // Easy ändern: Original bleibt unverändert
+  await w.call('/api/t/song/part/update', { id: pe, title: 'Chorus (Easy)', notation: { sig: '4/4', bars: 1, tracks: { bd: [0, 4] } } }, w.t);
+  parts = (await w.call('/api/song', { id: sid }, w.t)).data.parts;
+  assert.deepEqual(JSON.parse(parts.find((p) => p.version === 'Original').notation).tracks.bd, [0, 8]);
+  // Auf Wunsch übernehmen: gleichnamigen Original Baustein überschreiben
+  assert.equal((await w.call('/api/t/song/part/sync', { id: pe, version: 'Original' }, w.tb)).status, 403);
+  const r = (await w.call('/api/t/song/part/sync', { id: pe, version: 'Original' }, w.t)).data; assert.equal(r.created, false);
+  parts = (await w.call('/api/song', { id: sid }, w.t)).data.parts; assert.equal(parts.length, 2);
+  assert.deepEqual(JSON.parse(parts.find((p) => p.version === 'Original').notation).tracks.bd, [0, 4]);
+  // Neue Version: wird angelegt mit passendem Titel
+  const r2 = (await w.call('/api/t/song/part/sync', { id: pe, version: 'Akustik' }, w.t)).data; assert.equal(r2.created, true);
+  assert.ok((await w.call('/api/song', { id: sid }, w.t)).data.parts.some((p) => p.title === 'Chorus (Akustik)' && p.version === 'Akustik'));
+});
