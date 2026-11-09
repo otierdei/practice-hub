@@ -425,3 +425,15 @@ test('Kurs: leeres Level entfernen, Level rücken nach', async () => {
   assert.deepEqual(c.levels.map((l) => l.level + l.name), ['1A', '2C']);
   assert.equal(c.lessons.find((l) => l.title === 'y').level, 2);
 });
+
+test('Hausaufgabe bearbeiten: Tempo, Text, Noten nur bei eigener Übung', async () => {
+  const w = await world();
+  const beat = { v: 2, sig: '4/4', bars: 1, bpm: 60, tracks: { sn: [0] } };
+  await w.call('/api/t/lesson/finish', { student_id: w.b, date: '2026-10-04', new_assignments: [{ free_text: 'Beat X', notation: beat, start_bpm: 60, target_bpm: 80 }] }, w.t);
+  let a = (await w.call('/api/t/student', { id: w.b }, w.t)).data.assignments.find((x) => x.free_text === 'Beat X');
+  assert.equal((await w.call('/api/t/assignment/update', { id: a.id, start_bpm: 70 }, w.tb)).status, 403);
+  await w.call('/api/t/assignment/update', { id: a.id, free_text: 'Beat Y', start_bpm: 70, target_bpm: 100, minutes_per_day: 15, notation: { ...beat, tracks: { sn: [0, 8] } } }, w.t);
+  a = (await w.call('/api/home', {}, w.tb)).data.assignments.find((x) => x.id === a.id);
+  assert.equal(a.free_text, 'Beat Y'); assert.equal(a.start_bpm, 70); assert.equal(a.target_bpm, 100); assert.equal(a.minutes_per_day, 15);
+  assert.deepEqual(JSON.parse(a.notation).tracks.sn, [0, 8]);
+});

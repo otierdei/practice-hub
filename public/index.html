@@ -563,7 +563,13 @@ function assignmentDetailView() {
     ${n ? `<div class="nt-staff" id="asg_staff">${DrumNotation.render(n, { cursor: true, label: 'Noten', barsPerLine: 1, stepWidth: Math.max(12, Math.min(22, Math.floor(270 / DrumNotation.perBar(n.sig)))) })}</div><button class="btn small" data-act="asgPlay">${S.asgPlaying ? 'Stopp' : 'Abspielen'}</button>` : notationPreview(a.notation, a.title || '')}
     ${a.url ? (ytEmbed(a.url) || `<a class="btn small" href="${esc(a.url)}" target="_blank" rel="noopener">${linkLabel(a)}</a>`) : ''}
     ${a.song_id ? `<button class="btn" data-act="song" data-id="${esc(a.song_id)}" data-v="${esc(a.song_version || '')}">Song öffnen${a.song_version ? ' · ' + esc(a.song_version) : ''}</button>` : ''}
+    ${S.asgEdit === a.id ? `<form id="asgEditForm" class="card col"><b>Bearbeiten</b>
+      ${!a.exercise_id || a.ex_archived ? `<div class="field"><label for="ae_text">Aufgabe</label><input id="ae_text" maxlength="300" value="${esc(a.free_text || a.title || '')}"></div>` : `<p class="small muted">Titel und Noten kommen aus der Bibliothek. Ändern kannst du sie dort.</p>`}
+      <div class="row" style="flex-wrap:nowrap"><div class="field" style="flex:1"><label for="ae_from">Tempo von</label><input id="ae_from" inputmode="numeric" value="${a.start_bpm || ''}"></div><div class="field" style="flex:1"><label for="ae_to">Tempo bis</label><input id="ae_to" inputmode="numeric" value="${a.target_bpm || ''}"></div><div class="field" style="flex:1"><label for="ae_min">Min pro Tag</label><input id="ae_min" inputmode="numeric" value="${a.minutes_per_day || ''}"></div></div>
+      ${S.nt && S.nt.ae ? DrumNotation.editorHTML(S.nt.ae, 'ae') : ''}
+      <div class="row"><button class="btn primary" type="submit">Speichern</button><button class="btn" type="button" data-act="asgEditOff">Abbrechen</button></div></form>` : ''}
     <div class="row">
+      ${S.asgEdit === a.id ? '' : `<button class="btn" data-act="asgEdit" data-id="${a.id}">Bearbeiten</button>`}
       ${a.status === 'offen' ? `<button class="btn primary" data-act="asgClose" data-id="${a.id}">Als erledigt abhaken</button>` : `<button class="btn" data-act="asgReopen" data-id="${a.id}">Wieder öffnen</button>`}
       <button class="btn danger" data-act="asgDelete" data-id="${a.id}">${S.asgConfirm === a.id ? 'Wirklich entfernen?' : 'Entfernen'}</button>
     </div>
@@ -1242,7 +1248,13 @@ document.addEventListener('click', async (ev) => {
       }
       case 'preview': { const sid = id || S.file.student.id; S.previewFrom = S.overlay; if (S.overlay === lessonView) saveDraft(); const data = await api('/api/t/preview', { id: sid }); S.preview = { data, tab: 'ueben' }; S.overlay = null; stopTick(); render(); window.scrollTo(0, 0); break; }
       case 'endPreview': S.preview = null; if (S.previewFrom) openOverlay(S.previewFrom); else render(); S.previewFrom = null; break;
-      case 'asgDetail': S.asgId = id; S.asgFrom = S.overlay; S.asgConfirm = null; openOverlay(assignmentDetailView); break;
+      case 'asgEdit': {
+        const a = S.file.assignments.find((x) => x.id === id); S.asgEdit = id; S.nt = S.nt || {};
+        if (a.notation && a.ex_archived) S.nt.ae = DrumNotation.parse(a.notation); else delete S.nt.ae;
+        DrumNotation.stop(); S.asgPlaying = false; openOverlay(assignmentDetailView); break;
+      }
+      case 'asgEditOff': S.asgEdit = null; if (S.nt) delete S.nt.ae; openOverlay(assignmentDetailView); break;
+      case 'asgDetail': S.asgEdit = null; S.asgId = id; S.asgFrom = S.overlay; S.asgConfirm = null; openOverlay(assignmentDetailView); break;
       case 'asgBack': DrumNotation.stop(); S.asgPlaying = false; openOverlay(S.asgFrom || studentFileView); break;
       case 'asgPlay': { if (S.asgPlaying) { DrumNotation.stop(); S.asgPlaying = false; el.textContent = 'Abspielen'; break; } const a = S.file.assignments.find((x) => x.id === S.asgId); const n = DrumNotation.parse(a.notation); S.asgPlaying = true; el.textContent = 'Stopp'; DrumNotation.play(n, a.start_bpm || n.bpm, DrumNotation.cursorFor($('#asg_staff'))); break; }
       case 'asgClose': case 'asgReopen': {
@@ -1492,6 +1504,10 @@ document.addEventListener('submit', async (ev) => {
     } else if (fid === 'linksForm') {
       const r = await api('/api/t/song/links/add', { song_id: S.song.song.id, lines: $('#lk_lines').value, version: $('#lk_ver').value });
       S.song = await api('/api/song', { id: S.song.song.id }); S.songs = await api('/api/songs'); openOverlay(songView); toast(r.added + ' Links gespeichert');
+    } else if (fid === 'asgEditForm') {
+      await api('/api/t/assignment/update', { id: S.asgId, free_text: $('#ae_text') ? $('#ae_text').value.trim() || null : null, start_bpm: Number($('#ae_from').value) || null, target_bpm: Number($('#ae_to').value) || null, minutes_per_day: Number($('#ae_min').value) || null, notation: S.nt && S.nt.ae ? S.nt.ae : null });
+      S.asgEdit = null; if (S.nt) delete S.nt.ae;
+      S.file = Object.assign(await api('/api/t/student', { id: S.file.student.id }), { course: S.file.course }); openOverlay(assignmentDetailView); toast('Gespeichert');
     } else if (fid === 'myGoalForm') {
       const title = $('#mg_title').value.trim(); if (!title) return;
       await api('/api/goal/add', { title }); S.data = await api('/api/home'); render(); toast('Ziel gespeichert');

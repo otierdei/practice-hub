@@ -202,7 +202,7 @@ async function teacherStudent(s, id) {
   if (!st) throw new HttpError(404, 'Schüler nicht gefunden.');
   const [lessons, assignments, sessions, goals, access, consents] = await Promise.all([
     s.all('SELECT * FROM lessons WHERE student_id = ? ORDER BY date DESC', id),
-    s.all(`SELECT a.*, e.title, e.category, e.source_type, e.url, e.book_ref, e.notation, c.student_done_at, x.song_id, x.version AS song_version FROM assignments a LEFT JOIN exercises e ON e.id = a.exercise_id
+    s.all(`SELECT a.*, e.title, e.category, e.source_type, e.url, e.book_ref, e.notation, e.archived AS ex_archived, c.student_done_at, x.song_id, x.version AS song_version FROM assignments a LEFT JOIN exercises e ON e.id = a.exercise_id
            LEFT JOIN assignment_checks c ON c.assignment_id = a.id LEFT JOIN assignment_songs x ON x.assignment_id = a.id
            WHERE a.student_id = ? ORDER BY a.created_at DESC LIMIT 200`, id),
     s.all('SELECT id, assignment_id, exercise_id, started_at, local_date, seconds, bpm_reached, feeling, note FROM practice_sessions WHERE student_id = ? ORDER BY started_at DESC LIMIT 400', id),
@@ -718,6 +718,20 @@ async function route(env, req, path, body) {
     case '/api/t/assignment/status': {
       const status = body.status === 'erledigt' ? 'erledigt' : 'offen';
       await s.run('UPDATE assignments SET status = ?, done_at = ? WHERE id = ?', status, status === 'erledigt' ? now() : null, String(body.id || ''));
+      return { ok: true };
+    }
+    case '/api/t/assignment/update': {
+      // Hausaufgabe bearbeiten: Text, Tempo, Minuten; Noten nur bei eigener Hausaufgaben Übung (nicht Bibliothek)
+      const a = await s.first('SELECT a.id, a.exercise_id, e.archived FROM assignments a LEFT JOIN exercises e ON e.id = a.exercise_id WHERE a.id = ?', String(body.id || ''));
+      if (!a) throw new HttpError(404, 'Hausaufgabe nicht gefunden.');
+      const ops = [['UPDATE assignments SET free_text = COALESCE(?, free_text), start_bpm = ?, target_bpm = ?, minutes_per_day = ? WHERE id = ?',
+        [str(body.free_text, 300), int(body.start_bpm, 20, 400), int(body.target_bpm, 20, 400), int(body.minutes_per_day, 1, 240), a.id]]];
+      if (body.notation && a.exercise_id && a.archived) {
+        const nt = cleanNotation(body.notation);
+        ops.push(['UPDATE exercises SET notation = ?, title = COALESCE(?, title) WHERE id = ?', [nt, str(body.free_text, 120), a.exercise_id]]);
+      }
+      ops.push(logRow(who, 'update', 'assignments', a.id, 'Hausaufgabe bearbeitet'));
+      await s.batch(ops);
       return { ok: true };
     }
     case '/api/t/assignment/delete': {
