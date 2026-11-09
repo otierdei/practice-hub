@@ -194,8 +194,8 @@ details.card summary{cursor:pointer;font-family:var(--display);font-size:1.08rem
 </head>
 <body>
 <div id="app"><div class="wrap"><p class="muted">Lädt …</p></div></div>
-<script src="notation.js?v=41"></script>
-<script src="guitar.js?v=41"></script>
+<script src="notation.js?v=42"></script>
+<script src="guitar.js?v=42"></script>
 <script>
 'use strict';
 // ---------- Grundlagen ----------
@@ -644,7 +644,9 @@ function assignmentDetailView() {
     ${a.url ? (ytEmbed(a.url) || `<a class="btn small" href="${esc(a.url)}" target="_blank" rel="noopener">${linkLabel(a)}</a>`) : ''}
     ${a.song_id ? `<button class="btn" data-act="song" data-id="${esc(a.song_id)}" data-v="${esc(a.song_version || '')}">Song öffnen${a.song_version ? ' · ' + esc(a.song_version) : ''}</button>` : ''}
     ${S.asgEdit === a.id ? `<form id="asgEditForm" class="card col"><b>Bearbeiten</b>
-      ${!a.exercise_id || a.ex_archived ? `<div class="field"><label for="ae_text">Aufgabe</label><input id="ae_text" maxlength="300" value="${esc(a.free_text || a.title || '')}"></div>` : `<p class="small muted">Titel und Noten kommen aus der Bibliothek. Ändern kannst du sie dort.</p>`}
+      ${a.part_id ? `<div class="field"><label for="ae_title">Baustein im Song</label><input id="ae_title" maxlength="120" value="${esc(a.part_title || '')}"></div><p class="small muted">Titel und Noten gehören zum Song Baustein. Änderungen gelten überall: im Song und bei allen Schülern mit diesem Baustein.</p>`
+        : a.exercise_id && !a.ex_archived ? `<div class="field"><label for="ae_title">Übung in der Bibliothek</label><input id="ae_title" maxlength="120" value="${esc(a.title || '')}"></div><p class="small muted">Titel und Noten gehören zur Bibliothek. Änderungen gelten überall: Bibliothek, Kurs und alle Schüler mit dieser Übung.</p>`
+        : `<div class="field"><label for="ae_text">Aufgabe</label><input id="ae_text" maxlength="300" value="${esc(a.free_text || a.title || '')}"></div>`}
       <div class="row" style="flex-wrap:nowrap"><div class="field" style="flex:1"><label for="ae_from">Tempo von</label><input id="ae_from" inputmode="numeric" value="${a.start_bpm || ''}"></div><div class="field" style="flex:1"><label for="ae_to">Tempo bis</label><input id="ae_to" inputmode="numeric" value="${a.target_bpm || ''}"></div><div class="field" style="flex:1"><label for="ae_min">Min pro Tag</label><input id="ae_min" inputmode="numeric" value="${a.minutes_per_day || ''}"></div></div>
       ${S.nt && S.nt.ae ? DrumNotation.editorHTML(S.nt.ae, 'ae') : ''}
       <div class="row"><button class="btn primary" type="submit">Speichern</button><button class="btn" type="button" data-act="asgEditOff">Abbrechen</button></div></form>` : ''}
@@ -957,8 +959,15 @@ function songView() {
       ${d.parts.length ? d.parts.map((p) => `<section class="card task"><div class="row" style="flex-wrap:nowrap;align-items:center;gap:14px">
         ${ytThumb(p.url) ? `<button class="thumb" data-act="partVideo" data-id="${p.id}" aria-label="Video ansehen: ${esc(p.title)}"><img src="${ytThumb(p.url)}" alt="" loading="lazy" onerror="this.remove()"><span class="thumb-play">${PLAY}</span></button>` : `<span class="task-icon" aria-hidden="true">${ICON_NOTE}</span>`}
         <div class="col" style="gap:2px;flex:1;min-width:0"><b class="task-title">${esc(p.title)}</b>${p.notes ? `<span class="muted small">${esc(p.notes)}</span>` : ''}</div>
-        ${teacher ? `<button class="btn small danger" data-act="partDelete" data-id="${p.id}">Entfernen</button>` : ''}</div>
-        ${p.notation ? `<div id="pn_${p.id}">${notationPreview(p.notation, p.title)}</div><div class="row" style="gap:8px"><button class="btn small" data-act="partPlay" data-id="${p.id}">Abspielen</button>${beatClickChip()}${S.role === 'student' ? `<button class="btn small primary" data-act="partPractice" data-id="${p.id}">Üben</button>` : ''}</div>` : ''}
+        ${teacher ? `<button class="btn small" data-act="partEdit" data-id="${p.id}">Bearbeiten</button><button class="btn small danger" data-act="partDelete" data-id="${p.id}">Entfernen</button>` : ''}</div>
+        ${teacher && S.partEdit === p.id ? `<form id="partEditForm" class="col" style="gap:8px">
+          <div class="field"><label for="pe_title">Titel</label><input id="pe_title" maxlength="120" value="${esc(p.title)}"></div>
+          <div class="field"><label for="pe_url">YouTube Link</label><input id="pe_url" type="url" inputmode="url" value="${esc(p.url || '')}"></div>
+          <div class="field"><label for="pe_notes">Hinweis</label><input id="pe_notes" maxlength="500" value="${esc(p.notes || '')}"></div>
+          ${S.nt && S.nt.pe ? DrumNotation.editorHTML(S.nt.pe, 'pe') : '<button type="button" class="btn small" data-act="peNew">Noten schreiben</button>'}
+          <p class="small muted">Änderungen gelten überall: im Song und bei allen Schülern, die diesen Baustein als Hausaufgabe haben.</p>
+          <div class="row"><button class="btn primary" type="submit">Speichern</button><button class="btn" type="button" data-act="partEditOff">Abbrechen</button></div></form>` : ''}
+        ${S.partEdit === p.id ? '' : p.notation ? `<div id="pn_${p.id}">${notationPreview(p.notation, p.title)}</div><div class="row" style="gap:8px"><button class="btn small" data-act="partPlay" data-id="${p.id}">Abspielen</button>${beatClickChip()}${S.role === 'student' ? `<button class="btn small primary" data-act="partPractice" data-id="${p.id}">Üben</button>` : ''}</div>` : ''}
         ${p.url && !ytId(p.url) ? `<a class="btn small" href="${esc(p.url)}" target="_blank" rel="noopener">Link öffnen</a>` : ''}</section>`).join('') : `<div class="empty">${teacher ? 'Noch keine Bausteine. Leg unten den ersten an, z. B. Groove Vers.' : 'Oti hat für diesen Song noch keine Videos.'}</div>`}
       ${teacher ? `<form id="partForm" class="card col"><b>Baustein hinzufügen</b>
         <div class="field"><label for="pt_title">Titel</label><input id="pt_title" maxlength="120" placeholder="z. B. Groove Vers, Fill in den Chorus"></div>
@@ -1483,7 +1492,7 @@ document.addEventListener('click', async (ev) => {
       case 'endPreview': endPreviewState(); if (S.previewFrom) openOverlay(S.previewFrom); else render(); S.previewFrom = null; break;
       case 'asgEdit': {
         const a = S.file.assignments.find((x) => x.id === id); S.asgEdit = id; S.nt = S.nt || {};
-        if (a.notation && a.ex_archived) S.nt.ae = DrumNotation.parse(a.notation); else delete S.nt.ae;
+        const an = DrumNotation.parse(a.notation); if (an) S.nt.ae = an; else delete S.nt.ae;
         DrumNotation.stop(); S.asgPlaying = false; openOverlay(assignmentDetailView); break;
       }
       case 'asgEditOff': S.asgEdit = null; if (S.nt) delete S.nt.ae; openOverlay(assignmentDetailView); break;
@@ -1568,6 +1577,9 @@ document.addEventListener('click', async (ev) => {
       case 'candAdd': { const x = S.songCand[Number(el.dataset.i)]; await api('/api/t/song/create', { title: x.t }); S.songCand.splice(Number(el.dataset.i), 1); S.songs = await api('/api/songs'); openOverlay(songCandView); toast(x.t + ' angelegt'); break; }
       case 'sheet': window.open(driveUrl(id), '_blank', 'noopener'); break;
       case 'partVideo': S.partId = id; openOverlay(partVideoView); break;
+      case 'partEdit': { const p = S.song.parts.find((x) => x.id === id); DrumNotation.stop(); S.partEdit = id; S.nt = S.nt || {}; const pn = DrumNotation.parse(p.notation); if (pn) S.nt.pe = pn; else delete S.nt.pe; rerenderSong(); break; }
+      case 'partEditOff': S.partEdit = null; if (S.nt) delete S.nt.pe; rerenderSong(); break;
+      case 'peNew': S.nt = S.nt || {}; S.nt.pe = DrumNotation.empty('4/4', 1, 45); rerenderSong(); break;
       case 'ptNew': S.nt = S.nt || {}; S.nt.pt = DrumNotation.empty('4/4', 1, 45); rerenderSong(); break;
       case 'ptOff': delete S.nt.pt; S.pt.beats = null; S.pt.img = null; S.pt.hinweis = ''; rerenderSong(); break;
       case 'ptPick': { const i = Number(el.dataset.i); S.pt.pick = i; S.nt.pt = DrumNotation.parse(S.pt.beats[i].notation); rerenderSong(); break; }
@@ -1755,9 +1767,9 @@ document.addEventListener('submit', async (ev) => {
       const r = await api('/api/t/song/links/add', { song_id: S.song.song.id, lines: $('#lk_lines').value, version: $('#lk_ver').value });
       S.song = await api('/api/song', { id: S.song.song.id }); S.songs = await api('/api/songs'); openOverlay(songView); toast(r.added + ' Links gespeichert');
     } else if (fid === 'asgEditForm') {
-      await api('/api/t/assignment/update', { id: S.asgId, free_text: $('#ae_text') ? $('#ae_text').value.trim() || null : null, start_bpm: Number($('#ae_from').value) || null, target_bpm: Number($('#ae_to').value) || null, minutes_per_day: Number($('#ae_min').value) || null, notation: S.nt && S.nt.ae ? S.nt.ae : null });
+      await api('/api/t/assignment/update', { id: S.asgId, title: $('#ae_title') ? $('#ae_title').value.trim() || null : null, free_text: $('#ae_text') ? $('#ae_text').value.trim() || null : null, start_bpm: Number($('#ae_from').value) || null, target_bpm: Number($('#ae_to').value) || null, minutes_per_day: Number($('#ae_min').value) || null, notation: S.nt && S.nt.ae ? S.nt.ae : null });
       S.asgEdit = null; if (S.nt) delete S.nt.ae;
-      S.file = Object.assign(await api('/api/t/student', { id: S.file.student.id }), { course: S.file.course }); openOverlay(assignmentDetailView); toast('Gespeichert');
+      S.file = Object.assign(await api('/api/t/student', { id: S.file.student.id }), { course: S.file.course }); S.exercises = (await api('/api/t/exercises')).exercises; openOverlay(assignmentDetailView); toast('Gespeichert, gilt überall');
     } else if (fid === 'myGoalForm') {
       const title = $('#mg_title').value.trim(); if (!title) return;
       await api('/api/goal/add', { title }); S.data = await api('/api/home'); render(); toast('Ziel gespeichert');
@@ -1766,6 +1778,10 @@ document.addEventListener('submit', async (ev) => {
       await api('/api/t/song/part/save', { song_id: S.song.song.id, title, url: $('#pt_url').value.trim() || null, notes: $('#pt_notes').value.trim() || null, notation: S.nt && S.nt.pt ? S.nt.pt : null });
       DrumNotation.stop(); if (S.nt) delete S.nt.pt; S.pt = null;
       S.song = await api('/api/song', { id: S.song.song.id }); S.songs = await api('/api/songs'); openOverlay(songView); toast('Baustein gespeichert');
+    } else if (fid === 'partEditForm') {
+      await api('/api/t/song/part/update', { id: S.partEdit, title: $('#pe_title').value.trim(), url: $('#pe_url').value.trim() || null, notes: $('#pe_notes').value.trim() || null, notation: S.nt && S.nt.pe ? S.nt.pe : null });
+      DrumNotation.stop(); S.partEdit = null; if (S.nt) delete S.nt.pe;
+      S.song = await api('/api/song', { id: S.song.song.id }); rerenderSong(); toast('Gespeichert, gilt überall');
     } else if (fid === 'goalForm') {
       const t = $('#g_title').value.trim(); if (!t) return;
       S.lesson.new_goals.push({ title: t }); saveDraft(); render();

@@ -126,8 +126,8 @@ async function studentView(s, studentId, role) {
   const since = new Date(Date.now() - 90 * DAY).toISOString();
   const [assignments, sessions, goals, lessons, consent] = await Promise.all([
     s.all(`SELECT a.id, a.exercise_id, a.free_text, a.target_bpm, a.start_bpm, a.minutes_per_day, a.due_date, a.status, a.done_at, a.created_at,
-             e.title, e.category, e.source_type, e.url, e.book_ref, e.notes AS exercise_notes, e.notation, c.student_done_at, x.song_id, x.version AS song_version
-           FROM assignments a LEFT JOIN exercises e ON e.id = a.exercise_id LEFT JOIN assignment_checks c ON c.assignment_id = a.id LEFT JOIN assignment_songs x ON x.assignment_id = a.id LEFT JOIN assignment_order o ON o.assignment_id = a.id
+             COALESCE(e.title, psg.title || ': ' || sp.title) AS title, e.category, e.source_type, COALESCE(e.url, sp.url) AS url, e.book_ref, COALESCE(sp.notes, e.notes) AS exercise_notes, COALESCE(spn.notation, e.notation) AS notation, c.student_done_at, x.song_id, x.version AS song_version, ap.part_id
+           FROM assignments a LEFT JOIN exercises e ON e.id = a.exercise_id LEFT JOIN assignment_checks c ON c.assignment_id = a.id LEFT JOIN assignment_songs x ON x.assignment_id = a.id LEFT JOIN assignment_order o ON o.assignment_id = a.id LEFT JOIN assignment_parts ap ON ap.assignment_id = a.id LEFT JOIN song_parts sp ON sp.id = ap.part_id LEFT JOIN songs psg ON psg.id = sp.song_id LEFT JOIN song_part_notation spn ON spn.part_id = ap.part_id
            WHERE a.student_id = ? AND (a.status = 'offen' OR a.done_at > ?) ORDER BY (o.sort IS NULL) DESC, o.sort, a.created_at DESC`, studentId, new Date(Date.now() - 21 * DAY).toISOString()),
     s.all(`SELECT id, client_id, assignment_id, exercise_id, started_at, local_date, seconds, bpm_reached, feeling, note
            FROM practice_sessions WHERE student_id = ? AND started_at > ? ORDER BY started_at DESC`, studentId, since),
@@ -203,8 +203,8 @@ async function teacherStudent(s, id) {
   if (!st) throw new HttpError(404, 'Schüler nicht gefunden.');
   const [lessons, assignments, sessions, goals, access, consents] = await Promise.all([
     s.all('SELECT * FROM lessons WHERE student_id = ? ORDER BY date DESC', id),
-    s.all(`SELECT a.*, e.title, e.category, e.source_type, e.url, e.book_ref, e.notation, e.archived AS ex_archived, c.student_done_at, x.song_id, x.version AS song_version FROM assignments a LEFT JOIN exercises e ON e.id = a.exercise_id
-           LEFT JOIN assignment_checks c ON c.assignment_id = a.id LEFT JOIN assignment_songs x ON x.assignment_id = a.id LEFT JOIN assignment_order o ON o.assignment_id = a.id
+    s.all(`SELECT a.*, COALESCE(e.title, psg.title || ': ' || sp.title) AS title, e.category, e.source_type, COALESCE(e.url, sp.url) AS url, e.book_ref, COALESCE(spn.notation, e.notation) AS notation, e.archived AS ex_archived, c.student_done_at, x.song_id, x.version AS song_version, ap.part_id, sp.title AS part_title FROM assignments a LEFT JOIN exercises e ON e.id = a.exercise_id
+           LEFT JOIN assignment_checks c ON c.assignment_id = a.id LEFT JOIN assignment_songs x ON x.assignment_id = a.id LEFT JOIN assignment_order o ON o.assignment_id = a.id LEFT JOIN assignment_parts ap ON ap.assignment_id = a.id LEFT JOIN song_parts sp ON sp.id = ap.part_id LEFT JOIN songs psg ON psg.id = sp.song_id LEFT JOIN song_part_notation spn ON spn.part_id = ap.part_id
            WHERE a.student_id = ? ORDER BY (o.sort IS NULL) DESC, o.sort, a.created_at DESC LIMIT 200`, id),
     s.all('SELECT id, assignment_id, exercise_id, started_at, local_date, seconds, bpm_reached, feeling, note FROM practice_sessions WHERE student_id = ? ORDER BY started_at DESC LIMIT 400', id),
     s.all('SELECT * FROM goals WHERE student_id = ? ORDER BY created_at', id),
@@ -704,6 +704,15 @@ async function route(env, req, path, body) {
       await s.batch(ops);
       return { id };
     }
+    case '/api/t/song/part/update': {
+      const p = await s.first('SELECT id FROM song_parts WHERE id = ?', String(body.id || ''));
+      if (!p) throw new HttpError(404, 'Baustein nicht gefunden.');
+      const title = str(body.title, 120); if (!title) throw new HttpError(400, 'Titel fehlt.');
+      const nt = cleanNotation(body.notation);
+      const ops = [['UPDATE song_parts SET title = ?, url = ?, notes = ? WHERE id = ?', [title, cleanUrl(body.url), str(body.notes, 500), p.id]]];
+      ops.push(nt ? ['INSERT INTO song_part_notation (part_id, notation) VALUES (?, ?) ON CONFLICT(part_id) DO UPDATE SET notation = excluded.notation', [p.id, nt]] : ['DELETE FROM song_part_notation WHERE part_id = ?', [p.id]]);
+      ops.push(logRow(who, 'update', 'song_parts', p.id, title)); await s.batch(ops); return { ok: true };
+    }
     case '/api/t/song/part/delete': await s.batch([['DELETE FROM song_parts WHERE id = ?', [String(body.id || '')]], ['DELETE FROM song_part_notation WHERE part_id = ?', [String(body.id || '')]]]); return { ok: true };
     case '/api/t/transcribe': return transcribeImage(env, body, cleanNotation, HttpError);
     case '/api/t/preview': return studentView(s, String(body.id || ''), 'student');
@@ -745,12 +754,12 @@ async function route(env, req, path, body) {
       if (body.part_id && !part) throw new HttpError(404, 'Baustein nicht gefunden.');
       const title = str(body.free_text, 300) || (part ? part.song_title + ': ' + part.title : null);
       if (!title) throw new HttpError(400, 'Aufgabe fehlt.');
-      const nt = body.notation ? cleanNotation(body.notation) : part && part.notation;
+      const nt = body.notation ? cleanNotation(body.notation) : null; // Baustein Noten werden verlinkt, nicht kopiert
       const open = await s.all("SELECT LOWER(TRIM(free_text)) AS ft FROM assignments WHERE student_id = ? AND status = 'offen'", st.id);
       if (open.some((r) => r.ft === title.trim().toLowerCase())) throw new HttpError(409, 'Du hast die Hausaufgabe schon aufgegeben.');
       const t = now(), aid = uid(); const ops = []; let exId = null;
       if (nt) { exId = uid(); ops.push(['INSERT INTO exercises (id, title, category, source_type, notes, target_bpm, notation, archived, created_at) VALUES (?, ?, ?, ?, ?, ?, ?, 1, ?)', [exId, title.slice(0, 120), 'Hausaufgaben', 'noten', part ? part.notes : null, int(body.target_bpm, 20, 400), nt, t]]); }
-      if (part) ops.push(['INSERT INTO assignment_songs (assignment_id, song_id, version) VALUES (?, ?, ?)', [aid, part.song_id, str(body.version, 40)]]);
+      if (part) ops.push(['INSERT INTO assignment_songs (assignment_id, song_id, version) VALUES (?, ?, ?)', [aid, part.song_id, str(body.version, 40)]], ['INSERT INTO assignment_parts (assignment_id, part_id) VALUES (?, ?)', [aid, part.id]]);
       ops.push(['INSERT INTO assignments (id, student_id, lesson_id, exercise_id, free_text, target_bpm, start_bpm, minutes_per_day, due_date, status, created_at) VALUES (?, ?, NULL, ?, ?, ?, ?, ?, ?, ?, ?)',
         [aid, st.id, exId, title, int(body.target_bpm, 20, 400), int(body.start_bpm, 20, 400), int(body.minutes_per_day, 1, 240) || 10, isDate(body.due_date) ? body.due_date : null, 'offen', t]]);
       ops.push(logRow(who, 'create', 'assignments', aid, title)); await s.batch(ops); return { id: aid };
@@ -765,13 +774,20 @@ async function route(env, req, path, body) {
     }
     case '/api/t/assignment/update': {
       // Hausaufgabe bearbeiten: Text, Tempo, Minuten; Noten nur bei eigener Hausaufgaben Übung (nicht Bibliothek)
-      const a = await s.first('SELECT a.id, a.exercise_id, e.archived FROM assignments a LEFT JOIN exercises e ON e.id = a.exercise_id WHERE a.id = ?', String(body.id || ''));
+      // Änderungen gehen an die Quelle: Song Baustein oder Übung. So sind sie überall gleich (alle Schüler, Bibliothek, Kurs, Song).
+      const a = await s.first('SELECT a.id, a.exercise_id, e.archived, ap.part_id FROM assignments a LEFT JOIN exercises e ON e.id = a.exercise_id LEFT JOIN assignment_parts ap ON ap.assignment_id = a.id WHERE a.id = ?', String(body.id || ''));
       if (!a) throw new HttpError(404, 'Hausaufgabe nicht gefunden.');
       const ops = [['UPDATE assignments SET free_text = COALESCE(?, free_text), start_bpm = ?, target_bpm = ?, minutes_per_day = ? WHERE id = ?',
         [str(body.free_text, 300), int(body.start_bpm, 20, 400), int(body.target_bpm, 20, 400), int(body.minutes_per_day, 1, 240), a.id]]];
-      if (body.notation && a.exercise_id && a.archived) {
-        const nt = cleanNotation(body.notation);
-        ops.push(['UPDATE exercises SET notation = ?, title = COALESCE(?, title) WHERE id = ?', [nt, str(body.free_text, 120), a.exercise_id]]);
+      const nt = body.notation ? cleanNotation(body.notation) : null, title = str(body.title, 120);
+      if (a.part_id) {
+        if (nt) ops.push(['INSERT INTO song_part_notation (part_id, notation) VALUES (?, ?) ON CONFLICT(part_id) DO UPDATE SET notation = excluded.notation', [a.part_id, nt]]);
+        if (title) ops.push(['UPDATE song_parts SET title = ? WHERE id = ?', [title, a.part_id]]);
+      } else if (a.exercise_id) {
+        if (title && !a.archived) await assertFreeTitle(s, title, a.exercise_id);
+        if (nt) ops.push(['UPDATE exercises SET notation = ? WHERE id = ?', [nt, a.exercise_id]]);
+        const t2 = title || (a.archived ? str(body.free_text, 120) : null);
+        if (t2) ops.push(['UPDATE exercises SET title = ? WHERE id = ?', [t2, a.exercise_id]]);
       }
       ops.push(logRow(who, 'update', 'assignments', a.id, 'Hausaufgabe bearbeitet'));
       await s.batch(ops);

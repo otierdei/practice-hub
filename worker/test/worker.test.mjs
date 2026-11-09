@@ -519,3 +519,28 @@ test('Hausaufgaben Reihenfolge per Ziehen, Schüler sieht sie gleich', async () 
   const student = (await w.call('/api/home', {}, w.tb)).data.assignments.filter((a) => /^Reihe/.test(a.free_text)).map((a) => a.id);
   assert.deepEqual(teacher, order); assert.deepEqual(student, order);
 });
+
+test('Eine Quelle: Baustein und Bibliothek Änderungen gelten überall', async () => {
+  const w = await world();
+  const sid = (await w.call('/api/t/song/create', { title: 'The Blood' }, w.t)).data.id;
+  const pid = (await w.call('/api/t/song/part/save', { song_id: sid, title: 'Build', notation: { sig: '4/4', bars: 1, tracks: { sn: [0] } } }, w.t)).data.id;
+  await w.call('/api/t/assignment/add', { student_id: w.b, part_id: pid, start_bpm: 50, target_bpm: 80 }, w.t);
+  // Baustein im Song bearbeiten: Hausaufgabe zeigt sofort die neuen Noten und den neuen Titel
+  assert.equal((await w.call('/api/t/song/part/update', { id: pid, title: 'Final Build', notation: { sig: '4/4', bars: 2, tracks: { sn: [0, 16] } } }, w.tb)).status, 403);
+  await w.call('/api/t/song/part/update', { id: pid, title: 'Final Build', notes: 'laut', notation: { sig: '4/4', bars: 2, tracks: { sn: [0, 16] } } }, w.t);
+  let a = (await w.call('/api/home', {}, w.tb)).data.assignments.find((x) => x.part_id === pid);
+  assert.equal(a.title, 'The Blood: Final Build'); assert.deepEqual(JSON.parse(a.notation).tracks.sn, [0, 16]); assert.equal(a.exercise_notes, 'laut');
+  // Noten in der Hausaufgabe bearbeiten: Baustein im Song ändert sich mit
+  await w.call('/api/t/assignment/update', { id: a.id, notation: { sig: '4/4', bars: 1, tracks: { sn: [4] } }, start_bpm: 50, target_bpm: 80 }, w.t);
+  const part = (await w.call('/api/song', { id: sid }, w.t)).data.parts.find((p) => p.id === pid);
+  assert.deepEqual(JSON.parse(part.notation).tracks.sn, [4]);
+  // Bibliotheksübung über eine Hausaufgabe bearbeiten: andere Schüler sehen es auch
+  const ex = (await w.call('/api/t/exercise/save', { title: 'Groove X', notation: { sig: '4/4', bars: 1, tracks: { bd: [0] } } }, w.t)).data.id;
+  await w.call('/api/t/lesson/finish', { student_id: w.a, date: '2026-10-06', new_assignments: [{ exercise_id: ex }] }, w.t);
+  await w.call('/api/t/lesson/finish', { student_id: w.b, date: '2026-10-06', new_assignments: [{ exercise_id: ex }] }, w.t);
+  const ab = (await w.call('/api/t/student', { id: w.b }, w.t)).data.assignments.find((x) => x.exercise_id === ex);
+  assert.equal((await w.call('/api/t/assignment/update', { id: ab.id, title: 'Paradiddle Groove' }, w.t)).status, 409, 'Bibliotheksname bleibt eindeutig');
+  await w.call('/api/t/assignment/update', { id: ab.id, title: 'Groove Y', notation: { sig: '4/4', bars: 1, tracks: { bd: [0, 8] } } }, w.t);
+  const aa = (await w.call('/api/t/student', { id: w.a }, w.t)).data.assignments.find((x) => x.exercise_id === ex);
+  assert.equal(aa.title, 'Groove Y'); assert.deepEqual(JSON.parse(aa.notation).tracks.bd, [0, 8]);
+});

@@ -59,6 +59,13 @@ CREATE INDEX IF NOT EXISTS i_song_links ON song_links(song_id, sort);
 CREATE INDEX IF NOT EXISTS i_assignment_songs ON assignment_songs(song_id);
 CREATE INDEX IF NOT EXISTS i_song_files ON song_files(song_id);
 CREATE INDEX IF NOT EXISTS i_song_parts ON song_parts(song_id, sort);
+CREATE TABLE IF NOT EXISTS assignment_parts (
+  assignment_id TEXT PRIMARY KEY,
+  part_id TEXT NOT NULL
+);
+INSERT OR IGNORE INTO assignment_parts (assignment_id, part_id)
+  SELECT a.id, p.id FROM assignments a JOIN exercises e ON e.id = a.exercise_id AND e.archived = 1 JOIN assignment_songs x ON x.assignment_id = a.id
+  JOIN song_parts p ON p.song_id = x.song_id JOIN songs sg ON sg.id = p.song_id WHERE e.title = sg.title || ': ' || p.title;
 `;
 
 export const LIEDER_ROOT = '1eRaPJfiT2-xeDRKzzUuX-R4ypyQOr7_r';
