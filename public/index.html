@@ -127,6 +127,8 @@ textarea{min-height:80px;resize:vertical}
 .beats span.on{background:var(--ring);border-color:var(--ring)}
 .beats{flex-wrap:wrap}
 input[type=range]{accent-color:var(--ring);width:100%;min-height:32px}
+.lib-sub{border-top:1px solid var(--line);padding:10px 0 0;margin-top:10px}
+.lib-sub>summary{cursor:pointer}
 .met-dot{width:38px;height:38px;border-radius:50%;border:3px solid var(--line);background:transparent;padding:0;cursor:pointer}
 .met-dot.acc2{border-color:var(--ring);box-shadow:inset 0 0 0 5px color-mix(in srgb,var(--ring) 35%,transparent)}
 .met-dot.acc0{border-style:dashed;opacity:.5}
@@ -186,8 +188,8 @@ details.card summary{cursor:pointer;font-family:var(--display);font-size:1.08rem
 </head>
 <body>
 <div id="app"><div class="wrap"><p class="muted">Lädt …</p></div></div>
-<script src="notation.js?v=36"></script>
-<script src="guitar.js?v=36"></script>
+<script src="notation.js?v=37"></script>
+<script src="guitar.js?v=37"></script>
 <script>
 'use strict';
 // ---------- Grundlagen ----------
@@ -396,8 +398,17 @@ function libListHTML(ex) {
     const list = hits.filter((e) => libMain(e) === m).sort((a, b) => a.title.localeCompare(b.title, 'de', { numeric: true }));
     let body;
     if (m === 'Kurs') {
-      const subs = [...new Set(list.map((e) => e.category))].sort((a, b) => Number(a.replace(/\D/g, '')) - Number(b.replace(/\D/g, '')));
-      body = subs.map((sc) => `<h4 style="margin:10px 0 0">Lektion ${esc(sc.replace(/^Kurs L/, ''))}</h4><div class="list">${list.filter((e) => e.category === sc).map(libItem).join('')}</div>`).join('');
+      // Kurs nach Level (Starter bis Worship Ready), darin Lektionen mit Titel. Zuordnung aus dem Kurs selbst.
+      const co = S.course || { levels: [], lessons: [] }, where = {};
+      for (const l of co.lessons) for (const it of l.items || []) if (it.kind === 'exercise' && !where[it.url]) where[it.url] = l;
+      const lessonOf = (e) => where[e.id] || co.lessons.find((l) => 'Kurs L' + l.num === e.category) || { num: Number(String(e.category).replace(/\D/g, '')) || 0, title: '', level: 0 };
+      const groups = {}; for (const e of list) { const l = lessonOf(e); ((groups[l.level] = groups[l.level] || {})[l.num] = groups[l.level][l.num] || { l, items: [] }).items.push(e); }
+      body = Object.keys(groups).map(Number).sort((x, y) => (x || 99) - (y || 99)).map((lv) => {
+        const name = (co.levels.find((x) => x.level === lv) || {}).name; const les = Object.values(groups[lv]).sort((x, y) => x.l.num - y.l.num);
+        const n = les.reduce((t, g) => t + g.items.length, 0), key = 'Kurs ' + lv;
+        return `<details class="lib-sub" ${open || (S.libOpen || []).includes(key) ? 'open' : ''} data-lib="${esc(key)}"><summary><b>${lv ? 'Level ' + lv + (name ? ' · ' + esc(name) : '') : 'Ohne Level'}</b> <span class="small muted">${n}</span></summary>
+          ${les.map((g) => `<h4 style="margin:12px 0 0">Lektion ${g.l.num}${g.l.title ? ' · ' + esc(g.l.title) : ''}</h4><div class="list">${g.items.map(libItem).join('')}</div>`).join('')}</details>`;
+      }).join('');
     } else body = `<div class="list">${list.map(libItem).join('')}</div>`;
     return `<details class="card" ${open || (S.libOpen || []).includes(m) ? 'open' : ''} data-lib="${esc(m)}"><summary><h3 style="display:inline">${esc(m)}</h3> <span class="small muted">${list.length}</span></summary>${body}</details>`;
   }).join('');
