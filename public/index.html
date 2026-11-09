@@ -620,6 +620,7 @@ function lessonView() {
   return `<div class="wrap">
     <div class="row between"><button class="btn small" data-act="closeLesson">Schließen</button><div class="row"><button class="btn small" data-act="preview">Schüleransicht</button><span class="pill">Stunde läuft · ${esc(st.lesson_time || '')}</span></div></div>
     <h1>${esc(st.first_name)}</h1>
+    <p class="muted" id="lessonPractice" style="margin:-8px 0 0">Geübt seit ${last ? 'der letzten Stunde' : '7 Tagen'}: <b style="color:var(--ink)">${total} min</b> an <b style="color:var(--ink)">${days} von 7 Tagen</b></p>
     ${st.profile_note ? `<details class="card"><summary>Steckbrief</summary><p style="white-space:pre-line">${esc(st.profile_note)}</p></details>` : ''}
     <div class="lesson-grid">
       <div class="col" style="gap:16px">
