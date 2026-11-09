@@ -623,6 +623,7 @@ function lessonView() {
     ${st.profile_note ? `<details class="card"><summary>Steckbrief</summary><p style="white-space:pre-line">${esc(st.profile_note)}</p></details>` : ''}
     <div class="lesson-grid">
       <div class="col" style="gap:16px">
+        <section class="card"><h3>Hausaufgaben</h3><div class="list">${open.length ? open.map((a) => { const on = L.close_assignments.includes(a.id); return `<div class="item"><span class="t"><button class="link" data-act="asgDetail" data-id="${a.id}"><b>${esc(a.title || a.free_text)}</b></button><br><span class="muted small">${practicedFor(a, f.sessions)}${a.target_bpm ? ' · Ziel ' + a.target_bpm : ''}</span><br>${assignBadges(a)}</span><button class="check ${on ? 'on' : ''}" data-act="toggleClose" data-id="${a.id}" aria-pressed="${on}" aria-label="Als erledigt markieren">${on ? '✓' : ''}</button></div>`; }).join('') : '<p class="muted">Keine offenen Hausaufgaben.</p>'}</div></section>
         <section class="card"><h3>Seit ${last ? 'der letzten Stunde (' + esc(fmtDate(last.date)) + ')' : '7 Tagen'}</h3>
           <div class="row">${ring(Math.min(1, total / 100), 76, 7, 'var(--ring)', total + ' Minuten', total + '′')}${ring(days / 7, 76, 7, 'var(--ring2)', days + ' von 7 Tagen', days + '/7')}
           <span class="muted small" style="flex:1;min-width:120px">${recent.length} Übungssitzungen${recent.length ? ', Gefühl im Schnitt ' + (recent.filter((s) => s.feeling).reduce((t, s) => t + s.feeling, 0) / Math.max(1, recent.filter((s) => s.feeling).length)).toFixed(1) : ''}</span></div>
@@ -630,11 +631,10 @@ function lessonView() {
           ${last && last.notes_teacher ? `<details open><summary class="small muted">Letzte Stunde, deine Notiz</summary><p class="small" style="white-space:pre-line">${esc(last.notes_teacher)}</p></details>` : ''}
           ${historyBlock(f)}
         </section>
-        ${suggestBlock(f)}
-        <section class="card"><h3>Hausaufgaben</h3><div class="list">${open.length ? open.map((a) => { const on = L.close_assignments.includes(a.id); return `<div class="item"><span class="t"><button class="link" data-act="asgDetail" data-id="${a.id}"><b>${esc(a.title || a.free_text)}</b></button><br><span class="muted small">${practicedFor(a, f.sessions)}${a.target_bpm ? ' · Ziel ' + a.target_bpm : ''}</span><br>${assignBadges(a)}</span><button class="check ${on ? 'on' : ''}" data-act="toggleClose" data-id="${a.id}" aria-pressed="${on}" aria-label="Als erledigt markieren">${on ? '✓' : ''}</button></div>`; }).join('') : '<p class="muted">Keine offenen Hausaufgaben.</p>'}</div></section>
         <section class="card"><h3>Ziele</h3><div class="list">${f.goals.filter((g) => g.status !== 'erreicht').map((g) => { const on = L.goals_reached.includes(g.id); return `<div class="item"><span class="t">${esc(g.title)}</span><button class="check ${on ? 'on' : ''}" data-act="toggleGoal" data-id="${g.id}" aria-pressed="${on}" aria-label="Ziel erreicht">${on ? '✓' : ''}</button></div>`; }).join('') || '<p class="muted small">Keine offenen Ziele.</p>'}
           ${L.new_goals.map((g, i) => `<div class="item"><span class="t">${esc(g.title)} <span class="pill">neu</span></span><button class="btn small" data-act="rmGoal" data-i="${i}">Entfernen</button></div>`).join('')}</div>
           <form id="goalForm" class="row" style="flex-wrap:nowrap"><label for="g_title" class="hidden">Neues Ziel</label><input id="g_title" placeholder="Neues Ziel, z. B. Groove sauber auf 96" maxlength="160"><button class="btn small" type="submit">Hinzufügen</button></form></section>
+        ${suggestBlock(f)}
       </div>
       <div class="col" style="gap:16px">
         <section class="card"><h3>Neue Hausaufgaben</h3>
