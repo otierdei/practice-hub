@@ -157,7 +157,9 @@ input[type=range]{accent-color:var(--ring);width:100%;min-height:32px}
 .weeks .w{display:flex;flex-direction:column;align-items:center;gap:4px;font-size:.75rem;color:var(--muted)}
 .hidden{display:none!important}
 .nt-staff{overflow-x:auto;color:var(--ink);background:var(--sunk);border-radius:14px;padding:4px 6px}
-.nt-staff svg{display:block}
+.nt-staff svg{display:block;max-width:100%;height:auto}
+.nt-narrow{display:none}
+@media (max-width:640px){.nt-wide{display:none}.nt-narrow{display:block}}
 .nt-editor{display:flex;flex-direction:column;gap:12px}
 .nt-grid-wrap{overflow-x:auto;border:1px solid var(--line);border-radius:14px;background:var(--surface)}
 .nt-grid{border-collapse:separate;border-spacing:0;font-size:.78rem}
@@ -200,8 +202,8 @@ details.card summary{cursor:pointer;font-family:var(--display);font-size:1.08rem
 </head>
 <body>
 <div id="app"><div class="wrap"><p class="muted">Lädt …</p></div></div>
-<script src="notation.js?v=48"></script>
-<script src="guitar.js?v=48"></script>
+<script src="notation.js?v=49"></script>
+<script src="guitar.js?v=49"></script>
 <script>
 'use strict';
 // ---------- Grundlagen ----------

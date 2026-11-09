@@ -141,9 +141,10 @@
   }
   function render(n, opt = {}) {
     if (!n) return '';
-    const per = opt.barsPerLine || 4, lines = [];
-    for (let b = 0; b < n.bars; b += per) lines.push(renderLine(n, b, Math.min(n.bars, b + per), opt));
-    return lines.length > 1 ? `<div class="nt-lines">${lines.join('')}</div>` : lines[0];
+    const build = (per) => { const lines = []; for (let b = 0; b < n.bars; b += per) lines.push(renderLine(n, b, Math.min(n.bars, b + per), opt)); return lines.length > 1 ? `<div class="nt-lines">${lines.join('')}</div>` : lines[0]; };
+    if (opt.barsPerLine || n.bars === 1) return build(opt.barsPerLine || 1);
+    // Standard: Laptop 2 Takte pro Zeile, Handy 1 Takt pro Zeile (per CSS umgeschaltet)
+    return `<div class="nt-wide">${build(2)}</div><div class="nt-narrow">${build(1)}</div>`;
   }
   function head(h, x, ink) {
     const y = yOf(h.p), parts = [];
