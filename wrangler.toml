@@ -21,3 +21,7 @@ crons = ["17 3 * * *"]
 binding = "DB"
 database_name = "practice-hub"
 database_id = "926b6768-4c93-4b4f-8122-83e7577114f9"
+
+# Kostenlose KI von Cloudflare für die Notenbild Transkription
+[ai]
+binding = "AI"
