@@ -44,7 +44,7 @@ let n = 0; const ok = (m) => console.log('ok ' + (++n) + ' ' + m);
   await t.click('[data-act=close]'); await t.click('[data-tab=heute]');
   await t.getByText('Gerade dran').waitFor(); ok('Heute zeigt Jonas als gerade dran');
   await t.click('section[aria-label="Gerade dran"] [data-act=lesson]');
-  await t.getByText('Hausaufgabe hinzufügen').waitFor(); if (await t.locator('#sugBox').count()) { assert.equal(await t.locator('#sugBox').evaluate((d) => d.open), false); ok('Vorschläge zugeklappt'); } assert.match(await t.textContent('#lessonPractice'), /Geübt seit .*: \d+ min an \d von 7 Tagen/); ok('Übungszeit oben in der Stunde');
+  await t.getByText('Hausaufgabe hinzufügen').waitFor(); if (await t.locator('#warmBox').count()) { assert.equal(await t.locator('#warmBox').evaluate((d) => d.open), false); ok('Aufwärmen zugeklappt'); } if (await t.locator('#sugBox').count()) { assert.equal(await t.locator('#sugBox').evaluate((d) => d.open), false); ok('Vorschläge zugeklappt'); } assert.match(await t.textContent('#lessonPractice'), /Geübt seit .*: \d+ min an \d von 7 Tagen/); ok('Übungszeit oben in der Stunde');
   assert.equal(await t.inputValue('#a_from'), '45'); assert.equal(await t.inputValue('#a_bpm'), '100');
   await t.selectOption('#a_ex', { label: 'Grooves: Paradiddle Groove' });
   assert.equal(await t.inputValue('#a_from'), '45'); assert.equal(await t.inputValue('#a_bpm'), '96'); ok('Tempo Standard 45 bis 100, eigenes Ziel der Übung gilt');
