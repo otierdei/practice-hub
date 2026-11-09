@@ -186,8 +186,8 @@ details.card summary{cursor:pointer;font-family:var(--display);font-size:1.08rem
 </head>
 <body>
 <div id="app"><div class="wrap"><p class="muted">Lädt …</p></div></div>
-<script src="notation.js?v=34"></script>
-<script src="guitar.js?v=34"></script>
+<script src="notation.js?v=35"></script>
+<script src="guitar.js?v=35"></script>
 <script>
 'use strict';
 // ---------- Grundlagen ----------
@@ -195,10 +195,12 @@ const qs = new URLSearchParams(location.search);
 const LOCAL = /^(localhost|127\.0\.0\.1)$/.test(location.hostname);
 const API = (LOCAL && qs.get('api')) || ''; // App und API laufen auf derselben Adresse
 const CONSENT_TEXT = 'Ich bin einverstanden, dass Oti (Schlagzeugunterricht) in Practice Hub den Vornamen, das Geburtsjahr, Unterrichtsnotizen, Hausaufgaben und Übezeiten meines Kindes speichert, um den Unterricht zu begleiten. Die Daten liegen bei Cloudflare in der EU, werden nicht weitergegeben und spätestens 12 Monate nach Ende des Unterrichts gelöscht. Ich kann die Einwilligung jederzeit bei Oti widerrufen.';
+// In der Schüler Simulation landet alles in einer eigenen Sandbox (ph_pv_…), die beim Beenden gelöscht wird
+const pk = (k) => 'ph_' + (window.__pv && !['token', 'role', 'name'].includes(k) ? 'pv_' : '') + k;
 const store = {
-  get(k, d) { try { const v = localStorage.getItem('ph_' + k); return v == null ? d : JSON.parse(v); } catch (e) { return d; } },
-  set(k, v) { try { localStorage.setItem('ph_' + k, JSON.stringify(v)); } catch (e) {} },
-  del(k) { try { localStorage.removeItem('ph_' + k); } catch (e) {} },
+  get(k, d) { try { const v = localStorage.getItem(pk(k)); return v == null ? d : JSON.parse(v); } catch (e) { return d; } },
+  set(k, v) { try { localStorage.setItem(pk(k), JSON.stringify(v)); } catch (e) {} },
+  del(k) { try { localStorage.removeItem(pk(k)); } catch (e) {} },
 };
 const S = { token: store.get('token', null), role: store.get('role', null), name: store.get('name', null), tab: null, data: null, overlay: null, exercises: null };
 const esc = (v) => String(v == null ? '' : v).replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
@@ -216,6 +218,7 @@ function toast(msg) {
 }
 
 async function api(path, body) {
+  if (window.__pv) return previewApi(path, body || {});
   const headers = { 'Content-Type': 'application/json' };
   if (S.token) headers.Authorization = 'Bearer ' + S.token;
   let res;
@@ -312,13 +315,39 @@ async function load() {
   render();
 }
 
+// Schüler Simulation: Lesen echt, Schreiben nur in der Sandbox
+async function previewApi(path, b) {
+  const d = S.preview.data, now = new Date().toISOString();
+  switch (path) {
+    case '/api/home': return d;
+    case '/api/session/add': d.sessions = [Object.assign({ id: 'pv' + Date.now(), created_at: now }, b)].concat(d.sessions || []); return { ok: true };
+    case '/api/assignment/toggle': return { ok: true };
+    case '/api/goal/toggle': { const g = d.goals.find((x) => x.id === b.id); g.status = g.status === 'erreicht' ? 'offen' : 'erreicht'; return { status: g.status }; }
+    case '/api/goal/add': d.goals.push({ id: 'pv' + Date.now(), title: String(b.title || ''), status: 'offen', created_at: now }); return { ok: true };
+    case '/api/my/song': return { ok: true };
+    case '/api/songs': case '/api/song': case '/api/course': case '/api/ping': {
+      window.__pv = false; try { return await api(path, b); } finally { window.__pv = true; }
+    }
+    default: throw new Error('Simulation: das wird nicht gespeichert');
+  }
+}
+function startPreview(data) {
+  S.preview = { data, tab: 'ueben', saved: { data: S.data, role: S.role, tab: S.tab, songs: S.songs && JSON.parse(JSON.stringify(S.songs)) } };
+  window.__pv = true; clearPreviewStore(); S.data = data; S.role = 'student'; S.tab = 'ueben'; S.overlay = null;
+}
+function clearPreviewStore() { try { Object.keys(localStorage).filter((k) => k.startsWith('ph_pv_')).forEach((k) => localStorage.removeItem(k)); } catch (e) { /* egal */ } }
+function endPreviewState() {
+  const sv = S.preview.saved; DrumNotation.stop(); metStop(); stopTick(); clearPreviewStore();
+  window.__pv = false; S.data = sv.data; S.role = sv.role; S.tab = sv.tab; S.songs = sv.songs; S.preview = null;
+}
+
 // ---------- Rendern ----------
 function render() {
   const app = $('#app');
   if (!S.token || !S.role) { app.innerHTML = loginView(); return; }
   let body = '';
   if (!S.data) body = `<div class="wrap"><p class="muted">${S.loadError ? esc(S.loadError) + ' <button class="btn small" data-act="reload">Nochmal</button>' : 'Lädt …'}</p></div>`;
-  else if (S.preview) body = `<div class="preview-bar"><span>Vorschau: so sieht ${esc(S.preview.data.student.first_name)} die App</span><button class="btn small" data-act="endPreview">Beenden</button></div>` + studentView(S.preview.data, S.preview.tab);
+  else if (S.preview) body = `<div class="preview-bar"><span>Simulation als ${esc(S.preview.data.student.first_name)}: tippen erlaubt, nichts wird gespeichert</span><button class="btn small" data-act="endPreview">Beenden</button></div>` + studentView(S.preview.data, S.preview.tab);
   else if (S.role === 'teacher') body = teacherView();
   else if (S.role === 'student') body = studentView();
   else body = parentView();
@@ -680,7 +709,7 @@ function lessonView() {
 
 // ---------- Schüler ----------
 function weekStart() { const d = new Date(); d.setHours(0, 0, 0, 0); d.setDate(d.getDate() - ((d.getDay() + 6) % 7)); return localDate(d); }
-function allSessions(d = S.data) { return (d.sessions || []).concat(S.preview ? [] : store.get('outbox', []).filter((o) => !d.sessions.some((s) => s.client_id === o.client_id))); }
+function allSessions(d = S.data) { return (d.sessions || []).concat(store.get('outbox', []).filter((o) => !d.sessions.some((s) => s.client_id === o.client_id))); }
 const PLAY = '<svg viewBox="0 0 24 24" width="18" height="18" aria-hidden="true"><path d="M8 5v14l11-7z" fill="currentColor"/></svg>';
 function studentView(d = S.data, t = S.tab) {
   const sessions = allSessions(d);
@@ -689,8 +718,8 @@ function studentView(d = S.data, t = S.tab) {
   const weekMin = mins(sessions.filter((s) => s.local_date >= ws).reduce((x, s) => x + s.seconds, 0));
   const open = d.assignments.filter((a) => a.status === 'offen' && !a.student_done_at);
   const dailyGoal = Math.max(10, open.reduce((x, a) => x + (a.minutes_per_day || 0), 0) || 20);
-  const pending = S.preview ? 0 : store.get('outbox', []).length;
-  const running = !S.preview && store.get('run', null);
+  const pending = store.get('outbox', []).length;
+  const running = store.get('run', null);
   let html = '';
   if (t === 'ueben') {
     const streak = weekStreak(sessions);
@@ -727,7 +756,7 @@ function studentView(d = S.data, t = S.tab) {
     </div></section>
     <section class="card"><h3>Übezeit pro Woche</h3>${weeksCircles(sessions)}</section>
     ${exList.length ? `<section class="card"><h3>Tempo</h3><div class="grid2" style="grid-template-columns:repeat(auto-fill,minmax(150px,1fr))">${exList.map((e) => `<div class="col" style="align-items:center;gap:6px">${ring(e.best / e.target, 96, 8, 'var(--ring)', e.title + ': ' + e.best + ' von ' + e.target + ' BPM', String(e.best || '–'), 'von ' + e.target)}<span class="small" style="text-align:center">${esc(e.title)}</span></div>`).join('')}</div></section>` : ''}
-    <section class="card"><h3>Ziele</h3><div class="list">${d.goals.length ? d.goals.map((g) => `<div class="item"><span class="t">${esc(g.title)}</span>${d.canGoal && !S.preview ? `<button class="check ${g.status === 'erreicht' ? 'on' : ''}" data-act="goalToggle" data-id="${g.id}" aria-pressed="${g.status === 'erreicht'}" aria-label="Ziel erreicht">${g.status === 'erreicht' ? '✓' : ''}</button>` : g.status === 'erreicht' ? '<span class="pill">erreicht</span>' : '<span class="pill">offen</span>'}</div>`).join('') : `<p class="muted">${d.canGoal ? 'Setz dir dein erstes Ziel.' : 'Oti trägt deine Ziele in der Stunde ein.'}</p>`}</div>
+    <section class="card"><h3>Ziele</h3><div class="list">${d.goals.length ? d.goals.map((g) => `<div class="item"><span class="t">${esc(g.title)}</span>${d.canGoal ? `<button class="check ${g.status === 'erreicht' ? 'on' : ''}" data-act="goalToggle" data-id="${g.id}" aria-pressed="${g.status === 'erreicht'}" aria-label="Ziel erreicht">${g.status === 'erreicht' ? '✓' : ''}</button>` : g.status === 'erreicht' ? '<span class="pill">erreicht</span>' : '<span class="pill">offen</span>'}</div>`).join('') : `<p class="muted">${d.canGoal ? 'Setz dir dein erstes Ziel.' : 'Oti trägt deine Ziele in der Stunde ein.'}</p>`}</div>
       ${d.canGoal ? `<form id="myGoalForm" class="row" style="flex-wrap:nowrap"><input id="mg_title" maxlength="160" placeholder="z. B. Paradiddle auf 100 BPM" aria-label="Neues Ziel" style="flex:1"><button class="btn primary small" type="submit">Hinzufügen</button></form>` : ''}</section>`;
   } else if (t === 'songs') {
     html = songsTab(false);
@@ -784,7 +813,7 @@ function courseLessonView() {
       : it.kind === 'song' ? `<section class="card"><div class="row" style="flex-wrap:nowrap;gap:12px;align-items:center"><span class="task-icon" aria-hidden="true">${ICON_NOTE}</span><div class="col" style="gap:0;flex:1;min-width:0"><span class="small muted">Song</span><b>${esc(it.title)}</b>${it.notes ? `<span class="small muted">${esc(it.notes)}</span>` : ''}</div>${it.song_id ? `<button class="btn small" data-act="song" data-id="${esc(it.song_id)}">Öffnen</button>` : ''}${teacher ? `<button class="btn small danger" data-act="itemDelete" data-id="${it.id}">Entfernen</button>` : ''}</div></section>`
       : `<section class="card"><div class="row between" style="flex-wrap:nowrap"><span style="white-space:pre-line">${esc(it.title)}${it.notes ? '\n' + esc(it.notes) : ''}</span>${teacher ? `<button class="btn small danger" data-act="itemDelete" data-id="${it.id}">Entfernen</button>` : ''}</div></section>`).join('')}
     ${!l.items.filter((it) => it.kind !== 'material').length ? `<div class="empty">${teacher ? 'Noch kein Inhalt. Füg unten Videos, Songs oder Text hinzu.' : 'Diese Lektion machst du mit Oti in der Stunde.'}</div>` : ''}
-    ${S.role === 'student' && !S.preview ? '<button class="btn primary block" data-act="practiceFree">Jetzt üben</button>' : ''}
+    ${S.role === 'student' ? '<button class="btn primary block" data-act="practiceFree">Jetzt üben</button>' : ''}
     ${teacher ? `<form id="itemForm" class="card col"><b>Inhalt hinzufügen</b>
       <div class="row" style="gap:6px">${[['video', 'Video'], ['exercise', 'Übung mit Noten'], ['song', 'Song'], ['text', 'Text'], ['material', 'Meine Unterlage']].map(([k, n]) => `<button type="button" class="chip" data-act="itemKind" data-v="${k}" aria-pressed="${(S.itemKind || 'video') === k}">${n}</button>`).join('')}</div>
       ${(S.itemKind || 'video') === 'exercise' ? `<div class="field"><label for="it_ex">Übung aus der Bibliothek</label><select id="it_ex">${(S.exercises || []).map((e) => `<option value="${e.id}">${esc((e.category ? e.category + ': ' : '') + e.title)}</option>`).join('')}</select></div>` : ''}
@@ -819,7 +848,7 @@ function driveUrl(id) { return 'https://drive.google.com/file/d/' + encodeURICom
 function songMeta(x) { return [x.keys && x.keys.length ? x.keys.join(' / ') : '', x.bpm ? x.bpm + ' BPM' : '', x.parts ? x.parts + ' Video' + (x.parts > 1 ? 's' : '') : ''].filter(Boolean).join(' · '); }
 function songRow(x, mine) {
   return `<div class="item song-row"><button class="t song-open" data-act="song" data-id="${esc(x.id)}"><b>${esc(x.title)}</b><span class="muted small">${esc(songMeta(x)) || (x.lang === 'en' ? 'Englisch' : 'Deutsch')}</span></button>
-    ${S.role === 'student' && !S.preview ? `<button class="iconbtn add ${mine ? 'on' : ''}" data-act="mySong" data-id="${esc(x.id)}" aria-pressed="${mine}" aria-label="${mine ? 'Aus meiner Setlist nehmen' : 'Zu meiner Setlist'}">${mine ? '✓' : '+'}</button>` : ''}</div>`;
+    ${S.role === 'student' ? `<button class="iconbtn add ${mine ? 'on' : ''}" data-act="mySong" data-id="${esc(x.id)}" aria-pressed="${mine}" aria-label="${mine ? 'Aus meiner Setlist nehmen' : 'Zu meiner Setlist'}">${mine ? '✓' : '+'}</button>` : ''}</div>`;
 }
 function songResults() {
   const sg = S.songs; if (!sg) return '';
@@ -853,7 +882,7 @@ function songView() {
   const pdfs = d.files.filter((f) => f.kind === 'pdf');
   const teacher = S.role === 'teacher' && !S.preview;
   return `<div class="wrap" style="max-width:720px;align-items:stretch">
-    <div class="row between"><button class="btn small" data-act="close">Zurück</button>${S.role === 'student' && !S.preview ? `<button class="btn small ${mine ? '' : 'primary'}" data-act="mySong" data-id="${esc(d.song.id)}">${mine ? 'In meiner Setlist ✓' : 'Zu meiner Setlist'}</button>` : ''}</div>
+    <div class="row between"><button class="btn small" data-act="close">Zurück</button>${S.role === 'student' ? `<button class="btn small ${mine ? '' : 'primary'}" data-act="mySong" data-id="${esc(d.song.id)}">${mine ? 'In meiner Setlist ✓' : 'Zu meiner Setlist'}</button>` : ''}</div>
     <div class="col" style="gap:4px"><h1>${esc(d.song.title)}</h1><span class="muted">${esc(x ? songMeta({ ...x, parts: 0 }) : '')}</span></div>
     ${songLinksSection(d, teacher)}
     ${teacher && d.playedBy && d.playedBy.length ? `<p class="small muted">Gespielt von: ${d.playedBy.map(esc).join(', ')}</p>` : ''}
@@ -931,7 +960,7 @@ function linkVideoView() {
   const l = S.song && S.song.links.find((x) => x.id === S.linkId); if (!l) return '';
   return `<div class="wrap" style="max-width:720px;align-items:stretch"><div class="row between"><button class="btn small" data-act="backToSong">Zurück</button></div>
     <div class="col" style="gap:2px"><span class="muted">${esc(S.song.song.title)}</span><h1>${esc(l.version)}</h1></div>${ytEmbed(l.url) || `<a class="btn" href="${esc(l.url)}" target="_blank" rel="noopener">Link öffnen</a>`}
-    ${S.role === 'student' && !S.preview ? '<button class="btn primary block" data-act="practiceFree">Jetzt üben</button>' : ''}</div>`;
+    ${S.role === 'student' ? '<button class="btn primary block" data-act="practiceFree">Jetzt üben</button>' : ''}</div>`;
 }
 function songCandView() {
   const c = S.songCand || [];
@@ -943,7 +972,7 @@ function partVideoView() {
   const p = S.song && S.song.parts.find((x) => x.id === S.partId); if (!p) return '';
   return `<div class="wrap" style="max-width:720px;align-items:stretch"><div class="row between"><button class="btn small" data-act="backToSong">Zurück</button></div>
     <div class="col" style="gap:2px"><span class="muted">${esc(S.song.song.title)}</span><h1>${esc(p.title)}</h1></div>${ytEmbed(p.url)}
-    ${S.role === 'student' && !S.preview ? '<button class="btn primary block" data-act="practiceFree">Jetzt üben</button>' : ''}</div>`;
+    ${S.role === 'student' ? '<button class="btn primary block" data-act="practiceFree">Jetzt üben</button>' : ''}</div>`;
 }
 async function openSong(id) { S.song = await api('/api/song', { id }); openOverlay(songView); }
 document.addEventListener('input', (ev) => { if (ev.target.id === 'songQ') { S.songQ = ev.target.value; const l = $('#songList'); if (l) l.innerHTML = songResults(); } });
@@ -1007,7 +1036,7 @@ function videoView() {
     <div class="row between"><button class="btn small" data-act="close">Zurück</button></div>
     <h1>${esc(a.title || a.free_text)}</h1>
     ${ytEmbed(a.url)}
-    ${S.preview ? '' : `<button class="btn primary block" data-act="practice" data-id="${a.id}">Jetzt üben</button>`}
+    <button class="btn primary block" data-act="practice" data-id="${a.id}">Jetzt üben</button>
   </div>`;
 }
 function ytThumb(url) { const m = /(?:youtu\.be\/|v=|shorts\/|embed\/)([A-Za-z0-9_-]{11})/.exec(url || ''); return m ? 'https://i.ytimg.com/vi/' + m[1] + '/hqdefault.jpg' : null; }
@@ -1285,15 +1314,14 @@ function parentView() {
 // ---------- Ereignisse ----------
 document.addEventListener('click', async (ev) => {
   const ptab = ev.target.closest('[data-ptab]');
-  if (ptab && S.preview) { S.preview.tab = ptab.dataset.ptab; render(); window.scrollTo(0, 0); return; }
+  if (ptab && S.preview) { S.preview.tab = S.tab = ptab.dataset.ptab; render(); window.scrollTo(0, 0); return; }
   const tabBtn = ev.target.closest('[data-tab]');
+  if (tabBtn && S.preview) { S.preview.tab = S.tab = tabBtn.dataset.tab; S.overlay = null; render(); window.scrollTo(0, 0); return; }
   if (tabBtn) { if (S.tunerOn) { Guitar.tunerStop(); S.tunerOn = false; } S.tab = tabBtn.dataset.tab; S.overlay = null; render(); window.scrollTo(0, 0); return; }
   const el = ev.target.closest('[data-act]'); if (!el) return;
   const act = el.dataset.act, id = el.dataset.id;
-  if (S.preview && act === 'video') { S.videoId = id; openOverlay(videoView); return; }
-  if (S.preview && act === 'close' && [videoView, songView, partVideoView, linkVideoView, courseView, courseLessonView].includes(S.overlay)) { closeOverlay(); return; }
-  // In der Vorschau darf man ansehen, aber nichts ändern
-  if (S.preview && !['endPreview', 'song', 'partVideo', 'backToSong', 'songLang', 'songVideos', 'sheet', 'course', 'courseLesson', 'backToCourse', 'courseBack', 'songVer', 'linkVideo'].includes(act) && el.tagName !== 'A') { toast('Vorschau: hier tippt ' + S.preview.data.student.first_name); return; }
+  // Simulation: alles tippen wie der Schüler, nur Abmelden und Einwilligung nicht
+  if (S.preview && ['logout', 'consent'].includes(act)) { toast('In der Simulation nicht möglich'); return; }
   try {
     switch (act) {
       case 'reload': load(); break;
@@ -1375,8 +1403,8 @@ document.addEventListener('click', async (ev) => {
         store.del('draft_' + L.student_id); S.lesson = null; closeOverlay();
         toast((res.merged ? 'Stunde von heute ergänzt' : 'Stunde gespeichert') + (res.skipped && res.skipped.length ? '. Du hast die Hausaufgabe schon aufgegeben: ' + res.skipped.join(', ') : '')); load(); break;
       }
-      case 'preview': { const sid = id || S.file.student.id; S.previewFrom = S.overlay; if (S.overlay === lessonView) saveDraft(); const data = await api('/api/t/preview', { id: sid }); S.preview = { data, tab: 'ueben' }; S.overlay = null; stopTick(); render(); window.scrollTo(0, 0); break; }
-      case 'endPreview': S.preview = null; if (S.previewFrom) openOverlay(S.previewFrom); else render(); S.previewFrom = null; break;
+      case 'preview': { const sid = id || S.file.student.id; S.previewFrom = S.overlay; if (S.overlay === lessonView) saveDraft(); const data = await api('/api/t/preview', { id: sid }); stopTick(); startPreview(data); render(); window.scrollTo(0, 0); break; }
+      case 'endPreview': endPreviewState(); if (S.previewFrom) openOverlay(S.previewFrom); else render(); S.previewFrom = null; break;
       case 'asgEdit': {
         const a = S.file.assignments.find((x) => x.id === id); S.asgEdit = id; S.nt = S.nt || {};
         if (a.notation && a.ex_archived) S.nt.ae = DrumNotation.parse(a.notation); else delete S.nt.ae;

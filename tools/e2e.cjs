@@ -119,9 +119,19 @@ let n = 0; const ok = (m) => console.log('ok ' + (++n) + ' ' + m);
     await t.locator('[data-act=addLink]').first().click();
     await t.locator('input[id^=lki_]').first().fill('youtu.be/dQw4w9WgXcQ');
     await t.locator('[data-act=saveLink]').first().click(); await t.getByText('Link gespeichert').waitFor(); ok('Lehrer hängt YouTube Link an Hausaufgabe');
-    await t.click('.sheet [data-act=preview]'); await t.getByText('Vorschau: so sieht').waitFor();
+    const before = await t.evaluate(() => S.file.sessions.length);
+    await t.click('.sheet [data-act=preview]'); await t.getByText('Simulation als').waitFor();
     assert.ok(await t.locator('.thumb').count() >= 1); ok('Vorschau zeigt Schüleransicht mit Videobild');
-    await t.click('[data-act=endPreview]'); await t.click('[data-act=close]');
+    await t.locator('[data-act=practice]').first().click(); await t.waitForTimeout(300);
+    await t.evaluate(() => { const r = JSON.parse(localStorage.getItem('ph_pv_run')); r.runningSince -= 5 * 60000; localStorage.setItem('ph_pv_run', JSON.stringify(r)); });
+    await t.click('[data-act=endPractice]'); await t.click('[data-act=feel][data-v="4"]'); await t.click('#finishForm button[type=submit]');
+    await t.getByText('5 min gespeichert').waitFor();
+    await t.click('[data-act=endPreview]');
+    assert.equal(await t.evaluate(() => Object.keys(localStorage).filter((k) => k.startsWith('ph_pv_')).length), 0, 'Sandbox geleert');
+    assert.equal(await t.evaluate(() => S.role), 'teacher');
+    const after = (await t.evaluate(() => api('/api/t/student', { id: S.file.student.id }))).sessions.length;
+    assert.equal(after, before, 'Simulation schreibt nichts in die Datenbank'); ok('Simulation: als Schüler üben, nichts gespeichert, Lehrer danach zurück');
+    await t.click('[data-act=close]');
   }
   // Import aus Datei (Beispieldaten)
   const seedPath = require('path').join(require('os').tmpdir(), 'ph-seed-test.json');
