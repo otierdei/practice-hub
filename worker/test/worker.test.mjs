@@ -480,3 +480,16 @@ test('Notenbild transkribieren: ohne Schlüssel 503, mit Schlüssel Beats, Baust
   await w.call('/api/t/song/part/delete', { id: pid }, w.t);
   assert.equal((await w.call('/api/song', { id: sid }, w.ta)).data.parts.length, 0);
 });
+
+test('Hausaufgabe ohne Stunde: Song Baustein mit Noten und Tempo', async () => {
+  const w = await world();
+  const before = (await w.call('/api/t/student', { id: w.b }, w.t)).data.lessons.length;
+  const sid = (await w.call('/api/t/song/create', { title: 'Never Walk Alone' }, w.t)).data.id;
+  const pid = (await w.call('/api/t/song/part/save', { song_id: sid, title: 'Chorus (Easy)', notation: { sig: '4/4', bars: 1, tracks: { bd: [0, 4] } } }, w.t)).data.id;
+  assert.equal((await w.call('/api/t/assignment/add', { student_id: w.b, part_id: pid }, w.tb)).status, 403);
+  assert.equal((await w.call('/api/t/assignment/add', { student_id: w.b, part_id: pid, start_bpm: 50, target_bpm: 80, due_date: '2026-11-15', version: 'Easy' }, w.t)).status, 200);
+  assert.equal((await w.call('/api/t/assignment/add', { student_id: w.b, part_id: pid }, w.t)).status, 409);
+  const a = (await w.call('/api/home', {}, w.tb)).data.assignments.find((x) => x.free_text === 'Never Walk Alone: Chorus (Easy)');
+  assert.equal(a.start_bpm, 50); assert.equal(a.target_bpm, 80); assert.equal(a.song_id, sid); assert.deepEqual(JSON.parse(a.notation).tracks.bd, [0, 4]);
+  assert.equal((await w.call('/api/t/student', { id: w.b }, w.t)).data.lessons.length, before, 'keine Stunde angelegt');
+});

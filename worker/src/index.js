@@ -736,6 +736,24 @@ async function route(env, req, path, body) {
       await s.run('UPDATE assignments SET status = ?, done_at = ? WHERE id = ?', status, status === 'erledigt' ? now() : null, String(body.id || ''));
       return { ok: true };
     }
+    case '/api/t/assignment/add': {
+      // Hausaufgabe ohne Stunde aufgeben, z. B. einen Song Baustein mit Noten
+      const st = await s.first('SELECT id FROM students WHERE id = ?', String(body.student_id || ''));
+      if (!st) throw new HttpError(404, 'Schüler nicht gefunden.');
+      const part = body.part_id ? await s.first('SELECT p.id, p.song_id, p.title, p.notes, sg.title AS song_title, n.notation FROM song_parts p JOIN songs sg ON sg.id = p.song_id LEFT JOIN song_part_notation n ON n.part_id = p.id WHERE p.id = ?', String(body.part_id)) : null;
+      if (body.part_id && !part) throw new HttpError(404, 'Baustein nicht gefunden.');
+      const title = str(body.free_text, 300) || (part ? part.song_title + ': ' + part.title : null);
+      if (!title) throw new HttpError(400, 'Aufgabe fehlt.');
+      const nt = body.notation ? cleanNotation(body.notation) : part && part.notation;
+      const open = await s.all("SELECT LOWER(TRIM(free_text)) AS ft FROM assignments WHERE student_id = ? AND status = 'offen'", st.id);
+      if (open.some((r) => r.ft === title.trim().toLowerCase())) throw new HttpError(409, 'Du hast die Hausaufgabe schon aufgegeben.');
+      const t = now(), aid = uid(); const ops = []; let exId = null;
+      if (nt) { exId = uid(); ops.push(['INSERT INTO exercises (id, title, category, source_type, notes, target_bpm, notation, archived, created_at) VALUES (?, ?, ?, ?, ?, ?, ?, 1, ?)', [exId, title.slice(0, 120), 'Hausaufgaben', 'noten', part ? part.notes : null, int(body.target_bpm, 20, 400), nt, t]]); }
+      if (part) ops.push(['INSERT INTO assignment_songs (assignment_id, song_id, version) VALUES (?, ?, ?)', [aid, part.song_id, str(body.version, 40)]]);
+      ops.push(['INSERT INTO assignments (id, student_id, lesson_id, exercise_id, free_text, target_bpm, start_bpm, minutes_per_day, due_date, status, created_at) VALUES (?, ?, NULL, ?, ?, ?, ?, ?, ?, ?, ?)',
+        [aid, st.id, exId, title, int(body.target_bpm, 20, 400), int(body.start_bpm, 20, 400), int(body.minutes_per_day, 1, 240) || 10, isDate(body.due_date) ? body.due_date : null, 'offen', t]]);
+      ops.push(logRow(who, 'create', 'assignments', aid, title)); await s.batch(ops); return { id: aid };
+    }
     case '/api/t/assignment/update': {
       // Hausaufgabe bearbeiten: Text, Tempo, Minuten; Noten nur bei eigener Hausaufgaben Übung (nicht Bibliothek)
       const a = await s.first('SELECT a.id, a.exercise_id, e.archived FROM assignments a LEFT JOIN exercises e ON e.id = a.exercise_id WHERE a.id = ?', String(body.id || ''));
@@ -799,7 +817,7 @@ export default {
     } catch (e) {
       const status = e instanceof HttpError ? e.status : (e instanceof SyntaxError ? 400 : 500);
       if (status === 500) console.error(e);
-      return json({ error: status === 500 ? 'Serverfehler. Bitte später nochmal.' : e.message }, status, cors);
+      return json({ error: status === 500 ? 'Serverfehler. Bitte später nochmal.' + (url.pathname === '/api/t/transcribe' ? ' (' + String(e && e.message || e).slice(0, 200) + ')' : '') : e.message }, status, cors);
     }
   },
   async scheduled(event, env, ctx) {
