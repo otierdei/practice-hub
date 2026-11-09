@@ -69,7 +69,8 @@ async function askCloudflare(env, mediaType, data, HttpError, model) {
   let out;
   try { out = await run(); }
   catch (e) { console.error('workers-ai', e); throw new HttpError(502, 'Die kostenlose Transkription hat nicht geklappt (' + String(e && e.message || e).slice(0, 160) + ').'); }
-  return String((out && (out.response ?? (out.result && out.result.response))) || '');
+  const r = out && (out.response ?? (out.result && out.result.response));
+  return typeof r === 'string' ? r : JSON.stringify(r || '');
 }
 
 export async function transcribeImage(env, body, clean, HttpError) {
