@@ -160,7 +160,7 @@ let n = 0; const ok = (m) => console.log('ok ' + (++n) + ' ' + m);
   await t.click('[data-nt-act=play]'); await t.waitForTimeout(500); await t.click('[data-nt-act=play]');
   await t.screenshot({ path: OUT + '/t-beat-editor-1440.png', fullPage: true });
   await t.click('#exerciseForm button[type=submit]'); await t.getByText('Rock Beat 1').waitFor();
-  assert.ok(await t.locator('.item:has-text("Rock Beat 1") .nt-svg').count() === 1); ok('Beat gespeichert, Notenbild in der Bibliothek');
+  assert.ok(await t.locator('.item:has-text("Rock Beat 1") .nt-svg:visible').count() === 1); ok('Beat gespeichert, Notenbild in der Bibliothek');
   await t.click('[data-tab=heute]'); await t.click('section[aria-label="Gerade dran"] [data-act=lesson]');
   await t.selectOption('#a_ex', { label: 'Grooves: Rock Beat 1' }); await t.click('#assignForm button[type=submit]');
   await t.click('[data-act=finishLesson]'); await t.getByText(/Stunde (gespeichert|von heute ergänzt)/).waitFor();
@@ -176,7 +176,7 @@ let n = 0; const ok = (m) => console.log('ok ' + (++n) + ' ' + m);
     const sIds = await s.evaluate(() => S.data.assignments.filter((a) => a.status === 'offen').map((a) => a.id));
     assert.deepEqual(sIds.filter((x) => ids1.includes(x)), ids1, 'Schüler sieht dieselbe Reihenfolge'); ok('Hausaufgaben per Ziehen sortiert, Schüler sieht die Reihenfolge');
     await t.click('[data-act=close]'); }
-  const card = s.locator('.card:has-text("Rock Beat 1")'); assert.equal(await card.locator('.nt-svg').count(), 1); ok('Schüler sieht die Noten');
+  const card = s.locator('.card:has-text("Rock Beat 1")'); assert.equal(await card.locator('.nt-svg:visible').count(), 2, 'Handy: 1 Takt pro Zeile'); ok('Schüler sieht die Noten');
   await card.locator('[data-act=practice]').click(); await s.click('[data-act=beatPlay]');
   await s.waitForTimeout(600); assert.equal(await s.textContent('[data-act=beatPlay]'), 'Beat stoppen'); await s.click('[data-act=beatPlay]'); ok('Schüler spielt den Beat ab');
   await s.click('[data-act=beatClick]'); assert.equal(await s.getAttribute('[data-act=beatClick]', 'aria-pressed'), 'true');
@@ -204,7 +204,7 @@ let n = 0; const ok = (m) => console.log('ok ' + (++n) + ' ' + m);
   await t.click('[data-tab=bibliothek]'); await t.click('[data-act=newBeat]'); await t.fill('#e_title', 'Song Chart Test');
   await t.selectOption('#ex-bars', '8'); await t.click('[data-nt-bar="4"]'); await t.fill('#ex-mark', 'Refrain'); await t.press('#ex-mark', 'Tab');
   await t.click('[data-nt-bar="4"]'); await t.uncheck('[data-nt-ctl=repeat]'); await t.click('.nt-cell[data-k=cr][data-i="64"]');
-  assert.equal(await t.locator('#ex .nt-svg').count(), 2, 'zwei Notenzeilen bei 8 Takten');
+  assert.equal(await t.locator('#ex .nt-svg:visible').count(), 4, 'Laptop: 2 Takte pro Zeile, 8 Takte = 4 Zeilen');
   await t.click('#exerciseForm button[type=submit]'); await t.getByText('Song Chart Test').waitFor(); ok('Song Chart mit Teil und Wiederholungen gespeichert');
 
   // Gitarre: Akkorde, Schlagmuster, Tab
@@ -251,6 +251,9 @@ let n = 0; const ok = (m) => console.log('ok ' + (++n) + ' ' + m);
     await t.evaluate(async (aid) => { const b = document.createElement('button'); b.dataset.act = 'asgDetail'; b.dataset.id = aid; document.body.append(b); b.click(); }, aid);
     await t.locator('.sheet [data-act=partPlay]').first().waitFor(); assert.ok(await t.locator('.sheet .yt iframe').count() >= 1, 'Video direkt eingebettet');
     ok('Song Hausaufgabe zeigt Video und Bausteine direkt');
+    await t.click('.sheet summary:has-text("Metronom und Tempo")'); await t.evaluate(() => setBpm(60));
+    await t.click('.sheet [data-act=partPlay]'); await t.waitForTimeout(300); assert.equal(await t.evaluate(() => DrumNotation.isPlaying()), true);
+    await t.click('.sheet [data-act=bpm][data-d="5"]'); assert.equal(await t.textContent('#bpmVal'), '65'); await t.click('.sheet [data-act=partPlay]'); ok('Baustein spielt im Metronom Tempo, Plus ändert live');
     await t.evaluate(async (sid) => { S.song = await api('/api/song', { id: sid }); openOverlay(songView); }, sid); }
   await t.click('[data-act=partEdit]'); await t.fill('#pe_title', 'Groove Vers neu'); await t.click('#pe [data-k=sn][data-i="2"]'); await t.click('#partEditForm button[type=submit]');
   await t.getByText('Gespeichert, gilt überall').waitFor(); assert.ok((await t.evaluate(() => JSON.parse(S.song.parts[0].notation).tracks.sn)).includes(2)); assert.equal(await t.evaluate(() => S.song.parts[0].title), 'Groove Vers neu'); ok('Baustein bearbeiten: Titel und Noten');
