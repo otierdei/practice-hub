@@ -42,7 +42,8 @@ async function askClaude(env, mediaType, data, HttpError) {
   return (out.content || []).filter((c) => c.type === 'text').map((c) => c.text).join('');
 }
 async function askCloudflare(env, mediaType, data, HttpError) {
-  const input = { messages: [{ role: 'user', content: PROMPT }], image: `data:${mediaType};base64,${data}`, max_tokens: 2048, temperature: 0 };
+  const bytes = Uint8Array.from(atob(data), (ch) => ch.charCodeAt(0));
+  const input = { messages: [{ role: 'system', content: 'Du überträgst Schlagzeugnoten in JSON.' }, { role: 'user', content: PROMPT }], image: [...bytes], max_tokens: 2048, temperature: 0 };
   const run = async () => {
     try { return await env.AI.run(CF_MODEL, input); }
     catch (e) {

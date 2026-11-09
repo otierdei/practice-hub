@@ -470,7 +470,7 @@ test('Notenbild transkribieren: ohne Schlüssel 503, mit Schlüssel Beats, Baust
     assert.equal((await w.call('/api/t/transcribe', { image: img }, w.t)).status, 502);
   } finally { globalThis.fetch = orig; }
   delete w.env.ANTHROPIC_API_KEY; let asked = 0;
-  w.env.AI = { run: async (model, input) => { asked++; if (asked === 1) throw new Error('5016: Prior to using this model, you must submit the prompt agree'); if (input.prompt === 'agree') return {}; assert.match(input.image, /^data:image\/png;base64,/); return { response: '{"beats":[{"sig":"4/4","bars":1,"tracks":{"sn":[4,12]}}]}' }; } };
+  w.env.AI = { run: async (model, input) => { asked++; if (asked === 1) throw new Error('5016: Prior to using this model, you must submit the prompt agree'); if (input.prompt === 'agree') return {}; assert.ok(Array.isArray(input.image) && input.image.length > 0); return { response: '{"beats":[{"sig":"4/4","bars":1,"tracks":{"sn":[4,12]}}]}' }; } };
   const cf = (await w.call('/api/t/transcribe', { image: img }, w.t)).data;
   assert.equal(cf.engine, 'cloudflare'); assert.deepEqual(cf.beats[0].notation.tracks.sn, [4, 12]); assert.equal(asked, 3, 'Lizenz einmal bestätigt, dann erneut gefragt');
   const sid = (await w.call('/api/t/song/create', { title: 'Am Kreuz' }, w.t)).data.id;
