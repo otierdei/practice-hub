@@ -43,14 +43,18 @@ async function askClaude(env, mediaType, data, HttpError) {
 }
 async function askCloudflare(env, mediaType, data, HttpError) {
   const input = { messages: [{ role: 'user', content: PROMPT }], image: `data:${mediaType};base64,${data}`, max_tokens: 2048, temperature: 0 };
+  const run = async () => {
+    try { return await env.AI.run(CF_MODEL, input); }
+    catch (e) {
+      // Einmalig Metas Lizenz für das Modell bestätigen, dann nochmal
+      if (!/agree|licen/i.test(String(e && e.message))) throw e;
+      await env.AI.run(CF_MODEL, { prompt: 'agree' }).catch(() => {});
+      return env.AI.run(CF_MODEL, input);
+    }
+  };
   let out;
-  try { out = await env.AI.run(CF_MODEL, input); }
-  catch (e) {
-    // Einmalig Metas Lizenz für das Modell bestätigen, dann nochmal
-    if (!/agree|licen/i.test(String(e && e.message))) { console.error('workers-ai', e); throw new HttpError(502, 'Die kostenlose Transkription hat nicht geklappt. Bitte nochmal versuchen.'); }
-    await env.AI.run(CF_MODEL, { prompt: 'agree' }).catch(() => {});
-    out = await env.AI.run(CF_MODEL, input);
-  }
+  try { out = await run(); }
+  catch (e) { console.error('workers-ai', e); throw new HttpError(502, 'Die kostenlose Transkription hat nicht geklappt (' + String(e && e.message || e).slice(0, 160) + ').'); }
   return String((out && (out.response ?? (out.result && out.result.response))) || '');
 }
 
