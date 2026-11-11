@@ -202,8 +202,8 @@ details.card summary{cursor:pointer;font-family:var(--display);font-size:1.08rem
 </head>
 <body>
 <div id="app"><div class="wrap"><p class="muted">Lädt …</p></div></div>
-<script src="notation.js?v=52"></script>
-<script src="guitar.js?v=52"></script>
+<script src="notation.js?v=53"></script>
+<script src="guitar.js?v=53"></script>
 <script>
 'use strict';
 // ---------- Grundlagen ----------
@@ -762,7 +762,7 @@ function lessonView() {
         <section class="card"><h3>Hausaufgaben</h3><div class="list" data-sort="asg">${open.length ? open.map((a, i) => { const on = L.close_assignments.includes(a.id); return `<div class="item" data-sort-id="${a.id}">${grip(i + 1, open.length + L.new_assignments.length > 1)}<span class="t"><button class="link" data-act="asgDetail" data-id="${a.id}"><b>${esc(a.title || a.free_text)}</b></button><br><span class="muted small">${practicedFor(a, f.sessions)}${a.target_bpm ? ' · Ziel ' + a.target_bpm : ''}</span><br>${assignBadges(a)}</span><button class="check ${on ? 'on' : ''}" data-act="toggleClose" data-id="${a.id}" aria-pressed="${on}" aria-label="Als erledigt markieren">${on ? '✓' : ''}</button></div>`; }).join('') : ''}${L.new_assignments.map((a, i) => newAsgRow(a, i, open.length + i + 1)).join('')}${!open.length && !L.new_assignments.length ? '<p class="muted">Keine offenen Hausaufgaben.</p>' : ''}</div>
           <form id="assignForm" class="col">
             ${(S.exercises || []).some((e) => e.category === 'Aufwärmen') ? `<details id="warmBox" ${S.warmOpen ? 'open' : ''}><summary class="small muted">Aufwärmen mit einem Tipp</summary><div class="row" style="gap:6px;margin-top:6px">${S.exercises.filter((e) => e.category === 'Aufwärmen').map((e) => `<button type="button" class="chip" data-act="warmAdd" data-id="${e.id}">${esc(e.title)}</button>`).join('')}</div></details>` : ''}
-            <div class="row" style="flex-wrap:nowrap;align-items:flex-end"><div class="field" style="flex:1"><label for="a_song">Song</label><input id="a_song" list="a_songs" placeholder="Song suchen" autocomplete="off"><datalist id="a_songs">${(S.songs ? S.songs.songs : []).map((x) => `<option value="${esc(x.title)}"></option>`).join('')}</datalist></div><div class="field" style="width:110px"><label for="a_ver">Version</label><input id="a_ver" list="a_vers" placeholder="Original"><datalist id="a_vers"><option value="Original"></option><option value="Easy"></option></datalist></div></div>
+            <div class="row" style="flex-wrap:nowrap;align-items:flex-end"><div class="field" style="flex:1"><label for="a_song">Song</label><input id="a_song" list="a_songs" placeholder="Song suchen" autocomplete="off"><datalist id="a_songs">${(S.songs ? S.songs.songs : []).map((x) => `<option value="${esc(x.title)}"></option>`).join('')}</datalist></div><div style="width:170px">${versionField('a', 'Original')}</div></div>
             <div class="field"><label for="a_ex">Aus der Bibliothek</label><select id="a_ex"><option value="">Freie Aufgabe</option>${exOpts}</select></div>
             <div id="a_preview"></div>
             ${S.nt && S.nt.lb ? `<div class="col" style="gap:8px"><b>Neuer Beat</b>${DrumNotation.editorHTML(S.nt.lb, 'lb')}<label class="row" style="gap:8px"><input type="checkbox" id="a_lib" style="width:22px;min-height:22px"> Auch in meine Bibliothek</label><button type="button" class="btn small" data-act="lessonBeatOff">Beat verwerfen</button></div>` : '<button type="button" class="btn small" data-act="lessonBeat">Beat schreiben</button>'}
@@ -1808,7 +1808,7 @@ document.addEventListener('submit', async (ev) => {
       if (songTitle) {
         const sg = S.songs && S.songs.songs.find((x) => x.title.toLowerCase() === songTitle.toLowerCase());
         if (!sg) { toast('Song nicht gefunden. Unter Songs > Song anlegen'); return; }
-        const ver = $('#a_ver').value.trim() || null;
+        const ver = versionValue('a') || null;
         if (S.file.assignments.some((a) => a.status === 'offen' && a.song_id === sg.id) || S.lesson.new_assignments.some((a) => a.song_id === sg.id)) { toast('Du hast die Hausaufgabe schon aufgegeben'); return; }
         S.lesson.new_assignments.push({ song_id: sg.id, version: ver, label: sg.title + (ver ? ' (' + ver + ')' : ''), start_bpm: Number($('#a_from').value) || null, target_bpm: Number($('#a_bpm').value) || null, minutes_per_day: Number($('#a_min').value) || 10 });
         saveDraft(); render(); return;
