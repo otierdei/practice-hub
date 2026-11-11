@@ -780,3 +780,12 @@ test('Sidestick und Tom Rim werden gespeichert', async () => {
   const e = (await w.call('/api/t/exercises', {}, w.t)).data.exercises.find((x) => x.id === id);
   const t = JSON.parse(e.notation).tracks; assert.deepEqual(t.ss, [4, 12]); assert.deepEqual(t.tr, [6]);
 });
+
+test('Gitarren Übung aus der Stunde landet in der Bibliothek unter Gitarre', async () => {
+  const w = await world();
+  const g = { kind: 'guitar', v: 1, bpm: 70, capo: 0, key: '', chords: ['G', 'C'], strum: { sub: 8, bars: 1, cells: ['D', '', 'D', 'U', '', 'U', 'D', 'U'] } };
+  const r = (await w.call('/api/t/assignments/new', { student_id: w.a, items: [{ free_text: 'Fiona G C Wechsel', notation: g, save_library: true, target_bpm: 90 }] }, w.t)).data;
+  assert.equal(r.ids.length, 1);
+  const e = (await w.call('/api/t/exercises', {}, w.t)).data.exercises.find((x) => x.title === 'Fiona G C Wechsel');
+  assert.equal(e.category, 'Gitarre'); assert.equal(JSON.parse(e.notation).kind, 'guitar');
+});

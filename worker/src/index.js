@@ -520,7 +520,7 @@ async function newAssignmentStatements(s, st, lessonId, items, closing, t, stmts
       if (a.save_library) await assertFreeTitle(s, (free || 'Beat').slice(0, 120));
       exId = uid();
       stmts.push(['INSERT INTO exercises (id, title, category, source_type, target_bpm, notation, archived, created_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?)',
-        [exId, (free || 'Beat').slice(0, 120), a.save_library ? 'Eigene Beats' : 'Hausaufgaben', 'noten', int(a.target_bpm, 20, 400), beat, a.save_library ? 0 : 1, t]]);
+        [exId, (free || 'Beat').slice(0, 120), a.save_library ? (JSON.parse(beat).kind === 'guitar' ? 'Gitarre' : 'Eigene Beats') : 'Hausaufgaben', 'noten', int(a.target_bpm, 20, 400), beat, a.save_library ? 0 : 1, t]]);
     }
     const link = cleanUrl(a.url);
     if (!exId && link) {

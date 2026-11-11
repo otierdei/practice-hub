@@ -363,6 +363,16 @@ let n = 0; const ok = (m) => console.log('ok ' + (++n) + ' ' + m);
   }
   ok('Kein seitliches Scrollen bei 390 px');
 
+  // Reiner Gitarrenschüler: Stunde ohne Schlagzeug Teile, Gitarren Übung schreiben und aufgeben
+  await t.evaluate(async () => { const st = S.data.students[0]; S.file = await api('/api/t/student', { id: st.id }); const f = S.file.student;
+    await api('/api/t/student/save', { ...f, id: f.id, instrument: 'Gitarre' }); await openLesson(st.id); });
+  assert.equal(await t.locator('#warmBox').count(), 0); assert.equal(await t.locator('[data-act=lessonBeat]').count(), 0); assert.equal(await t.locator('#sugBox').count(), 0);
+  await t.click('[data-act=lessonGuitar]'); await t.locator('#lg').waitFor();
+  await t.fill('#a_free', 'G C Wechsel E2E'); await t.click('#assignForm button[type=submit]'); await t.getByText('G C Wechsel E2E aufgegeben').waitFor();
+  assert.equal(await t.locator('#lg').count(), 0);
+  await t.evaluate(async () => { const f = S.file.student; await api('/api/t/student/save', { ...f, id: f.id, instrument: 'Schlagzeug' }); S.lesson = null; closeOverlay(); });
+  ok('Gitarrenschüler: keine Beats, Aufwärmen oder Schlagzeug Vorschläge, Gitarren Übung aufgeben');
+
   assert.deepEqual(errors, []); ok('Keine JavaScript Fehler');
   await b.close();
   console.log('ALLE ' + n + ' E2E SCHRITTE GRÜN');
