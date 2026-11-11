@@ -240,6 +240,12 @@ let n = 0; const ok = (m) => console.log('ok ' + (++n) + ' ' + m);
   await s.click('[data-act=beatPlay]'); await s.waitForTimeout(1500);
   assert.ok(await s.locator('#beats .met-dot.on').count() === 1, 'Punkt leuchtet im Beat'); assert.match(await s.textContent('#trk'), /[1-9]\d* Takte/);
   await s.click('[data-act=beatPlay]'); ok('Metronom im Beat: Klick an, Punkte laufen mit, Tracker zählt Takte');
+  { const b0 = Number(await s.textContent('#bpmVal'));
+    await s.click('[data-act=beatPlay]'); await s.waitForTimeout(300);
+    await s.fill('#ma_bars', '1'); await s.fill('#ma_add', '10'); await s.fill('#ma_max', '300'); await s.check('#ma_on'); await s.dispatchEvent('#ma_on', 'change');
+    await s.waitForFunction((b) => Number(document.querySelector('#bpmVal').textContent) >= b + 10, b0, { timeout: 12000 });
+    await s.click('[data-act=beatPlay]'); await s.uncheck('#ma_on'); await s.click('[data-act=bpm][data-d="-5"]').catch(() => {});
+    ok('Automatik im laufenden Beat einschalten macht ihn schneller'); }
   await s.selectOption('#met_sig', '3/4'); assert.equal(await s.locator('#beats .met-dot').count(), 3);
   await s.click('#beats .met-dot >> nth=1'); assert.ok(await s.locator('#beats .met-dot >> nth=1').evaluate((d) => d.classList.contains('acc0')));
   await s.click('[data-act=metSub][data-v="3"]'); await s.selectOption('#met_sound', 'holz');

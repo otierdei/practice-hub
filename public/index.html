@@ -205,8 +205,8 @@ details.card summary{cursor:pointer;font-family:var(--display);font-size:1.08rem
 </head>
 <body>
 <div id="app"><div class="wrap"><p class="muted">Lädt …</p></div></div>
-<script src="notation.js?v=66"></script>
-<script src="guitar.js?v=66"></script>
+<script src="notation.js?v=67"></script>
+<script src="guitar.js?v=67"></script>
 <script>
 'use strict';
 // ---------- Grundlagen ----------
@@ -1332,13 +1332,6 @@ function assignmentCard(a, sessions, num) {
 // Übungssitzung mit Stoppuhr und Metronom
 let tickTimer = null, wakeLock = null;
 const MET = { ctx: null, playing: false, bpm: 80, next: 0, beat: 0, timer: null, lastBeat: -1 };
-function beatTrainerOpts(a) { return S.beatTrainer ? { every: 4, add: 5, max: (a && a.target_bpm) || MET.bpm + 40 } : null; }
-document.addEventListener('change', (ev) => {
-  if (ev.target.id !== 'beatTrainer') return;
-  S.beatTrainer = ev.target.checked;
-  const r = store.get('run', null); const a = r && S.data && runTask(r);
-  DrumNotation.setTrainer(beatTrainerOpts(a));
-});
 function stopTick() { clearInterval(tickTimer); tickTimer = null; metStop(); if (window.DrumNotation) DrumNotation.stop(); if (window.Guitar) { Guitar.stop(); Guitar.tunerStop(); } releaseWake(); }
 async function requestWake() { try { if ('wakeLock' in navigator && !wakeLock) { wakeLock = await navigator.wakeLock.request('screen'); wakeLock.addEventListener('release', () => { wakeLock = null; }); } } catch (e) {} }
 function releaseWake() { try { if (wakeLock) wakeLock.release(); } catch (e) {} wakeLock = null; }
@@ -1397,7 +1390,7 @@ function practiceView() {
       ${metronomeCard(a)}
       <div class="col" style="gap:8px"><span class="small muted">Stumm schalten und selbst spielen:</span>
         <div class="row" style="gap:6px">${DrumNotation.usedKeys(DrumNotation.parse(a.notation)).map((k) => `<button type="button" class="chip" data-act="beatMute" data-k="${k}" aria-pressed="${(S.beatMute || []).includes(k)}">${DrumNotation.ROWS.find((r) => r.k === k).n}</button>`).join('')}</div>
-        <label class="row small" style="gap:8px;color:var(--ink)"><input type="checkbox" id="beatTrainer" style="width:22px;min-height:22px" ${S.beatTrainer ? 'checked' : ''}> Tempo Trainer: alle 4 Durchläufe 5 BPM schneller${a.target_bpm ? ' bis ' + a.target_bpm : ''}</label></div>` : ''}
+</div>` : ''}
     ${a && DrumNotation.parse(a.notation) ? '' : metronomeCard(a)}
     <button class="btn primary block" data-act="endPractice" ${el < 1000 ? 'disabled' : ''}>Sitzung beenden</button>
   </div>`;
@@ -1420,6 +1413,8 @@ document.addEventListener('change', (ev) => {
   const n = (id, lo, hi, d) => { const v = Math.round(Number($(id).value)); return v >= lo && v <= hi ? v : d; };
   m.bars = n('#ma_bars', 1, 64, 4); m.add = n('#ma_add', 1, 40, 5); m.max = n('#ma_max', 40, 300, 140);
   store.set('metauto', m); MET.autoStartBeat = MET.beat;
+  // Läuft gerade ein Beat: Automatik sofort übernehmen (vorher erst beim nächsten Start)
+  if (DrumNotation.isPlaying() && S.playN) DrumNotation.setTrainer(metTrainer(S.playN, S.playFactor || 1));
   const row = ev.target.closest('.met-auto'); if (row) row.children[1].style.opacity = m.on ? '' : '.55';
 });
 // Metronom Einstellungen (wie die Tempo App): Taktart, Betonung pro Schlag, Unterteilung, Klang, Lautstärke, Klick im Beat
@@ -1465,8 +1460,10 @@ function metronomeCard(a) {
 }
 // Klick beim Abspielen eines Beats ein und aus
 function beatClickChip() { const on = metSet().beatClick; return `<button type="button" class="chip" data-act="beatClick" aria-pressed="${on}">Metronom ${on ? 'an' : 'aus'}</button>`; }
+// Automatik des Metronoms gilt auch für Beats: alle X Takte (bei mehrtaktigen Beats umgerechnet in Durchläufe) schneller
+function metTrainer(n, f = 1) { const m = metAuto(); return m.on && n ? { every: Math.max(1, Math.round(m.bars / n.bars)), add: m.add * f, max: m.max * f } : null; }
 function playBeat(n, root, bpm, opts = {}) {
-  metStop(); applyBeatClick(); trkStart();
+  metStop(); applyBeatClick(); trkStart(); S.playN = n;
   const cur = DrumNotation.cursorFor(root), pb = DrumNotation.perBar(n.sig), spb = /8$/.test(n.sig) ? 2 : 4;
   DrumNotation.play(n, bpm, (i) => {
     cur(i);
@@ -1684,8 +1681,8 @@ document.addEventListener('click', async (ev) => {
         if (DrumNotation.isPlaying()) { DrumNotation.stop(); el.textContent = 'Beat abspielen'; break; }
         const r = store.get('run'); const a = runTask(r);
         metStop(); const mb = document.querySelector('[data-act="metronome"]'); if (mb) mb.textContent = 'Metronom starten';
-        { const rr = store.get('run', null), f = (rr && rr.part && rr.part.factor) || 1; S.playFactor = f; const tr = beatTrainerOpts(a);
-          playBeat(DrumNotation.parse(a.notation), $('#practiceStaff'), MET.bpm * f, { mute: S.beatMute || [], trainer: tr && f > 1 ? { every: tr.every, add: tr.add * f, max: tr.max * f } : tr, onTempo: (b) => setBpm(b / f) }); } el.textContent = 'Beat stoppen'; break;
+        { const rr = store.get('run', null), f = (rr && rr.part && rr.part.factor) || 1; S.playFactor = f; const pn = DrumNotation.parse(a.notation);
+          playBeat(pn, $('#practiceStaff'), MET.bpm * f, { mute: S.beatMute || [], trainer: metTrainer(pn, f), onTempo: (b) => setBpm(b / f) }); } el.textContent = 'Beat stoppen'; break;
       }
       case 'beatMute': { const k = el.dataset.k; S.beatMute = (S.beatMute || []).includes(k) ? S.beatMute.filter((x) => x !== k) : (S.beatMute || []).concat(k); el.setAttribute('aria-pressed', String(S.beatMute.includes(k))); DrumNotation.setMute(S.beatMute); break; }
       case 'archiveExercise': await api('/api/t/exercise/archive', { id }); S.exercises = (await api('/api/t/exercises')).exercises; closeOverlay(); toast('Entfernt'); break;
@@ -1727,7 +1724,7 @@ document.addEventListener('click', async (ev) => {
       {  const a0 = S.file && S.file.assignments.find((x) => x.id === id), n0 = a0 && DrumNotation.parse(a0.notation); if (a0 && a0.song_id && a0.song_bpm) setBpm(a0.song_bpm); else if (a0 && (a0.start_bpm || n0)) setBpm(a0.start_bpm || n0.bpm); }
         S.asgEdit = null; S.asgId = id; S.asgFrom = S.overlay; S.asgConfirm = null; openOverlay(assignmentDetailView); break;
       case 'asgBack': DrumNotation.stop(); S.asgPlaying = false; openOverlay(S.asgFrom || studentFileView); break;
-      case 'asgPlay': { if (S.asgPlaying) { DrumNotation.stop(); S.asgPlaying = false; el.textContent = 'Abspielen'; break; } const a = S.file.assignments.find((x) => x.id === S.asgId); const n = DrumNotation.parse(a.notation); S.asgPlaying = true; el.textContent = 'Stopp'; S.playFactor = 1; playBeat(n, $('#asg_staff'), MET.bpm, { onTempo: (b) => setBpm(b), trainer: metAuto().on ? { every: metAuto().bars, add: metAuto().add, max: metAuto().max } : null }); break; }
+      case 'asgPlay': { if (S.asgPlaying) { DrumNotation.stop(); S.asgPlaying = false; el.textContent = 'Abspielen'; break; } const a = S.file.assignments.find((x) => x.id === S.asgId); const n = DrumNotation.parse(a.notation); S.asgPlaying = true; el.textContent = 'Stopp'; S.playFactor = 1; playBeat(n, $('#asg_staff'), MET.bpm, { onTempo: (b) => setBpm(b), trainer: metTrainer(n) }); break; }
       case 'asgClose': case 'asgReopen': {
         await api('/api/t/assignment/status', { id, status: act === 'asgClose' ? 'erledigt' : 'offen' });
         S.file = Object.assign(await api('/api/t/student', { id: S.file.student.id }), { course: S.file.course }); openOverlay(assignmentDetailView); toast(act === 'asgClose' ? 'Abgehakt' : 'Wieder offen'); break;
