@@ -773,3 +773,10 @@ test('Home Bildschirm App pro Schüler: Name und Farbe, Manifest folgt', async (
   assert.equal((await manifestFor('ABCDEFGH12', '', 'evil')).json().then((x) => x.icons[0].src).constructor, Promise);
   assert.equal((await (manifestFor(null, null, 'evil')).json()).icons[0].src, '/icon-180.png');
 });
+
+test('Sidestick und Tom Rim werden gespeichert', async () => {
+  const w = await world();
+  const id = (await w.call('/api/t/exercise/save', { title: 'Rim Beat', notation: { sig: '4/4', bars: 1, tracks: { ss: [4, 12], tr: [6], bd: [0] } } }, w.t)).data.id;
+  const e = (await w.call('/api/t/exercises', {}, w.t)).data.exercises.find((x) => x.id === id);
+  const t = JSON.parse(e.notation).tracks; assert.deepEqual(t.ss, [4, 12]); assert.deepEqual(t.tr, [6]);
+});

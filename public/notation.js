@@ -9,9 +9,11 @@
     { k: 'hh', n: 'HiHat', p: 9, x: true },
     { k: 'ho', n: 'HiHat offen', p: 9, x: true, open: true },
     { k: 't1', n: 'Tom 1', p: 7 },
+    { k: 'tr', n: 'Tom Rim', p: 7, x: true },
     { k: 't2', n: 'Tom 2', p: 6 },
     { k: 'sn', n: 'Snare', p: 5 },
     { k: 'gh', n: 'Ghost Note', p: 5, ghost: true },
+    { k: 'ss', n: 'Sidestick', p: 5, x: true },
     { k: 'ft', n: 'Standtom', p: 3 },
     { k: 'bd', n: 'Bassdrum', p: 1, down: true },
     { k: 'hf', n: 'HiHat Fuß', p: -1, x: true, down: true },
@@ -238,6 +240,9 @@
     t1: (t) => tone(t, 260, 190, 0.22, 0.6),
     t2: (t) => tone(t, 200, 140, 0.25, 0.6),
     ft: (t) => tone(t, 130, 85, 0.35, 0.7),
+    // Sidestick und Tom Rim: kurzer Holz Klack (noch keine echten Samples)
+    ss: (t) => { tone(t, 1700, 1100, 0.035, 0.4); noise(t, 0.03, 0.25, 'bandpass', 3000); },
+    tr: (t) => { tone(t, 950, 700, 0.04, 0.35); noise(t, 0.03, 0.2, 'bandpass', 2400); tone(t, 260, 200, 0.08, 0.15); },
   };
   // Echte Samples aus Otis Bibliothek: Kick, Snare (Mystery Snare Dry), Toms, Crash, HiHat. Ride: VCSL Becken mit Stock (CC0, Versilian Studios).
   const SAMPLE = { bd: 0.95, sn: 0.8, gh: 0.18, t1: 0.75, t2: 0.75, ft: 0.8, cr: 0.45, hh: 0.45, ho: 0.45, hf: 0.3, rd: 0.4 };

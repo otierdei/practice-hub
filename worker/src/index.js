@@ -386,7 +386,7 @@ async function saveExercise(s, who, b) {
 }
 
 // Beat aus dem Noten Editor prüfen und normalisieren
-export const DRUMS = ['cr', 'rd', 'hh', 'ho', 'sn', 'gh', 't1', 't2', 'ft', 'bd', 'hf'];
+export const DRUMS = ['cr', 'rd', 'hh', 'ho', 'sn', 'gh', 'ss', 't1', 'tr', 't2', 'ft', 'bd', 'hf'];
 export function cleanNotation(n) {
   if (n == null || n === '') return null;
   let o = n;
