@@ -122,6 +122,24 @@ CREATE INDEX IF NOT EXISTS i_attempts ON attempts(ip, at);
 
 -- Schüler Haken getrennt vom Lehrer Status (nur Oti schließt eine Hausaufgabe)
 -- Reihenfolge der Hausaufgaben, vom Lehrer per Ziehen festgelegt (neue ohne Eintrag stehen oben)
+-- Beats und Bausteine, die Schüler selbst schreiben (optional zu einem Song)
+CREATE TABLE IF NOT EXISTS student_beats (
+  id TEXT PRIMARY KEY,
+  student_id TEXT NOT NULL,
+  song_id TEXT,
+  title TEXT NOT NULL,
+  notation TEXT NOT NULL,
+  created_at TEXT NOT NULL,
+  updated_at TEXT NOT NULL
+);
+CREATE INDEX IF NOT EXISTS i_student_beats ON student_beats(student_id, updated_at);
+-- Von Oti bestätigt: offizieller Song Baustein (part_id) oder Bibliotheksübung (exercise_id)
+CREATE TABLE IF NOT EXISTS student_beat_official (
+  beat_id TEXT PRIMARY KEY,
+  part_id TEXT,
+  exercise_id TEXT,
+  approved_at TEXT NOT NULL
+);
 CREATE TABLE IF NOT EXISTS assignment_order (
   assignment_id TEXT PRIMARY KEY,
   sort INTEGER NOT NULL

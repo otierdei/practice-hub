@@ -718,3 +718,37 @@ test('Beat Dynamik: betont und leise werden gespeichert, Unsinn verworfen', asyn
   const e = (await w.call('/api/t/exercises', {}, w.t)).data.exercises.find((x) => x.id === id);
   assert.deepEqual(JSON.parse(e.notation).dyn, { 'hh:0': 'a', 'hh:2': 's', 'sn:4': 'a' });
 });
+
+test('Schüler schreiben eigene Beats und Bausteine, Oti sieht sie, andere nicht', async () => {
+  const w = await world();
+  const sid = (await w.call('/api/t/song/create', { title: 'Kinder Song' }, w.t)).data.id;
+  const nt = { sig: '4/4', bars: 1, tracks: { bd: [0, 8], sn: [4, 12] }, dyn: { 'sn:4': 'a' } };
+  assert.equal((await w.call('/api/my/beat/save', { title: 'Mein Beat', notation: nt }, w.t)).status, 403);
+  assert.equal((await w.call('/api/my/beat/save', { title: '', notation: nt }, w.tb)).status, 400);
+  assert.equal((await w.call('/api/my/beat/save', { title: 'Leer', notation: { sig: '4/4', bars: 1, tracks: {} } }, w.tb)).status, 400, 'ohne Noten nicht speichern');
+  const id = (await w.call('/api/my/beat/save', { title: 'Mein Chorus', song_id: sid, notation: nt }, w.tb)).data.id;
+  let home = (await w.call('/api/home', {}, w.tb)).data; const b = home.my_beats.find((x) => x.id === id);
+  assert.equal(b.song_title, 'Kinder Song'); assert.deepEqual(JSON.parse(b.notation).dyn, { 'sn:4': 'a' });
+  assert.equal((await w.call('/api/my/beat/save', { id, title: 'Fremd', notation: nt }, w.ta)).status, 404, 'fremder Beat');
+  await w.call('/api/my/beat/save', { id, title: 'Mein Chorus 2', song_id: sid, notation: nt }, w.tb);
+  assert.ok((await w.call('/api/t/student', { id: w.b }, w.t)).data.beats.some((x) => x.title === 'Mein Chorus 2'));
+  assert.ok(!(await w.call('/api/home', {}, w.ta)).data.my_beats.some((x) => x.id === id));
+  await w.call('/api/my/beat/delete', { id }, w.ta); assert.ok((await w.call('/api/home', {}, w.tb)).data.my_beats.some((x) => x.id === id), 'andere dürfen nicht löschen');
+  await w.call('/api/my/beat/delete', { id }, w.tb); assert.ok(!(await w.call('/api/home', {}, w.tb)).data.my_beats.some((x) => x.id === id));
+});
+
+test('Oti übernimmt Schüler Beat: mit Song als Baustein, ohne Song in die Bibliothek', async () => {
+  const w = await world();
+  const sid = (await w.call('/api/t/song/create', { title: 'Übernahme Song' }, w.t)).data.id;
+  const nt = { sig: '4/4', bars: 1, tracks: { bd: [0], sn: [4] } };
+  const b1 = (await w.call('/api/my/beat/save', { title: 'Mein Fill', song_id: sid, notation: nt }, w.tb)).data.id;
+  const b2 = (await w.call('/api/my/beat/save', { title: 'Freier Groove', notation: nt }, w.tb)).data.id;
+  assert.equal((await w.call('/api/t/student/beat/approve', { id: b1 }, w.tb)).status, 403);
+  const r1 = (await w.call('/api/t/student/beat/approve', { id: b1, version: 'Easy' }, w.t)).data;
+  const part = (await w.call('/api/song', { id: sid }, w.ta)).data.parts.find((p) => p.id === r1.part_id);
+  assert.equal(part.title, 'Mein Fill'); assert.equal(part.version, 'Easy'); assert.match(part.notes, /Geschrieben von/);
+  assert.equal((await w.call('/api/t/student/beat/approve', { id: b1 }, w.t)).status, 409);
+  const r2 = (await w.call('/api/t/student/beat/approve', { id: b2 }, w.t)).data;
+  assert.ok((await w.call('/api/t/exercises', {}, w.t)).data.exercises.some((e) => e.id === r2.exercise_id && e.category === 'Schüler Beats'));
+  const mine = (await w.call('/api/home', {}, w.tb)).data.my_beats; assert.ok(mine.find((x) => x.id === b1).part_id && mine.find((x) => x.id === b2).exercise_id);
+});

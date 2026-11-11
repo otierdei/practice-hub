@@ -102,6 +102,19 @@ let n = 0; const ok = (m) => console.log('ok ' + (++n) + ' ' + m);
   assert.ok(body.includes('Paradiddle Groove') && body.includes('Heilige Braut'));
   assert.equal(await s.locator('.task-title .asg-num').first().textContent(), '1.');   assert.ok(!body.includes('Wirkte müde'), 'private Notiz unsichtbar'); ok('Schüler sieht Hausaufgaben, nicht die private Notiz');
   await s.screenshot({ path: OUT + '/s-ueben-390-dark.png', fullPage: true });
+  // Schüler schreibt eigenen Beat, Oti übernimmt ihn in die Bibliothek
+  await s.click('[data-act=myBeatNew]'); await s.locator('#myBeatForm').waitFor();
+  await s.fill('#mb_title', 'Jonas Fill E2E');
+  await s.click('.nt-cell[data-nt=mb][data-k=sn][data-i="0"]'); await s.click('.nt-cell[data-nt=mb][data-k=bd][data-i="2"]');
+  await s.click('#myBeatForm button[type=submit]'); await s.getByText('Jonas Fill E2E').first().waitFor();
+  await s.click('.card:has-text("Jonas Fill E2E") [data-act=myBeatPlay]'); await s.waitForTimeout(300); await s.click('.card:has-text("Jonas Fill E2E") [data-act=myBeatPlay]');
+  ok('Schüler schreibt eigenen Beat und spielt ihn ab');
+  await t.evaluate(async () => { await openStudent(S.file.student.id); });
+  await t.click('.card:has-text("Jonas Fill E2E") [data-act=beatApprove]'); await t.getByText('Jetzt in der Bibliothek').first().waitFor();
+  assert.ok(await t.evaluate(() => S.exercises.some((e) => e.title === 'Jonas Fill E2E')));
+  await t.evaluate(() => closeOverlay());
+  await s.reload(); await s.getByText('Von Oti in die Bibliothek übernommen').first().waitFor();
+  ok('Oti übernimmt Schüler Beat, Schüler sieht übernommen');
 
   // Übungssitzung: Stoppuhr starten, 12 Minuten vorspulen, beenden
   await s.click('.card:has-text("Paradiddle Groove") [data-act=practice]');

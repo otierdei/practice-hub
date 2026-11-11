@@ -204,8 +204,8 @@ details.card summary{cursor:pointer;font-family:var(--display);font-size:1.08rem
 </head>
 <body>
 <div id="app"><div class="wrap"><p class="muted">Lädt …</p></div></div>
-<script src="notation.js?v=61"></script>
-<script src="guitar.js?v=61"></script>
+<script src="notation.js?v=62"></script>
+<script src="guitar.js?v=62"></script>
 <script>
 'use strict';
 // ---------- Grundlagen ----------
@@ -364,6 +364,9 @@ async function previewApi(path, b) {
     case '/api/goal/toggle': { const g = d.goals.find((x) => x.id === b.id); g.status = g.status === 'erreicht' ? 'offen' : 'erreicht'; return { status: g.status }; }
     case '/api/goal/add': d.goals.push({ id: 'pv' + Date.now(), title: String(b.title || ''), status: 'offen', created_at: now }); return { ok: true };
     case '/api/my/song': return { ok: true };
+    case '/api/my/beat/save': { d.my_beats = d.my_beats || []; const sg = b.song_id && S.songs && S.songs.songs.find((x) => x.id === b.song_id); const row = { id: b.id || 'pv' + Date.now(), title: b.title, song_id: b.song_id, song_title: sg ? sg.title : null, notation: JSON.stringify(b.notation) };
+      d.my_beats = [row].concat(d.my_beats.filter((x) => x.id !== row.id)); return { id: row.id }; }
+    case '/api/my/beat/delete': d.my_beats = (d.my_beats || []).filter((x) => x.id !== b.id); return { ok: true };
     case '/api/songs': case '/api/song': case '/api/course': case '/api/ping': {
       window.__pv = false; try { return await api(path, b); } finally { window.__pv = true; }
     }
@@ -547,6 +550,7 @@ function studentFileView() {
     <div class="grid2">
       <section class="card"><h3>Offene Hausaufgaben</h3><div class="list" data-sort="asg">${open.length ? open.map((a, i) => `<div class="item" style="flex-wrap:wrap" data-sort-id="${a.id}">${grip(i + 1, open.length > 1)}<span class="t"><button class="link" data-act="asgDetail" data-id="${a.id}"><b>${esc(a.title || a.free_text)}</b>${asgInstrPill(a, S.file.student)}</button>${a.target_bpm ? ' <span class="muted small">' + (isSongTask(a) ? a.target_bpm + ' BPM' : 'Ziel ' + a.target_bpm) + '</span>' : ''}<br><span class="muted small">${practicedFor(a, f.sessions)}</span><br>${assignBadges(a)}</span>${a.url ? `<a class="btn small" href="${esc(a.url)}" target="_blank" rel="noopener">${linkLabel(a)}</a>` : ''}<button class="btn small" data-act="addLink" data-id="${a.id}">${a.url ? 'Link ändern' : 'Link hinzufügen'}</button>
         <div id="lk_${a.id}" class="row hidden" style="width:100%;flex-wrap:nowrap"><input id="lki_${a.id}" type="url" inputmode="url" placeholder="YouTube Link einfügen" style="flex:1"><button class="btn small primary" data-act="saveLink" data-id="${a.id}">Speichern</button></div></div>`).join('') : '<p class="muted">Keine.</p>'}</div></section>
+      ${(f.beats || []).length ? `<section class="col"><h3>Eigene Beats von ${esc(f.student.first_name)}</h3>${f.beats.map((b) => myBeatItem(b, true)).join('')}</section>` : ''}
       <section class="card"><h3>Ziele</h3><div class="list">${f.goals.length ? f.goals.map((g) => `<div class="item"><span class="t">${esc(g.title)}</span><span class="pill">${g.status === 'erreicht' ? 'erreicht' : 'offen'}</span></div>`).join('') : '<p class="muted">Noch keine Ziele.</p>'}</div></section>
     </div>
     <section class="card"><h3>Stunden <span class="muted small">(${f.lessons.length})</span></h3><div class="list">${f.lessons.length ? f.lessons.slice(0, S.allLessons ? 9999 : 10).map((l) => `<div class="item"><div class="t col" style="gap:2px"><b>${esc(fmtDate(l.date))}${l.date.slice(0, 4) !== String(new Date().getFullYear()) ? ' ' + l.date.slice(0, 4) : ''}</b>${l.notes_shared ? `<span style="white-space:pre-line">${esc(l.notes_shared)}</span>` : ''}${l.notes_teacher ? `<span class="muted small" style="white-space:pre-line">Privat: ${esc(l.notes_teacher)}</span>` : ''}</div></div>`).join('') : '<p class="muted">Noch keine Stunde.</p>'}</div>
@@ -895,6 +899,7 @@ function studentView(d = S.data, t = S.tab) {
       ${openLessonCards()}
       ${open.length ? open.map((a, i) => assignmentCard(a, sessions, i + 1)).join('') : openLessonCards() ? '' : '<div class="empty">Keine offenen Aufgaben. Tipp oben auf Üben und spiel frei.</div>'}
     </section>
+    ${(S.role === 'student' || S.preview) && !/^Gitarre$/.test(d.student.instrument || '') ? myBeatsSection(d) : ''}
     ${done.length ? `<details class="card"><summary>Erledigt (${done.length})</summary><div class="list">${done.map((a) => `<div class="item"><span class="t">${esc(a.title || a.free_text)}${a.status === 'erledigt' ? '<br><span class="small muted">Von Oti bestätigt</span>' : '<br><span class="small muted">Oti schaut es sich in der Stunde an</span>'}</span><button class="check on" data-act="toggleDone" data-id="${a.id}" aria-pressed="true" aria-label="Wieder öffnen">✓</button></div>`).join('')}</div></details>` : ''}
     ${d.student.is_minor && !d.consent ? `<p class="small muted">Deine Eltern bekommen von Oti einen eigenen Link und stimmen dort zu, dass deine Übezeiten gespeichert werden.</p>` : ''}`;
   } else if (t === 'fortschritt') {
@@ -924,6 +929,34 @@ function studentView(d = S.data, t = S.tab) {
   return `<main class="wrap${kid ? ' kid' : ''}">${html}</main>`;
 }
 // Unter 13 oder ohne Geburtsjahr: Kinderansicht
+// ---------- Eigene Beats der Schüler ----------
+function stuData() { return S.preview ? S.preview.data : S.data; }
+async function reloadStu() { if (!S.preview) S.data = await api('/api/home'); }
+function myBeatItem(b, teacher) {
+  const status = b.part_id ? 'Von Oti als Song Baustein übernommen ✓' : b.exercise_id ? 'Von Oti in die Bibliothek übernommen ✓' : '';
+  return `<section class="card col" style="gap:8px"><div class="row between" style="align-items:flex-start;flex-wrap:nowrap"><div class="col" style="gap:2px"><b>${esc(b.title)}</b><span class="small muted">${b.song_title ? 'Baustein zu ' + esc(b.song_title) : 'Eigener Beat'}${status ? ' · ' + status : ''}</span></div>
+    ${teacher ? '' : `<button class="btn small" data-act="myBeatEdit" data-id="${b.id}">Bearbeiten</button>`}</div>
+    <div id="mbp_${b.id}">${notationPreview(b.notation, b.title)}</div>
+    <div class="row" style="gap:8px"><button class="btn small" data-act="myBeatPlay" data-id="${b.id}">Abspielen</button>${teacher ? '' : `<button class="btn small primary" data-act="myBeatPractice" data-id="${b.id}">Üben</button>`}
+      ${teacher && !status ? `<button class="btn small primary" data-act="beatApprove" data-id="${b.id}">${b.song_id ? 'Als Song Baustein übernehmen' : 'In die Bibliothek übernehmen'}</button>` : ''}</div></section>`;
+}
+function myBeatsSection(d, songId) {
+  const list = (d.my_beats || []).filter((b) => !songId || b.song_id === songId);
+  return `<section class="col"><div class="row between"><h2>${songId ? 'Meine Bausteine' : 'Meine Beats'}</h2><button class="btn small primary" data-act="myBeatNew"${songId ? ` data-song="${esc(songId)}"` : ''}>${songId ? 'Baustein schreiben' : 'Beat schreiben'}</button></div>
+    ${list.length ? list.map((b) => myBeatItem(b, false)).join('') : `<div class="empty">${songId ? 'Schreib deinen eigenen Baustein für diesen Song, zum Beispiel einen Groove oder ein Fill.' : 'Schreib deinen eigenen Beat oder ein Fill. Oti sieht ihn und kann ihn übernehmen.'}</div>`}</section>`;
+}
+function myBeatView() {
+  const b = S.myBeat || {}, songs = S.songs ? S.songs.songs : [];
+  return `<div class="wrap" style="max-width:720px"><div class="row between"><button class="btn small" data-act="close">Zurück</button></div>
+    <h1>${b.id ? 'Beat bearbeiten' : b.song_id ? 'Baustein schreiben' : 'Beat schreiben'}</h1>
+    <form id="myBeatForm" class="col" style="gap:12px">
+      <div class="field"><label for="mb_title">Name</label><input id="mb_title" maxlength="80" value="${esc(b.title || '')}" placeholder="z. B. Mein Fill, Chorus Groove"></div>
+      <div class="field"><label for="mb_song">Zu welchem Song? (optional)</label><input id="mb_song" list="mb_songs" value="${esc((songs.find((x) => x.id === b.song_id) || {}).title || '')}" placeholder="Leer lassen für einen freien Beat" autocomplete="off"><datalist id="mb_songs">${songs.map((x) => `<option value="${esc(x.title)}"></option>`).join('')}</datalist></div>
+      ${DrumNotation.editorHTML(S.nt.mb, 'mb')}
+      <button class="btn primary block" type="submit">Speichern</button>
+      ${b.id ? `<button class="btn danger" type="button" data-act="myBeatDelete" data-id="${b.id}">${S.mbConfirm === b.id ? 'Wirklich löschen?' : 'Löschen'}</button>` : ''}
+    </form></div>`;
+}
 function isKid(st) { return !st.birth_year || new Date().getFullYear() - st.birth_year < 13; }
 const DRUM_FACE = '<svg class="mascot" viewBox="0 0 76 76" width="64" height="64" role="img" aria-label="Lachende Trommel"><ellipse cx="38" cy="26" rx="28" ry="10" fill="#f2c14e" stroke="#23241f" stroke-width="3"/><path d="M10 26v26c0 6 12.5 11 28 11s28-5 28-11V26" fill="#e4572e" stroke="#23241f" stroke-width="3"/><circle cx="29" cy="42" r="3" fill="#23241f"/><circle cx="47" cy="42" r="3" fill="#23241f"/><path d="M30 50q8 7 16 0" stroke="#23241f" stroke-width="3" fill="none" stroke-linecap="round"/><path d="M54 4l-8 18M66 8l-14 16" stroke="#23241f" stroke-width="4" stroke-linecap="round"/></svg>';
 const GUITAR_FACE = '<svg class="mascot" viewBox="0 0 76 76" width="64" height="64" role="img" aria-label="Lachende Gitarre"><path d="M50 6l14 14-14 12" stroke="#23241f" stroke-width="5" stroke-linecap="round"/><path d="M30 30c-6-6-18-4-22 4s-2 22 8 28 24 6 30-2 2-18-4-22c4-6 0-10-4-8z" fill="#f2c14e" stroke="#23241f" stroke-width="3"/><circle cx="26" cy="46" r="7" fill="#e4572e" stroke="#23241f" stroke-width="3"/><path d="M46 28L62 12" stroke="#23241f" stroke-width="4"/><circle cx="20" cy="36" r="2.5" fill="#23241f"/><circle cx="34" cy="36" r="2.5" fill="#23241f"/></svg>';
@@ -1078,6 +1111,7 @@ function songView() {
           <div class="row"><button class="btn primary" type="submit">Speichern</button><button class="btn" type="button" data-act="partEditOff">Abbrechen</button></div></form>` : ''}
         ${S.partEdit === p.id ? '' : p.notation ? `<div id="pn_${p.id}">${notationPreview(p.notation, p.title)}</div><div class="row" style="gap:8px"><button class="btn small" data-act="partPlay" data-id="${p.id}">Abspielen</button>${beatClickChip()}${S.role === 'student' ? `<button class="btn small primary" data-act="partPractice" data-id="${p.id}">Üben</button>` : ''}</div>` : ''}
         ${p.url && !ytId(p.url) ? `<a class="btn small" href="${esc(p.url)}" target="_blank" rel="noopener">Link öffnen</a>` : ''}</section>`).join('') : `<div class="empty">${teacher ? 'Noch keine Bausteine. Leg unten den ersten an, z. B. Groove Vers.' : 'Oti hat für diesen Song noch keine Videos.'}</div>`}
+      ${!teacher && (S.role === 'student' || S.preview) && stuData() ? myBeatsSection(stuData(), d.song.id) : ''}
       ${teacher ? `<form id="partForm" class="card col"><b>Baustein hinzufügen</b>
         <div class="field"><label for="pt_title">Titel</label><input id="pt_title" maxlength="120" placeholder="z. B. Groove Vers, Fill in den Chorus"></div>
         <div class="field"><label for="pt_url">YouTube Link</label><input id="pt_url" type="url" inputmode="url" placeholder="Link einfügen"></div>
@@ -1766,6 +1800,26 @@ document.addEventListener('click', async (ev) => {
       }
       case 'linkEdit': S.linkEdit = id; rerenderSong(); break;
       case 'linkEditOff': S.linkEdit = null; rerenderSong(); break;
+      case 'myBeatNew': { S.myBeat = { song_id: el.dataset.song || null }; S.nt = S.nt || {}; const sg = S.songs && S.songs.songs.find((x) => x.id === S.myBeat.song_id); S.nt.mb = DrumNotation.empty('4/4', 1, (sg && sg.bpm) || 70); S.mbConfirm = null; DrumNotation.stop(); openOverlay(myBeatView); break; }
+      case 'myBeatEdit': { const b = stuData().my_beats.find((x) => x.id === id); S.myBeat = { ...b }; S.nt = S.nt || {}; S.nt.mb = DrumNotation.parse(b.notation); S.mbConfirm = null; DrumNotation.stop(); openOverlay(myBeatView); break; }
+      case 'myBeatDelete': {
+        if (S.mbConfirm !== id) { S.mbConfirm = id; el.textContent = 'Wirklich löschen?'; break; }
+        await api('/api/my/beat/delete', { id }); await reloadStu(); S.mbConfirm = null; closeOverlay(); toast('Gelöscht'); break;
+      }
+      case 'myBeatPlay': {
+        const all = (stuData().my_beats || []).concat((S.file && S.file.beats) || []), b = all.find((x) => x.id === id), n = b && DrumNotation.parse(b.notation); if (!n) break;
+        if (S.prevPlaying === 'mb' + id) { DrumNotation.stop(); S.prevPlaying = null; el.textContent = 'Abspielen'; break; }
+        DrumNotation.stop(); S.prevPlaying = 'mb' + id; el.textContent = 'Stopp'; S.playFactor = 1; playBeat(n, $('#mbp_' + id), n.bpm); break;
+      }
+      case 'myBeatPractice': { const b = stuData().my_beats.find((x) => x.id === id), n = DrumNotation.parse(b.notation); DrumNotation.stop(); S.overlay = null; startPractice(null, { id: 'b' + b.id, title: 'Mein Beat: ' + b.title, notation: b.notation, notes: '', bpm: n && n.bpm, factor: 1 }); break; }
+      case 'beatApprove': {
+        const b = S.file.beats.find((x) => x.id === id); let ver;
+        if (b.song_id) { try { const d = await api('/api/song', { id: b.song_id }); const vs = songVersions(d); ver = vs.length ? (S.songVersion && vs.includes(S.songVersion) ? S.songVersion : vs[0]) : null; } catch (e) { ver = null; } }
+        const r = await api('/api/t/student/beat/approve', { id, version: ver });
+        S.file = Object.assign(await api('/api/t/student', { id: S.file.student.id }), { course: S.file.course });
+        if (r.exercise_id) S.exercises = (await api('/api/t/exercises')).exercises;
+        openOverlay(studentFileView); toast(r.part_id ? `Jetzt offizieller Baustein im Song${ver ? ' (' + ver + ')' : ''}` : 'Jetzt in der Bibliothek unter Schüler Beats'); break;
+      }
       case 'partEditOff': S.partEdit = null; if (S.nt) delete S.nt.pe; rerenderSong(); break;
       case 'peNew': S.nt = S.nt || {}; S.nt.pe = DrumNotation.empty('4/4', 1, (S.song && S.song.song.bpm) || 70); rerenderSong(); break;
       case 'ptNew': S.nt = S.nt || {}; S.nt.pt = DrumNotation.empty('4/4', 1, (S.song && S.song.song.bpm) || 70); rerenderSong(); break;
@@ -1985,6 +2039,11 @@ document.addEventListener('submit', async (ev) => {
       await api('/api/t/song/part/save', { song_id: S.song.song.id, title, url: $('#pt_url').value.trim() || null, notes: $('#pt_notes').value.trim() || null, notation: S.nt && S.nt.pt ? S.nt.pt : null, version: songCurVersion(S.song) });
       DrumNotation.stop(); if (S.nt) delete S.nt.pt; S.pt = null;
       S.song = await api('/api/song', { id: S.song.song.id }); S.songs = await api('/api/songs'); openOverlay(songView); toast('Baustein gespeichert');
+    } else if (fid === 'myBeatForm') {
+      const st = $('#mb_song').value.trim().toLowerCase(), sg = st && S.songs && S.songs.songs.find((x) => x.title.toLowerCase() === st);
+      if (st && !sg) { toast('Diesen Song gibt es nicht. Leer lassen oder aus der Liste wählen.'); return; }
+      await api('/api/my/beat/save', { id: S.myBeat.id || undefined, title: $('#mb_title').value.trim(), song_id: sg ? sg.id : null, notation: S.nt.mb });
+      DrumNotation.stop(); await reloadStu(); delete S.nt.mb; closeOverlay(); toast('Gespeichert. Oti sieht deinen Beat.');
     } else if (fid === 'linkEditForm') {
       const v = versionValue('le'); await api('/api/t/song/link/update', { id: S.linkEdit, title: $('#le_title').value.trim() || null, version: v });
       S.linkEdit = null; S.songVersion = v; S.song = await api('/api/song', { id: S.song.song.id }); rerenderSong(); toast('Gespeichert');

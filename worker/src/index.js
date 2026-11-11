@@ -125,6 +125,10 @@ async function lessonLive(s, studentId) {
   const t = now(); const w = await s.first('SELECT until FROM lesson_windows WHERE student_id = ? AND started_at <= ? AND until > ? ORDER BY until DESC LIMIT 1', studentId, t, t);
   return w ? w.until : null;
 }
+// Eigene Beats eines Schülers, mit Songtitel
+function myBeats(s, studentId) {
+  return s.all('SELECT b.id, b.song_id, b.title, b.notation, b.created_at, b.updated_at, sg.title AS song_title, o.part_id, o.exercise_id, o.approved_at FROM student_beats b LEFT JOIN songs sg ON sg.id = b.song_id LEFT JOIN student_beat_official o ON o.beat_id = b.id WHERE b.student_id = ? ORDER BY b.updated_at DESC LIMIT 100', studentId);
+}
 async function studentView(s, studentId, role) {
   const st = await s.first('SELECT id, first_name, birth_year, is_minor, weekday, lesson_time, lesson_minutes, level, instrument FROM students WHERE id = ?', studentId);
   if (!st) throw new HttpError(404, 'Schüler nicht gefunden.');
@@ -141,7 +145,8 @@ async function studentView(s, studentId, role) {
     s.first(`SELECT given_at FROM consents WHERE student_id = ? AND kind = 'app' ORDER BY given_at DESC LIMIT 1`, studentId),
   ]);
   const live = await lessonLive(s, studentId);
-  return { role, student: st, assignments, sessions, goals, lessons, lesson_live: live, consent: consent ? consent.given_at : null, consentVersion: CONSENT_VERSION, canGoal: role === 'student' && canSetGoals(st) };
+  const my_beats = await myBeats(s, st.id);
+  return { role, student: st, assignments, sessions, goals, lessons, my_beats, lesson_live: live, consent: consent ? consent.given_at : null, consentVersion: CONSENT_VERSION, canGoal: role === 'student' && canSetGoals(st) };
 }
 
 // Alle Schüler dürfen eigene Ziele eintragen (Altersgrenze auf Otis Wunsch entfernt)
@@ -230,7 +235,8 @@ async function teacherStudent(s, id) {
   const worship = !!(await s.first('SELECT 1 AS w FROM worship_students WHERE student_id = ?', id));
   const cancellations = await s.all('SELECT id, date, kind, note, created_at FROM cancellations WHERE student_id = ? ORDER BY date DESC', id);
   for (const a of assignments) { a.target_bpm = a.eff_target; delete a.eff_target; }
-  return { student: st, lessons, assignments, sessions, goals, access, consents, worship, cancellations };
+  const beats = await myBeats(s, st.id);
+  return { student: st, lessons, assignments, sessions, goals, access, consents, worship, cancellations, beats };
 }
 
 async function saveStudent(s, who, b) {
@@ -275,6 +281,8 @@ function deleteStudentStatements(id) {
     ['DELETE FROM assignment_songs WHERE assignment_id IN (SELECT id FROM assignments WHERE student_id = ?)', [id]],
     ['DELETE FROM assignment_checks WHERE assignment_id IN (SELECT id FROM assignments WHERE student_id = ?)', [id]],
     ['DELETE FROM assignment_order WHERE assignment_id IN (SELECT id FROM assignments WHERE student_id = ?)', [id]],
+    ['DELETE FROM student_beat_official WHERE beat_id IN (SELECT id FROM student_beats WHERE student_id = ?)', [id]],
+    ['DELETE FROM student_beats WHERE student_id = ?', [id]],
     ['DELETE FROM devices WHERE access_id IN (SELECT id FROM access WHERE student_id = ?)', [id]],
     ['DELETE FROM access WHERE student_id = ?', [id]],
     ['DELETE FROM consents WHERE student_id = ?', [id]],
@@ -591,6 +599,26 @@ async function route(env, req, path, body) {
     else await s.run('DELETE FROM student_songs WHERE student_id = ? AND song_id = ?', who.studentId, sid);
     return { ok: true };
   }
+  if (path === '/api/my/beat/save' || path === '/api/my/beat/delete') {
+    // Schüler schreiben eigene Beats oder Bausteine (optional zu einem Song). Nur der Schüler selbst und Oti sehen sie.
+    if (who.role !== 'student') throw new HttpError(403, 'Nur Schüler schreiben eigene Beats.');
+    if (path === '/api/my/beat/delete') { await s.batch([['DELETE FROM student_beat_official WHERE beat_id IN (SELECT id FROM student_beats WHERE id = ? AND student_id = ?)', [String(body.id || ''), who.studentId]], ['DELETE FROM student_beats WHERE id = ? AND student_id = ?', [String(body.id || ''), who.studentId]]]); return { ok: true }; }
+    const title = str(body.title, 80); if (!title) throw new HttpError(400, 'Gib deinem Beat einen Namen.');
+    const nt = cleanNotation(body.notation); const no = nt && JSON.parse(nt); if (!no || no.kind || !Object.values(no.tracks).some((t) => t.length)) throw new HttpError(400, 'Schreib zuerst ein paar Noten.');
+    const songId = body.song_id ? String(body.song_id) : null;
+    if (songId && !(await s.first('SELECT id FROM songs WHERE id = ?', songId))) throw new HttpError(404, 'Song nicht gefunden.');
+    const t = now();
+    if (body.id) {
+      const b = await s.first('SELECT id FROM student_beats WHERE id = ? AND student_id = ?', String(body.id), who.studentId);
+      if (!b) throw new HttpError(404, 'Beat nicht gefunden.');
+      await s.run('UPDATE student_beats SET title = ?, song_id = ?, notation = ?, updated_at = ? WHERE id = ?', title, songId, nt, t, b.id);
+      return { id: b.id };
+    }
+    const n = (await s.first('SELECT COUNT(*) AS n FROM student_beats WHERE student_id = ?', who.studentId)).n;
+    if (n >= 100) throw new HttpError(400, 'Du hast schon 100 Beats. Lösch erst einen alten.');
+    const id = uid(); await s.run('INSERT INTO student_beats (id, student_id, song_id, title, notation, created_at, updated_at) VALUES (?, ?, ?, ?, ?, ?, ?)', id, who.studentId, songId, title, nt, t, t);
+    return { id };
+  }
   if (path === '/api/goal/add' || path === '/api/goal/toggle') {
     if (who.role !== 'student') throw new HttpError(403, 'Nur Schüler tragen eigene Ziele ein.');
     const st = await s.first('SELECT birth_year FROM students WHERE id = ?', who.studentId);
@@ -790,6 +818,24 @@ async function route(env, req, path, body) {
       await s.batch([bpm ? ['INSERT INTO song_meta (song_id, bpm, bpm_source) VALUES (?, ?, ?) ON CONFLICT(song_id) DO UPDATE SET bpm = excluded.bpm, bpm_source = excluded.bpm_source', [sg.id, bpm, str(body.source, 200) || 'Oti']] : ['DELETE FROM song_meta WHERE song_id = ?', [sg.id]],
         logRow(who, 'update', 'songs', sg.id, 'BPM ' + (bpm || 'gelöscht'))]);
       return { ok: true };
+    }
+    case '/api/t/student/beat/approve': {
+      // Oti bestätigt einen Schüler Beat: mit Song wird er offizieller Song Baustein, ohne Song eine Bibliotheksübung
+      const b = await s.first('SELECT b.*, st.first_name, o.beat_id AS done FROM student_beats b JOIN students st ON st.id = b.student_id LEFT JOIN student_beat_official o ON o.beat_id = b.id WHERE b.id = ?', String(body.id || ''));
+      if (!b) throw new HttpError(404, 'Beat nicht gefunden.');
+      if (b.done) throw new HttpError(409, 'Schon übernommen.');
+      const title = str(body.title, 120) || b.title; const t = now(); const ops = []; let partId = null, exId = null;
+      if (b.song_id) {
+        partId = uid(); const n = (await s.first('SELECT COUNT(*) AS n FROM song_parts WHERE song_id = ?', b.song_id)).n;
+        ops.push(['INSERT INTO song_parts (id, song_id, title, url, notes, sort, created_at) VALUES (?, ?, ?, ?, ?, ?, ?)', [partId, b.song_id, title, null, 'Geschrieben von ' + b.first_name, n, t]],
+          ['INSERT INTO song_part_notation (part_id, notation) VALUES (?, ?)', [partId, b.notation]]);
+        const ver = str(body.version, 40); if (ver) ops.push(['INSERT INTO song_part_version (part_id, version) VALUES (?, ?)', [partId, ver]]);
+      } else {
+        await assertFreeTitle(s, title); exId = uid();
+        ops.push(['INSERT INTO exercises (id, title, category, source_type, notes, notation, archived, created_at) VALUES (?, ?, ?, ?, ?, ?, 0, ?)', [exId, title, 'Schüler Beats', 'noten', 'Geschrieben von ' + b.first_name, b.notation, t]]);
+      }
+      ops.push(['INSERT INTO student_beat_official (beat_id, part_id, exercise_id, approved_at) VALUES (?, ?, ?, ?)', [b.id, partId, exId, t]], logRow(who, 'create', partId ? 'song_parts' : 'exercises', partId || exId, 'Schüler Beat übernommen: ' + title));
+      await s.batch(ops); return { part_id: partId, exercise_id: exId };
     }
     case '/api/t/song/part/update': {
       const p = await s.first('SELECT id FROM song_parts WHERE id = ?', String(body.id || ''));
