@@ -134,6 +134,12 @@ CREATE TABLE IF NOT EXISTS student_beats (
 );
 CREATE INDEX IF NOT EXISTS i_student_beats ON student_beats(student_id, updated_at);
 -- Von Oti bestätigt: offizieller Song Baustein (part_id) oder Bibliotheksübung (exercise_id)
+-- Home Bildschirm App pro Schüler: eigener Name und Farbe (z. B. Geschwister auf einem Gerät)
+CREATE TABLE IF NOT EXISTS student_app (
+  student_id TEXT PRIMARY KEY,
+  app_name TEXT,
+  color TEXT
+);
 CREATE TABLE IF NOT EXISTS student_beat_official (
   beat_id TEXT PRIMARY KEY,
   part_id TEXT,

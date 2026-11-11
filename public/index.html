@@ -205,8 +205,8 @@ details.card summary{cursor:pointer;font-family:var(--display);font-size:1.08rem
 </head>
 <body>
 <div id="app"><div class="wrap"><p class="muted">Lädt …</p></div></div>
-<script src="notation.js?v=65"></script>
-<script src="guitar.js?v=65"></script>
+<script src="notation.js?v=66"></script>
+<script src="guitar.js?v=66"></script>
 <script>
 'use strict';
 // ---------- Grundlagen ----------
@@ -297,7 +297,13 @@ const linkCode = (v) => { const m = /(?:^|[#&?])c=([A-Za-z0-9-]+)/.exec(String(v
 function setManifest() {
   const el = document.querySelector('link[rel="manifest"]'); if (!el) return;
   const code = (S.role === 'student' || S.role === 'parent') && store.get('code', null);
-  el.setAttribute('href', code && !STANDALONE ? '/api/manifest?c=' + encodeURIComponent(code) : 'manifest.webmanifest');
+  const app = (S.role === 'student' || S.role === 'parent') && S.data && S.data.app;
+  el.setAttribute('href', code && !STANDALONE ? '/api/manifest?c=' + encodeURIComponent(code) + (app && app.app_name ? '&n=' + encodeURIComponent(app.app_name) : '') + (app && app.color ? '&i=' + app.color : '') : 'manifest.webmanifest');
+  // iPhone nimmt Name und Symbol beim Hinzufügen aus der Seite, nicht aus dem Manifest
+  const sfx = app && app.color ? '-' + app.color : '', nm = (app && app.app_name) || 'Practice Hub';
+  const t = document.querySelector('meta[name="apple-mobile-web-app-title"]'); if (t) t.setAttribute('content', nm);
+  const ic = document.querySelector('link[rel="apple-touch-icon"]'); if (ic) ic.setAttribute('href', 'icon' + sfx + '-180.png');
+  if (app && app.app_name) document.title = nm;
 }
 async function boot() {
   const m = /[#&]c=([A-Za-z0-9-]+)/.exec(location.hash);
@@ -344,6 +350,7 @@ function loginView() {
 async function load() {
   try {
     S.data = await api('/api/home');
+    setManifest();
     if (S.role === 'student' || S.role === 'teacher') {
       try { S.songs = await api('/api/songs'); } catch (e) { S.songs = null; }
       try { S.course = await api('/api/course'); } catch (e) { S.course = null; }
@@ -557,6 +564,10 @@ function studentFileView() {
     <section class="card"><h3>Stunden <span class="muted small">(${f.lessons.length})</span></h3><div class="list">${f.lessons.length ? f.lessons.slice(0, S.allLessons ? 9999 : 10).map((l) => `<div class="item"><div class="t col" style="gap:2px"><b>${esc(fmtDate(l.date))}${l.date.slice(0, 4) !== String(new Date().getFullYear()) ? ' ' + l.date.slice(0, 4) : ''}</b>${l.notes_shared ? `<span style="white-space:pre-line">${esc(l.notes_shared)}</span>` : ''}${l.notes_teacher ? `<span class="muted small" style="white-space:pre-line">Privat: ${esc(l.notes_teacher)}</span>` : ''}</div></div>`).join('') : '<p class="muted">Noch keine Stunde.</p>'}</div>
       ${f.lessons.length > 10 && !S.allLessons ? '<button class="btn small" data-act="allLessons">Alle ' + f.lessons.length + ' Stunden anzeigen</button>' : ''}</section>
     ${fileCourseCard(f)}
+    <section class="card col" style="gap:8px"><h3>Home Bildschirm App</h3><span class="small muted">Für Geschwister auf einem Gerät: eigener Name und Farbe. Gilt, wenn der Link danach neu zum Home Bildschirm hinzugefügt wird.</span>
+      <form id="appForm" class="row" style="gap:8px;align-items:flex-end"><div class="field" style="flex:2;min-width:160px"><label for="app_name">Name</label><input id="app_name" maxlength="30" placeholder="Practice Hub" value="${esc((f.app && f.app.app_name) || '')}"></div>
+      <div class="field" style="flex:1;min-width:110px"><label for="app_color">Farbe</label><select id="app_color">${[['', 'Grün'], ['pink', 'Pink'], ['blau', 'Blau']].map(([v, l]) => `<option value="${v}" ${((f.app && f.app.color) || '') === v ? 'selected' : ''}>${l}</option>`).join('')}</select></div>
+      <button class="btn small primary" type="submit">Speichern</button></form></section>
     <section class="card"><div class="row between"><h3>Zugänge</h3><div class="row"><button class="btn small" data-act="newAccess" data-role="student">Schülerlink</button><button class="btn small" data-act="newAccess" data-role="parent">Elternlink</button></div></div>
       ${S.newLink ? `<div class="col"><span class="small muted">Neuer Link, nur jetzt sichtbar. Schick ihn per Nachricht weiter:</span><div class="code" id="newLink">${esc(S.newLink)}</div><button class="btn small" data-act="copyLink">Link kopieren</button></div>` : ''}
       <div class="list">${f.access.length ? f.access.map((a) => `<div class="item"><span class="t">${a.role === 'parent' ? 'Eltern' + (a.label ? ' (' + esc(a.label) + ')' : '') : 'Schüler'}<br><span class="muted small">${a.revoked_at ? 'gesperrt' : a.last_seen ? 'zuletzt ' + esc(fmtDate(a.last_seen)) : 'noch nicht geöffnet'}</span></span>${a.revoked_at ? '' : `<button class="btn small danger" data-act="revoke" data-id="${a.id}">Sperren</button>`}</div>`).join('') : '<p class="muted">Noch kein Link erzeugt.</p>'}</div>
@@ -2047,6 +2058,9 @@ document.addEventListener('submit', async (ev) => {
       await api('/api/t/song/part/save', { song_id: S.song.song.id, title, url: $('#pt_url').value.trim() || null, notes: $('#pt_notes').value.trim() || null, notation: S.nt && S.nt.pt ? S.nt.pt : null, version: songCurVersion(S.song) });
       DrumNotation.stop(); if (S.nt) delete S.nt.pt; S.pt = null;
       S.song = await api('/api/song', { id: S.song.song.id }); S.songs = await api('/api/songs'); openOverlay(songView); toast('Baustein gespeichert');
+    } else if (fid === 'appForm') {
+      const r = await api('/api/t/student/app', { id: S.file.student.id, app_name: $('#app_name').value.trim(), color: $('#app_color').value });
+      S.file.app = r.app; toast('Gespeichert. Link neu öffnen und zum Home Bildschirm hinzufügen');
     } else if (fid === 'myBeatForm') {
       const st = $('#mb_song').value.trim().toLowerCase(), sg = st && S.songs && S.songs.songs.find((x) => x.title.toLowerCase() === st);
       if (st && !sg) { toast('Diesen Song gibt es nicht. Leer lassen oder aus der Liste wählen.'); return; }

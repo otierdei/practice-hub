@@ -146,7 +146,8 @@ async function studentView(s, studentId, role) {
   ]);
   const live = await lessonLive(s, studentId);
   const my_beats = await myBeats(s, st.id);
-  return { role, student: st, assignments, sessions, goals, lessons, my_beats, lesson_live: live, consent: consent ? consent.given_at : null, consentVersion: CONSENT_VERSION, canGoal: role === 'student' && canSetGoals(st) };
+  const app = await s.first('SELECT app_name, color FROM student_app WHERE student_id = ?', st.id);
+  return { role, app: app || null, student: st, assignments, sessions, goals, lessons, my_beats, lesson_live: live, consent: consent ? consent.given_at : null, consentVersion: CONSENT_VERSION, canGoal: role === 'student' && canSetGoals(st) };
 }
 
 // Alle Schüler dürfen eigene Ziele eintragen (Altersgrenze auf Otis Wunsch entfernt)
@@ -236,7 +237,8 @@ async function teacherStudent(s, id) {
   const cancellations = await s.all('SELECT id, date, kind, note, created_at FROM cancellations WHERE student_id = ? ORDER BY date DESC', id);
   for (const a of assignments) { a.target_bpm = a.eff_target; delete a.eff_target; }
   const beats = await myBeats(s, st.id);
-  return { student: st, lessons, assignments, sessions, goals, access, consents, worship, cancellations, beats };
+  const app = await s.first('SELECT app_name, color FROM student_app WHERE student_id = ?', id);
+  return { student: st, lessons, assignments, sessions, goals, access, consents, worship, cancellations, beats, app: app || null };
 }
 
 async function saveStudent(s, who, b) {
@@ -283,6 +285,7 @@ function deleteStudentStatements(id) {
     ['DELETE FROM assignment_order WHERE assignment_id IN (SELECT id FROM assignments WHERE student_id = ?)', [id]],
     ['DELETE FROM student_beat_official WHERE beat_id IN (SELECT id FROM student_beats WHERE student_id = ?)', [id]],
     ['DELETE FROM student_beats WHERE student_id = ?', [id]],
+    ['DELETE FROM student_app WHERE student_id = ?', [id]],
     ['DELETE FROM devices WHERE access_id IN (SELECT id FROM access WHERE student_id = ?)', [id]],
     ['DELETE FROM access WHERE student_id = ?', [id]],
     ['DELETE FROM consents WHERE student_id = ?', [id]],
@@ -824,6 +827,16 @@ async function route(env, req, path, body) {
         logRow(who, 'update', 'songs', sg.id, 'BPM ' + (bpm || 'gelöscht'))]);
       return { ok: true };
     }
+    case '/api/t/student/app': {
+      // Name und Farbe der Home Bildschirm App dieses Schülers
+      const st = await s.first('SELECT id FROM students WHERE id = ?', String(body.id || ''));
+      if (!st) throw new HttpError(404, 'Schüler nicht gefunden.');
+      const name = String(body.app_name || '').replace(/[^\p{L}\p{N} .'&+]/gu, '').trim().slice(0, 30) || null;
+      const color = APP_COLORS[body.color] ? String(body.color) : null;
+      if (!name && !color) await s.batch([['DELETE FROM student_app WHERE student_id = ?', [st.id]]]);
+      else await s.batch([['INSERT INTO student_app (student_id, app_name, color) VALUES (?, ?, ?) ON CONFLICT(student_id) DO UPDATE SET app_name = excluded.app_name, color = excluded.color', [st.id, name, color]]]);
+      return { ok: true, app: name || color ? { app_name: name, color } : null };
+    }
     case '/api/t/student/beat/approve': {
       // Oti bestätigt einen Schüler Beat: mit Song wird er offizieller Song Baustein, ohne Song eine Bibliotheksübung
       const b = await s.first('SELECT b.*, st.first_name, o.beat_id AS done FROM student_beats b JOIN students st ON st.id = b.student_id LEFT JOIN student_beat_official o ON o.beat_id = b.id WHERE b.id = ?', String(body.id || ''));
@@ -1005,10 +1018,14 @@ export function ensureSchema(env) {
   return p;
 }
 
-export function manifestFor(c) {
+// Farben der Home Bildschirm App, Icons liegen in public/ (icon-<farbe>-180.png usw.)
+export const APP_COLORS = { pink: 1, blau: 1 };
+export function manifestFor(c, name, color) {
   const code = /^[A-Za-z0-9-]{8,64}$/.test(String(c || '')) ? String(c) : null;
-  const m = { name: 'Practice Hub', short_name: 'Practice Hub', lang: 'de', start_url: code ? '/#c=' + code : '/', scope: '/', display: 'standalone', background_color: '#e5e5e0', theme_color: '#e5e5e0',
-    icons: [{ src: '/icon-180.png', sizes: '180x180', type: 'image/png' }, { src: '/icon-512.png', sizes: '512x512', type: 'image/png' }, { src: '/icon.svg', sizes: 'any', type: 'image/svg+xml' }] };
+  const nm = String(name || '').replace(/[^\p{L}\p{N} .'&+]/gu, '').trim().slice(0, 30) || 'Practice Hub';
+  const sfx = APP_COLORS[color] ? '-' + color : '';
+  const m = { name: nm, short_name: nm, lang: 'de', start_url: code ? '/#c=' + code : '/', scope: '/', display: 'standalone', background_color: '#e5e5e0', theme_color: '#e5e5e0',
+    icons: [{ src: `/icon${sfx}-180.png`, sizes: '180x180', type: 'image/png' }, { src: `/icon${sfx}-512.png`, sizes: '512x512', type: 'image/png' }, { src: `/icon${sfx}.svg`, sizes: 'any', type: 'image/svg+xml' }] };
   return new Response(JSON.stringify(m), { headers: { 'Content-Type': 'application/manifest+json; charset=utf-8', 'Cache-Control': 'no-store', 'Referrer-Policy': 'no-referrer' } });
 }
 
@@ -1018,7 +1035,7 @@ export default {
     // Alles außer /api liefert die App aus (Cloudflare Assets)
     if (!url0.pathname.startsWith('/api/') && env.ASSETS) return env.ASSETS.fetch(req);
     // Manifest mit persönlichem Start Link: die Home Bildschirm App am iPhone hat einen eigenen Speicher und braucht den Code beim ersten Start
-    if (url0.pathname === '/api/manifest') return manifestFor(url0.searchParams.get('c'));
+    if (url0.pathname === '/api/manifest') return manifestFor(url0.searchParams.get('c'), url0.searchParams.get('n'), url0.searchParams.get('i'));
     await ensureSchema(env);
     const cors = corsHeaders(env, req);
     if (req.method === 'OPTIONS') return new Response(null, { status: 204, headers: cors });

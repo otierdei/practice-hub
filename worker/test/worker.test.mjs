@@ -1,7 +1,7 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { fileURLToPath } from 'node:url';
-import worker, { cleanup, isMinor } from '../src/index.js';
+import worker, { cleanup, isMinor, manifestFor } from '../src/index.js';
 import { makeD1 } from './d1-shim.mjs';
 
 const ORIGIN = 'https://otierdei.github.io';
@@ -758,4 +758,18 @@ test('Flam wird gespeichert, nur auf vorhandenen Noten', async () => {
   const id = (await w.call('/api/t/exercise/save', { title: 'Flam Beat', notation: { sig: '4/4', bars: 1, tracks: { sn: [0, 4] }, flam: { 'sn:0': 1, 'sn:2': 1, 'hh:0': 1 }, dyn: { 'sn:0': 'a' } } }, w.t)).data.id;
   const e = (await w.call('/api/t/exercises', {}, w.t)).data.exercises.find((x) => x.id === id);
   assert.deepEqual(JSON.parse(e.notation).flam, { 'sn:0': 1 }); assert.deepEqual(JSON.parse(e.notation).dyn, { 'sn:0': 'a' });
+});
+
+test('Home Bildschirm App pro Schüler: Name und Farbe, Manifest folgt', async () => {
+  const w = await world();
+  assert.equal((await w.call('/api/home', {}, w.ta)).data.app, null);
+  await w.call('/api/t/student/app', { id: w.a, app_name: 'Practice Hub Anna<script>', color: 'pink' }, w.t);
+  assert.deepEqual((await w.call('/api/home', {}, w.ta)).data.app, { app_name: 'Practice Hub Annascript', color: 'pink' });
+  assert.equal((await w.call('/api/home', {}, w.tb)).data.app, null);
+  assert.equal((await w.call('/api/t/student/app', { id: w.a, app_name: 'X', color: 'gold' }, w.t)).data.app.color, null);
+  assert.equal((await w.call('/api/t/student/app', { id: w.a }, w.ta)).status, 403);
+  const m = await (manifestFor('ABCDEFGH12', 'Practice Hub Miriam', 'pink')).json();
+  assert.equal(m.name, 'Practice Hub Miriam'); assert.equal(m.icons[0].src, '/icon-pink-180.png'); assert.equal(m.start_url, '/#c=ABCDEFGH12');
+  assert.equal((await manifestFor('ABCDEFGH12', '', 'evil')).json().then((x) => x.icons[0].src).constructor, Promise);
+  assert.equal((await (manifestFor(null, null, 'evil')).json()).icons[0].src, '/icon-180.png');
 });
