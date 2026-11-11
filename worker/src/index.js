@@ -870,11 +870,20 @@ export function ensureSchema(env) {
   return p;
 }
 
+export function manifestFor(c) {
+  const code = /^[A-Za-z0-9-]{8,64}$/.test(String(c || '')) ? String(c) : null;
+  const m = { name: 'Practice Hub', short_name: 'Practice Hub', lang: 'de', start_url: code ? '/#c=' + code : '/', scope: '/', display: 'standalone', background_color: '#e5e5e0', theme_color: '#e5e5e0',
+    icons: [{ src: '/icon-180.png', sizes: '180x180', type: 'image/png' }, { src: '/icon-512.png', sizes: '512x512', type: 'image/png' }, { src: '/icon.svg', sizes: 'any', type: 'image/svg+xml' }] };
+  return new Response(JSON.stringify(m), { headers: { 'Content-Type': 'application/manifest+json; charset=utf-8', 'Cache-Control': 'no-store', 'Referrer-Policy': 'no-referrer' } });
+}
+
 export default {
   async fetch(req, env) {
     const url0 = new URL(req.url);
     // Alles außer /api liefert die App aus (Cloudflare Assets)
     if (!url0.pathname.startsWith('/api/') && env.ASSETS) return env.ASSETS.fetch(req);
+    // Manifest mit persönlichem Start Link: die Home Bildschirm App am iPhone hat einen eigenen Speicher und braucht den Code beim ersten Start
+    if (url0.pathname === '/api/manifest') return manifestFor(url0.searchParams.get('c'));
     await ensureSchema(env);
     const cors = corsHeaders(env, req);
     if (req.method === 'OPTIONS') return new Response(null, { status: 204, headers: cors });

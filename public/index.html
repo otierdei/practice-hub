@@ -202,8 +202,8 @@ details.card summary{cursor:pointer;font-family:var(--display);font-size:1.08rem
 </head>
 <body>
 <div id="app"><div class="wrap"><p class="muted">Lädt …</p></div></div>
-<script src="notation.js?v=54"></script>
-<script src="guitar.js?v=54"></script>
+<script src="notation.js?v=55"></script>
+<script src="guitar.js?v=55"></script>
 <script>
 'use strict';
 // ---------- Grundlagen ----------
@@ -245,7 +245,7 @@ async function api(path, body) {
   if (!res.ok) throw new Error(data.error || 'Fehler ' + res.status);
   return data;
 }
-function logoutLocal() { S.token = null; S.role = null; S.data = null; store.del('token'); store.del('role'); store.del('name'); render(); }
+function logoutLocal() { S.token = null; S.role = null; S.data = null; store.del('token'); store.del('role'); store.del('name'); store.del('code'); if (typeof setManifest === 'function') setManifest(); render(); }
 
 // Kreis: value 0..1
 function ring(value, size, stroke, color, label, inner, sub) {
@@ -288,20 +288,39 @@ function nav() {
 }
 
 // ---------- Anmeldung ----------
+// Home Bildschirm App (iPhone): eigener Speicher, startet ohne den Link. Darum nimmt das Manifest den Code mit.
+const STANDALONE = !!(navigator.standalone || (window.matchMedia && matchMedia('(display-mode: standalone)').matches));
+const linkCode = (v) => { const m = /(?:^|[#&?])c=([A-Za-z0-9-]+)/.exec(String(v || '')); return m ? m[1] : String(v || '').trim(); };
+function setManifest() {
+  const el = document.querySelector('link[rel="manifest"]'); if (!el) return;
+  const code = (S.role === 'student' || S.role === 'parent') && store.get('code', null);
+  el.setAttribute('href', code && !STANDALONE ? '/api/manifest?c=' + encodeURIComponent(code) : 'manifest.webmanifest');
+}
 async function boot() {
   const m = /[#&]c=([A-Za-z0-9-]+)/.exec(location.hash);
   if (m) {
-    history.replaceState(null, '', location.pathname + location.search);
-    try { await doLogin(m[1]); return; } catch (e) { S.loginError = e.message; }
+    const same = S.token && store.get('code', null) === m[1];
+    // Im Browser bleibt der Code im Link, damit "Zum Home Bildschirm" ihn mitnimmt. Lehrer und Home Bildschirm App: Code aus der Adresse entfernen.
+    if (same && (STANDALONE || S.role === 'teacher')) history.replaceState(null, '', location.pathname + location.search);
+    if (!same) {
+      try { await doLogin(m[1]); return; } catch (e) { S.loginError = e.message; history.replaceState(null, '', location.pathname + location.search); }
+    }
   }
+  setManifest();
   if (S.token) { S.tab = TABS[S.role] ? TABS[S.role][0][0] : null; render(); await load(); flushOutbox(); }
   else render();
 }
 async function doLogin(code) {
+  code = linkCode(code);
   const r = await api('/api/login', { code });
   if (S.token && S.token !== r.token) { try { await api('/api/logout'); } catch (e) {} }
   S.token = r.token; S.role = r.role; S.name = r.name; S.tab = TABS[r.role][0][0];
   store.set('token', r.token); store.set('role', r.role); store.set('name', r.name);
+  if (r.role === 'teacher') store.del('code'); else store.set('code', code);
+  const keep = r.role !== 'teacher' && !STANDALONE && /[#&]c=/.test(location.hash);
+  if (/[#&]c=/.test(location.hash) && !keep) history.replaceState(null, '', location.pathname + location.search);
+  else if (keep && store.get('code', null) && !location.hash.includes('c=' + code)) history.replaceState(null, '', location.pathname + location.search + '#c=' + code);
+  setManifest();
   render(); await load(); flushOutbox();
 }
 function loginView() {
@@ -309,8 +328,9 @@ function loginView() {
     <div class="col" style="gap:20px">
       <h1>Practice Hub</h1>
       <p class="muted">Öffne den persönlichen Link, den du von Oti bekommen hast. Oder gib deinen Code hier ein.</p>
+      ${STANDALONE ? '<p class="small muted">Du hast die App auf dem Home Bildschirm? Dann einmal hier anmelden: Füge deinen ganzen Link ein oder nur den Code, das ist der Teil nach „#c=“. Danach bleibst du angemeldet.</p>' : ''}
       <form id="loginForm" class="col">
-        <div class="field"><label for="code">Code</label><input id="code" autocomplete="one-time-code" autocapitalize="characters" spellcheck="false" placeholder="z. B. K7MP2QRT9A"></div>
+        <div class="field"><label for="code">Code</label><input id="code" autocomplete="one-time-code" autocapitalize="characters" spellcheck="false" placeholder="Code oder ganzer Link"></div>
         ${S.loginError ? `<p class="small" style="color:var(--danger)">${esc(S.loginError)}</p>` : ''}
         <button class="btn primary block" type="submit">Anmelden</button>
       </form>

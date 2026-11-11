@@ -73,7 +73,21 @@ let n = 0; const ok = (m) => console.log('ok ' + (++n) + ' ' + m);
   const sc = await ctx({ colorScheme: 'dark' }); const s = await sc.newPage(); s.on('pageerror', (e) => errors.push('Schüler: ' + e.message));
   await s.goto(studentLink);
   await s.getByRole('heading', { name: 'Heute üben' }).waitFor(); ok('Schüler Login per Link');
-  assert.equal(new URL(s.url()).hash, '', 'Code aus der Adresse entfernt'); ok('Code aus Adresszeile entfernt');
+  { const code = studentLink.split('#c=')[1];
+    assert.equal(new URL(s.url()).hash, '#c=' + code, 'Code bleibt im Browser für Zum Home Bildschirm');
+    assert.equal(await s.getAttribute('link[rel=manifest]', 'href'), '/api/manifest?c=' + code);
+    const man = await s.evaluate(async () => (await fetch(document.querySelector('link[rel=manifest]').href)).json());
+    assert.equal(man.start_url, '/#c=' + code);
+    const devs = () => s.evaluate(() => localStorage.getItem('ph_token'));
+    const tok = await devs(); await s.reload(); await s.getByRole('heading', { name: 'Heute üben' }).waitFor(); assert.equal(await devs(), tok, 'Neuladen meldet nicht neu an');
+    // Home Bildschirm App: eigener leerer Speicher, startet ohne Link. Ganzen Link einfügen geht.
+    const hc = await ctx({}); const h = await hc.newPage(); await h.addInitScript(() => { Object.defineProperty(navigator, 'standalone', { get: () => true }); });
+    await h.goto(studentLink.split('#')[0]); await h.getByText('Home Bildschirm').waitFor();
+    await h.fill('#code', studentLink); await h.click('#loginForm button[type=submit]'); await h.getByRole('heading', { name: 'Heute üben' }).waitFor();
+    assert.equal(new URL(h.url()).hash, '', 'In der Home Bildschirm App kein Code in der Adresse');
+    await h.goto('about:blank'); await h.goto(studentLink); await h.getByRole('heading', { name: 'Heute üben' }).waitFor(); assert.equal(new URL(h.url()).hash, '');
+    await hc.close(); }
+  ok('Link: Code bleibt im Browser, Manifest Start Link mit Code, Home Bildschirm App nimmt ganzen Link an');
   const body = await s.textContent('body');
   assert.ok(body.includes('Paradiddle Groove') && body.includes('Heilige Braut'));
   assert.equal(await s.locator('.task-title .asg-num').first().textContent(), '1.');   assert.ok(!body.includes('Wirkte müde'), 'private Notiz unsichtbar'); ok('Schüler sieht Hausaufgaben, nicht die private Notiz');

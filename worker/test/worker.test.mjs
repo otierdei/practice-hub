@@ -623,3 +623,12 @@ test('Tempo: Song ohne Bereich (Original), Baustein 45 bis Original', async () =
   assert.equal(song.start_bpm, null); assert.equal(song.target_bpm, 72);
   assert.equal(part.start_bpm, 45); assert.equal(part.target_bpm, 72);
 });
+
+test('Manifest nimmt den persönlichen Code für die Home Bildschirm App mit', async () => {
+  const { manifestFor } = await import('../src/index.js');
+  const m = await manifestFor('ABCD2345EF').json();
+  assert.equal(m.start_url, '/#c=ABCD2345EF');
+  assert.equal(m.scope, '/');
+  const bad = await manifestFor('<script>').json();
+  assert.equal(bad.start_url, '/');
+});
