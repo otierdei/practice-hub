@@ -1,6 +1,6 @@
 // Practice Hub Service Worker: App Dateien offline, API nie aus dem Cache
-const CACHE = 'ph-v70';
-const FILES = ['./', 'index.html', 'datenschutz.html', 'manifest.webmanifest', 'icon.svg', 'icon-180.png', 'icon-512.png', 'notation.js?v=70', 'guitar.js?v=70', 'fonts/young-serif.woff2', 'fonts/figtree.woff2', 'samples/bd.mp3?v=70', 'samples/sn.mp3?v=70', 'samples/t1.mp3?v=70', 'samples/t2.mp3?v=70', 'samples/ft.mp3?v=70', 'samples/cr.mp3?v=70', 'samples/hh.mp3?v=70', 'samples/ho.mp3?v=70', 'samples/rd.mp3?v=70'];
+const CACHE = 'ph-v71';
+const FILES = ['./', 'index.html', 'datenschutz.html', 'manifest.webmanifest', 'icon.svg', 'icon-180.png', 'icon-512.png', 'notation.js?v=71', 'guitar.js?v=71', 'fonts/young-serif.woff2', 'fonts/figtree.woff2', 'samples/bd.mp3?v=71', 'samples/sn.mp3?v=71', 'samples/t1.mp3?v=71', 'samples/t2.mp3?v=71', 'samples/ft.mp3?v=71', 'samples/cr.mp3?v=71', 'samples/hh.mp3?v=71', 'samples/ho.mp3?v=71', 'samples/rd.mp3?v=71'];
 self.addEventListener('install', (e) => { e.waitUntil(caches.open(CACHE).then((c) => c.addAll(FILES)).then(() => self.skipWaiting())); });
 self.addEventListener('activate', (e) => { e.waitUntil(caches.keys().then((ks) => Promise.all(ks.filter((k) => k !== CACHE).map((k) => caches.delete(k)))).then(() => self.clients.claim())); });
 self.addEventListener('fetch', (e) => {

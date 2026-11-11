@@ -146,8 +146,9 @@ async function studentView(s, studentId, role) {
   ]);
   const live = await lessonLive(s, studentId);
   const my_beats = await myBeats(s, st.id);
+  const changes = await s.all('SELECT chords, count, created_at FROM chord_changes WHERE student_id = ? ORDER BY created_at DESC LIMIT 60', st.id);
   const app = await s.first('SELECT app_name, color FROM student_app WHERE student_id = ?', st.id);
-  return { role, app: app || null, student: st, assignments, sessions, goals, lessons, my_beats, lesson_live: live, consent: consent ? consent.given_at : null, consentVersion: CONSENT_VERSION, canGoal: role === 'student' && canSetGoals(st) };
+  return { role, app: app || null, changes, student: st, assignments, sessions, goals, lessons, my_beats, lesson_live: live, consent: consent ? consent.given_at : null, consentVersion: CONSENT_VERSION, canGoal: role === 'student' && canSetGoals(st) };
 }
 
 // Alle Schüler dürfen eigene Ziele eintragen (Altersgrenze auf Otis Wunsch entfernt)
@@ -237,8 +238,9 @@ async function teacherStudent(s, id) {
   const cancellations = await s.all('SELECT id, date, kind, note, created_at FROM cancellations WHERE student_id = ? ORDER BY date DESC', id);
   for (const a of assignments) { a.target_bpm = a.eff_target; delete a.eff_target; }
   const beats = await myBeats(s, st.id);
+  const changes = await s.all('SELECT chords, count, created_at FROM chord_changes WHERE student_id = ? ORDER BY created_at DESC LIMIT 60', id);
   const app = await s.first('SELECT app_name, color FROM student_app WHERE student_id = ?', id);
-  return { student: st, lessons, assignments, sessions, goals, access, consents, worship, cancellations, beats, app: app || null };
+  return { student: st, lessons, assignments, sessions, goals, access, consents, worship, cancellations, beats, changes, app: app || null };
 }
 
 async function saveStudent(s, who, b) {
@@ -286,6 +288,7 @@ function deleteStudentStatements(id) {
     ['DELETE FROM student_beat_official WHERE beat_id IN (SELECT id FROM student_beats WHERE student_id = ?)', [id]],
     ['DELETE FROM student_beats WHERE student_id = ?', [id]],
     ['DELETE FROM student_app WHERE student_id = ?', [id]],
+    ['DELETE FROM chord_changes WHERE student_id = ?', [id]],
     ['DELETE FROM devices WHERE access_id IN (SELECT id FROM access WHERE student_id = ?)', [id]],
     ['DELETE FROM access WHERE student_id = ?', [id]],
     ['DELETE FROM consents WHERE student_id = ?', [id]],
@@ -597,7 +600,13 @@ async function route(env, req, path, body) {
     return { role: 'teacher', ...(await teacherOverview(s)) };
   }
   if (path === '/api/songs') return songsHome(s, who);
-  if (path === '/api/course') return courseData(s, 'drums', who.role === 'teacher' ? (str(body.student_id, 64) || null) : who.studentId, who.role === 'teacher');
+  if (path === '/api/course') {
+    // Zwei Kurse: Schlagzeug (drums) und E Gitarre (guitar). Ohne Angabe nach Instrument des Schülers.
+    const sid = who.role === 'teacher' ? (str(body.student_id, 64) || null) : who.studentId;
+    let course = ['drums', 'guitar'].includes(body.course) ? body.course : null;
+    if (!course && sid) { const st = await s.first('SELECT instrument FROM students WHERE id = ?', sid); course = st && /^Gitarre$/.test(st.instrument || '') ? 'guitar' : 'drums'; }
+    return courseData(s, course || 'drums', sid, who.role === 'teacher');
+  }
   if (path === '/api/song') { const d = await songDetail(s, body.id, who.role === 'teacher'); if (!d) throw new HttpError(404, 'Song nicht gefunden.'); return d; }
   if (path === '/api/my/song') {
     if (who.role !== 'student') throw new HttpError(403, 'Nur Schüler haben eine eigene Setlist.');
@@ -605,6 +614,14 @@ async function route(env, req, path, body) {
     if (!(await s.first('SELECT id FROM songs WHERE id = ?', sid))) throw new HttpError(404, 'Song nicht gefunden.');
     if (body.on) await s.run('INSERT OR IGNORE INTO student_songs (student_id, song_id, added_at) VALUES (?, ?, ?)', who.studentId, sid, now());
     else await s.run('DELETE FROM student_songs WHERE student_id = ? AND song_id = ?', who.studentId, sid);
+    return { ok: true };
+  }
+  if (path === '/api/my/changes') {
+    // Akkordwechsel Trainer: Ergebnis einer Minute speichern
+    if (who.role !== 'student') throw new HttpError(403, 'Nur Schüler tragen Akkordwechsel ein.');
+    const chords = str(body.chords, 40), count = int(body.count, 0, 300);
+    if (!chords || count == null) throw new HttpError(400, 'Akkorde und Anzahl fehlen.');
+    await s.batch([['INSERT INTO chord_changes (id, student_id, chords, count, created_at) VALUES (?, ?, ?, ?, ?)', [uid(), who.studentId, chords, count, now()]]]);
     return { ok: true };
   }
   if (path === '/api/my/beat/save' || path === '/api/my/beat/delete') {
@@ -779,7 +796,7 @@ async function route(env, req, path, body) {
     }
     case '/api/t/course/level/remove': {
       // Leeres Level entfernen, die Level darüber rücken eins nach unten
-      const course = 'drums', level = int(body.level, 1, 20);
+      const course = body.course === 'guitar' ? 'guitar' : 'drums', level = int(body.level, 1, 20);
       if (!level) throw new HttpError(400, 'Level fehlt.');
       if ((await s.first('SELECT COUNT(*) AS n FROM course_lessons WHERE course = ? AND level = ?', course, level)).n) throw new HttpError(409, 'In diesem Level sind noch Lektionen.');
       await s.batch([
@@ -818,6 +835,16 @@ async function route(env, req, path, body) {
       const ver = str(body.version, 40); if (ver) ops.push(['INSERT INTO song_part_version (part_id, version) VALUES (?, ?)', [id, ver]]);
       await s.batch(ops);
       return { id };
+    }
+    case '/api/t/song/guitar': {
+      // Gitarre zum Song: Akkorde, Capo, Schlagmuster, Tonart, Akkordblatt
+      const sg = await s.first('SELECT id FROM songs WHERE id = ?', String(body.song_id || ''));
+      if (!sg) throw new HttpError(404, 'Song nicht gefunden.');
+      const g = body.notation && body.notation.kind === 'guitar' ? cleanNotation(body.notation) : null;
+      const sheet = str(body.sheet, 4000), key = str(body.key_sig, 6);
+      if (!g && !sheet && !key) await s.batch([['DELETE FROM song_guitar WHERE song_id = ?', [sg.id]]]);
+      else await s.batch([['INSERT INTO song_guitar (song_id, notation, sheet, key_sig, updated_at) VALUES (?, ?, ?, ?, ?) ON CONFLICT(song_id) DO UPDATE SET notation = excluded.notation, sheet = excluded.sheet, key_sig = excluded.key_sig, updated_at = excluded.updated_at', [sg.id, g, sheet, key, now()]]]);
+      return { ok: true };
     }
     case '/api/t/song/bpm': {
       const sg = await s.first('SELECT id, title FROM songs WHERE id = ?', String(body.song_id || ''));

@@ -66,6 +66,14 @@ CREATE INDEX IF NOT EXISTS i_song_links ON song_links(song_id, sort);
 CREATE INDEX IF NOT EXISTS i_assignment_songs ON assignment_songs(song_id);
 CREATE INDEX IF NOT EXISTS i_song_files ON song_files(song_id);
 CREATE INDEX IF NOT EXISTS i_song_parts ON song_parts(song_id, sort);
+-- Gitarre pro Song: Akkorde, Capo, Schlagmuster (Gitarren Notation) und Akkordblatt als Text
+CREATE TABLE IF NOT EXISTS song_guitar (
+  song_id TEXT PRIMARY KEY,
+  notation TEXT,
+  sheet TEXT,
+  key_sig TEXT,
+  updated_at TEXT NOT NULL
+);
 -- Original BPM pro Song (aus dem Internet oder von Oti), hat Vorrang vor BPM aus Dateinamen
 CREATE TABLE IF NOT EXISTS song_meta (
   song_id TEXT PRIMARY KEY,
@@ -210,15 +218,16 @@ export async function songDetail(s, id, teacher = false) {
   const song = await s.first(`SELECT s.id, s.title, s.lang, COALESCE(m.bpm, (SELECT MAX(bpm) FROM song_files WHERE song_id = s.id)) AS bpm, m.bpm_source
     FROM songs s LEFT JOIN song_meta m ON m.song_id = s.id WHERE s.id = ?`, String(id || ''));
   if (!song) return null;
-  const [files, parts, links, playedBy] = await Promise.all([
+  const [files, parts, links, playedBy, guitar] = await Promise.all([
     s.all('SELECT drive_id, name, key_sig, bpm, kind FROM song_files WHERE song_id = ? ORDER BY kind DESC, name', song.id),
     s.all('SELECT p.id, p.title, p.url, p.notes, p.sort, n.notation, v.version FROM song_parts p LEFT JOIN song_part_notation n ON n.part_id = p.id LEFT JOIN song_part_version v ON v.part_id = p.id WHERE p.song_id = ? ORDER BY p.sort, p.created_at', song.id),
     s.all('SELECT id, version, title, url, sort FROM song_links WHERE song_id = ? ORDER BY sort, created_at', song.id),
     teacher ? s.all(`SELECT DISTINCT st.first_name FROM students st WHERE st.id IN (
         SELECT a.student_id FROM assignment_songs x JOIN assignments a ON a.id = x.assignment_id WHERE x.song_id = ?
         UNION SELECT student_id FROM student_songs WHERE song_id = ?) ORDER BY st.first_name`, song.id, song.id) : [],
+    s.first('SELECT notation, sheet, key_sig FROM song_guitar WHERE song_id = ?', song.id),
   ]);
-  return { song, files, parts, links, playedBy: playedBy.map((r) => r.first_name) };
+  return { song, files, parts, links, playedBy: playedBy.map((r) => r.first_name), guitar: guitar || null };
 }
 
 // Links in einer Zeile pro Link: "Easy | https://…" oder "Original https://…"; ohne Version gilt die gewählte

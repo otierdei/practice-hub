@@ -789,3 +789,19 @@ test('Gitarren Übung aus der Stunde landet in der Bibliothek unter Gitarre', as
   const e = (await w.call('/api/t/exercises', {}, w.t)).data.exercises.find((x) => x.title === 'Fiona G C Wechsel');
   assert.equal(e.category, 'Gitarre'); assert.equal(JSON.parse(e.notation).kind, 'guitar');
 });
+
+test('Gitarre: Akkordwechsel Trainer und Gitarre pro Song', async () => {
+  const w = await world();
+  assert.equal((await w.call('/api/my/changes', { chords: 'G C', count: 24 }, w.ta)).status, 200);
+  await w.call('/api/my/changes', { chords: 'G C', count: 31 }, w.ta);
+  assert.equal((await w.call('/api/my/changes', { chords: 'G C', count: 5 }, w.t)).status, 403);
+  assert.deepEqual((await w.call('/api/home', {}, w.ta)).data.changes.map((x) => x.count).sort(), [24, 31]);
+  assert.equal((await w.call('/api/t/student', { id: w.a }, w.t)).data.changes.length, 2);
+  assert.equal((await w.call('/api/home', {}, w.tb)).data.changes.length, 0);
+  const sg = (await w.call('/api/t/song/create', { title: 'Gitarren Song' }, w.t)).data.id;
+  const g = { kind: 'guitar', v: 1, bpm: 72, capo: 2, chords: ['G', 'D', 'Em', 'C'], strum: { sub: 8, bars: 1, cells: ['D', '', 'D', 'U', '', 'U', 'D', 'U'] } };
+  await w.call('/api/t/song/guitar', { song_id: sg, notation: g, sheet: 'Vers: G D Em C', key_sig: 'A' }, w.t);
+  const d = (await w.call('/api/song', { id: sg }, w.ta)).data;
+  assert.equal(d.guitar.sheet, 'Vers: G D Em C'); assert.equal(d.guitar.key_sig, 'A'); assert.equal(JSON.parse(d.guitar.notation).capo, 2);
+  assert.equal((await w.call('/api/t/song/guitar', { song_id: sg, sheet: 'x' }, w.ta)).status, 403);
+});

@@ -364,14 +364,27 @@ let n = 0; const ok = (m) => console.log('ok ' + (++n) + ' ' + m);
   ok('Kein seitliches Scrollen bei 390 px');
 
   // Reiner Gitarrenschüler: Stunde ohne Schlagzeug Teile, Gitarren Übung schreiben und aufgeben
-  await t.evaluate(async () => { const st = S.data.students[0]; S.file = await api('/api/t/student', { id: st.id }); const f = S.file.student;
-    await api('/api/t/student/save', { ...f, id: f.id, instrument: 'Gitarre' }); await openLesson(st.id); });
+  await t.evaluate(async () => { const sid = S.data.students[0].id; S.file = await api('/api/t/student', { id: sid }); const f = S.file.student;
+    await api('/api/t/student/save', { ...f, id: f.id, instrument: 'Gitarre' }); await openLesson(sid); });
   assert.equal(await t.locator('#warmBox').count(), 0); assert.equal(await t.locator('[data-act=lessonBeat]').count(), 0); assert.equal(await t.locator('#sugBox').count(), 0);
   await t.click('[data-act=lessonGuitar]'); await t.locator('#lg').waitFor();
   await t.fill('#a_free', 'G C Wechsel E2E'); await t.click('#assignForm button[type=submit]'); await t.getByText('G C Wechsel E2E aufgegeben').waitFor();
   assert.equal(await t.locator('#lg').count(), 0);
+  // Schüler (Simulation): Akkordwechsel Trainer in der Gitarren Übung
+  await t.click('.sheet [data-act=preview]'); await t.getByText('Simulation als').waitFor();
+  await t.locator('.card:has-text("G C Wechsel E2E") [data-act=practice]').first().click();
+  await t.click('[data-act=chgStart]'); for (let i = 0; i < 3; i++) await t.click('[data-act=chgTap]');
+  await t.evaluate(() => { S.chg.end = Date.now(); }); await t.getByText('3 Wechsel in einer Minute').first().waitFor();
+  assert.match(await t.textContent('#chgBox'), /Bestwert 3/);
+  await t.evaluate(() => { clearInterval(tickTimer); store.del('run'); endPreviewState(); S.previewFrom = null; closeOverlay(); });
+  // Oti: Gitarre zum Song
+  await t.evaluate(async () => { const sg = S.songs.songs[0]; S.song = await api('/api/song', { id: sg.id }); openOverlay(songView); });
+  await t.click('[data-act=songGtEdit][data-v="1"]'); await t.fill('#sgt_key', 'A'); await t.fill('#sgt_sheet', 'Vers: G D Em C');
+  await t.click('#sg [data-gt-act=addChord]'); await t.click('#songGtForm button[type=submit]'); await t.getByText('Gitarre gespeichert').first().waitFor();
+  assert.match(await t.textContent('body'), /Tonart A/); assert.match(await t.textContent('body'), /Vers: G D Em C/);
+  await t.evaluate(() => closeOverlay());
   await t.evaluate(async () => { const f = S.file.student; await api('/api/t/student/save', { ...f, id: f.id, instrument: 'Schlagzeug' }); S.lesson = null; closeOverlay(); });
-  ok('Gitarrenschüler: keine Beats, Aufwärmen oder Schlagzeug Vorschläge, Gitarren Übung aufgeben');
+  ok('Gitarrenschüler: keine Beats, Gitarren Übung aufgeben, Akkordwechsel Trainer, Gitarre zum Song');
 
   assert.deepEqual(errors, []); ok('Keine JavaScript Fehler');
   await b.close();

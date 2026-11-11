@@ -206,8 +206,8 @@ details.card summary{cursor:pointer;font-family:var(--display);font-size:1.08rem
 </head>
 <body>
 <div id="app"><div class="wrap"><p class="muted">Lädt …</p></div></div>
-<script src="notation.js?v=70"></script>
-<script src="guitar.js?v=70"></script>
+<script src="notation.js?v=71"></script>
+<script src="guitar.js?v=71"></script>
 <script>
 'use strict';
 // ---------- Grundlagen ----------
@@ -375,6 +375,7 @@ async function previewApi(path, b) {
     case '/api/my/song': return { ok: true };
     case '/api/my/beat/save': { d.my_beats = d.my_beats || []; const sg = b.song_id && S.songs && S.songs.songs.find((x) => x.id === b.song_id); const row = { id: b.id || 'pv' + Date.now(), title: b.title, song_id: b.song_id, song_title: sg ? sg.title : null, notation: JSON.stringify(b.notation) };
       d.my_beats = [row].concat(d.my_beats.filter((x) => x.id !== row.id)); return { id: row.id }; }
+    case '/api/my/changes': return { ok: true };
     case '/api/my/beat/delete': d.my_beats = (d.my_beats || []).filter((x) => x.id !== b.id); return { ok: true };
     case '/api/songs': case '/api/song': case '/api/course': case '/api/ping': {
       window.__pv = false; try { return await api(path, b); } finally { window.__pv = true; }
@@ -430,7 +431,7 @@ function currentStudent() {
     || list.find((s) => (toMin(s.lesson_time) || 0) > n) || null;
 }
 // Bibliothek: Hauptkategorien, Suche, Kurs nach Lektionen
-const LIB_ORDER = ['Aufwärmen', 'Grooves', 'Eigene Beats', 'Fills', 'Beat + Fill', 'Rudiments', 'Technik', 'Build', 'Lesen', 'Worship Songs', 'Gitarre', 'Kurs'];
+const LIB_ORDER = ['Aufwärmen', 'Grooves', 'Eigene Beats', 'Fills', 'Beat + Fill', 'Rudiments', 'Technik', 'Build', 'Lesen', 'Worship Songs', 'Gitarre', 'Backing Tracks', 'Kurs'];
 const libMain = (e) => (/^Kurs L\d+/.test(e.category || '') ? 'Kurs' : e.category || 'Ohne Kategorie');
 function libMatch(e, q) { if (!q) return true; const h = [e.title, e.category, e.notes, e.book_ref].join(' ').toLowerCase(); return q.toLowerCase().split(/\s+/).filter(Boolean).every((w) => h.includes(w)); }
 function libMains(ex) { const set = [...new Set(ex.map(libMain))]; return set.sort((a, b) => ((LIB_ORDER.indexOf(a) + 1) || 99) - ((LIB_ORDER.indexOf(b) + 1) || 99) || a.localeCompare(b, 'de')); }
@@ -489,7 +490,7 @@ function teacherView() {
     html = songsTab(true);
   } else if (t === 'bibliothek') {
     const ex = S.exercises || [];
-    html = `<div class="row between"><h1>Bibliothek</h1><div class="row"><button class="btn primary small" data-act="course">Schlagzeug Kurs</button><button class="btn small" data-act="newBeat">Beat schreiben</button><button class="btn small" data-act="newGuitar">Gitarre schreiben</button><button class="btn primary small" data-act="newExercise">Übung anlegen</button></div></div>
+    html = `<div class="row between"><h1>Bibliothek</h1><div class="row"><button class="btn primary small" data-act="course" data-course="drums">Schlagzeug Kurs</button><button class="btn primary small" data-act="course" data-course="guitar">Gitarren Kurs</button><button class="btn small" data-act="newBeat">Beat schreiben</button><button class="btn small" data-act="newGuitar">Gitarre schreiben</button><button class="btn primary small" data-act="newExercise">Übung anlegen</button></div></div>
     ${ex.length ? `<div class="field"><label for="libQ" class="hidden">Bibliothek durchsuchen</label><input id="libQ" type="search" placeholder="Suchen: Titel, Kategorie, Hinweis" value="${esc(S.libQ || '')}" autocomplete="off"></div>
     <div class="row" style="gap:6px" id="libCats">${libCatsHTML(ex)}</div><div class="col" style="gap:12px" id="libList">${libListHTML(ex)}</div>`
       : `<div class="empty">Noch keine Übungen. Lege Grooves, Fills, Rudiments oder Worship Songs mit Link oder Buchseite an.</div>`}`;
@@ -559,12 +560,13 @@ function studentFileView() {
     <div class="grid2">
       <section class="card"><h3>Offene Hausaufgaben</h3><div class="list" data-sort="asg">${open.length ? open.map((a, i) => `<div class="item" style="flex-wrap:wrap" data-sort-id="${a.id}">${grip(i + 1, open.length > 1)}<span class="t"><button class="link" data-act="asgDetail" data-id="${a.id}"><b>${esc(a.title || a.free_text)}</b>${asgInstrPill(a, S.file.student)}</button>${a.target_bpm ? ' <span class="muted small">' + (isSongTask(a) ? a.target_bpm + ' BPM' : 'Ziel ' + a.target_bpm) + '</span>' : ''}<br><span class="muted small">${practicedFor(a, f.sessions)}</span><br>${assignBadges(a)}</span>${a.url ? `<a class="btn small" href="${esc(a.url)}" target="_blank" rel="noopener">${linkLabel(a)}</a>` : ''}<button class="btn small" data-act="addLink" data-id="${a.id}">${a.url ? 'Link ändern' : 'Link hinzufügen'}</button>
         <div id="lk_${a.id}" class="row hidden" style="width:100%;flex-wrap:nowrap"><input id="lki_${a.id}" type="url" inputmode="url" placeholder="YouTube Link einfügen" style="flex:1"><button class="btn small primary" data-act="saveLink" data-id="${a.id}">Speichern</button></div></div>`).join('') : '<p class="muted">Keine.</p>'}</div></section>
+      ${(f.changes || []).length ? `<section class="card"><h3>Akkordwechsel pro Minute</h3><div class="list">${[...new Set(f.changes.map((x) => x.chords))].map((ch) => { const l = f.changes.filter((x) => x.chords === ch); return `<div class="item"><span class="t">${esc(ch)}</span><span class="small muted">Bestwert ${Math.max(...l.map((x) => x.count))} · zuletzt ${l[0].count} am ${esc(fmtDate(l[0].created_at.slice(0, 10)))}</span></div>`; }).join('')}</div></section>` : ''}
       ${(f.beats || []).length ? `<section class="col"><h3>Eigene Beats von ${esc(f.student.first_name)}</h3>${f.beats.map((b) => myBeatItem(b, true)).join('')}</section>` : ''}
       <section class="card"><h3>Ziele</h3><div class="list">${f.goals.length ? f.goals.map((g) => `<div class="item"><span class="t">${esc(g.title)}</span><span class="pill">${g.status === 'erreicht' ? 'erreicht' : 'offen'}</span></div>`).join('') : '<p class="muted">Noch keine Ziele.</p>'}</div></section>
     </div>
     <section class="card"><h3>Stunden <span class="muted small">(${f.lessons.length})</span></h3><div class="list">${f.lessons.length ? f.lessons.slice(0, S.allLessons ? 9999 : 10).map((l) => `<div class="item"><div class="t col" style="gap:2px"><b>${esc(fmtDate(l.date))}${l.date.slice(0, 4) !== String(new Date().getFullYear()) ? ' ' + l.date.slice(0, 4) : ''}</b>${l.notes_shared ? `<span style="white-space:pre-line">${esc(l.notes_shared)}</span>` : ''}${l.notes_teacher ? `<span class="muted small" style="white-space:pre-line">Privat: ${esc(l.notes_teacher)}</span>` : ''}</div></div>`).join('') : '<p class="muted">Noch keine Stunde.</p>'}</div>
       ${f.lessons.length > 10 && !S.allLessons ? '<button class="btn small" data-act="allLessons">Alle ' + f.lessons.length + ' Stunden anzeigen</button>' : ''}</section>
-    ${isGuitarOnly(f.student) ? '' : fileCourseCard(f)}
+    ${fileCourseCard(f)}
     <section class="card col" style="gap:8px"><h3>Home Bildschirm App</h3><span class="small muted">Für Geschwister auf einem Gerät: eigener Name und Farbe. Gilt, wenn der Link danach neu zum Home Bildschirm hinzugefügt wird.</span>
       <form id="appForm" class="row" style="gap:8px;align-items:flex-end"><div class="field" style="flex:2;min-width:160px"><label for="app_name">Name</label><input id="app_name" maxlength="30" placeholder="Practice Hub" value="${esc((f.app && f.app.app_name) || '')}"></div>
       <div class="field" style="flex:1;min-width:110px"><label for="app_color">Farbe</label><select id="app_color">${[['', 'Grün'], ['pink', 'Pink'], ['blau', 'Blau']].map(([v, l]) => `<option value="${v}" ${((f.app && f.app.color) || '') === v ? 'selected' : ''}>${l}</option>`).join('')}</select></div>
@@ -661,7 +663,6 @@ const KEYS = [[/ghost/i, /ghost/i], [/paradiddle/i, /paradiddle/i], [/double/i, 
   [/bass|kick|fu(ß|ss)/i, /rl kk|bassdrum/i], [/metronom|timing|tempo/i, /singles 16tel mit bass|rlrl übers set/i], [/aufwärm|warm ?up/i, /^aufwärmen/i]];
 function suggestions(f) {
   const out = [], seen = new Set();
-  if (isGuitarOnly(f.student)) return out; // Vorschläge kennen bisher nur Schlagzeug (Kurs, Rudiments, Aufwärmen)
   const openEx = new Set(f.assignments.filter((a) => a.status === 'offen' && a.exercise_id).map((a) => a.exercise_id));
   const draftEx = new Set((S.lesson ? S.lesson.new_assignments : []).map((a) => a.exercise_id).filter(Boolean));
   const ex = (S.exercises || []).filter((e) => !openEx.has(e.id) && !draftEx.has(e.id));
@@ -671,6 +672,7 @@ function suggestions(f) {
     const next = c.lessons.find((l) => l.level === (c.level || {}).level && !c.progress[l.id]);
     if (next) out.push({ lesson: next, why: `Nächste Lektion in Level ${next.level}` });
   }
+  if (isGuitarOnly(f.student)) return out; // Stichworte und Aufwärmen gibt es bisher nur für Schlagzeug
   const notes = f.lessons.slice(0, 3).map((l) => [l.date, (l.notes_teacher || '') + ' ' + (l.notes_shared || '')]).concat([['Steckbrief', f.student.profile_note || '']]);
   for (const [from, text] of notes) for (const [k, pat] of KEYS) { const m = k.exec(text); if (m) add(ex.find((e) => pat.test(e.title)), `Notiz ${from === 'Steckbrief' ? 'im Steckbrief' : 'vom ' + fmtDate(from)}: "${m[0]}"`); }
   const st = S.data.students.find((x) => x.id === f.student.id);
@@ -836,7 +838,7 @@ function lessonView() {
   const total = mins(recent.reduce((t, s) => t + s.seconds, 0));
   const days = new Set(recent.map((s) => s.local_date)).size;
   const gOnly = isGuitarOnly(st);
-  const exOpts = (S.exercises || []).filter((e) => !gOnly || e.category === 'Gitarre' || (window.Guitar && Guitar.parse(e.notation))).map((e) => `<option value="${e.id}">${esc((e.category ? e.category + ': ' : '') + e.title)}</option>`).join('');
+  const exOpts = (S.exercises || []).filter((e) => !gOnly || e.category === 'Gitarre' || e.category === 'Backing Tracks' || (window.Guitar && Guitar.parse(e.notation))).map((e) => `<option value="${e.id}">${esc((e.category ? e.category + ': ' : '') + e.title)}</option>`).join('');
   return `<div class="wrap">
     <div class="row between"><button class="btn small" data-act="closeLesson">Schließen</button><div class="row"><button class="btn small" data-act="preview">Schüleransicht</button><span class="pill">Stunde läuft · ${esc(st.lesson_time || '')}</span></div></div>
     <h1>${esc(st.first_name)}</h1>
@@ -855,7 +857,7 @@ function lessonView() {
             ${gOnly ? (S.gt && S.gt.lg ? `<div class="col" style="gap:8px"><b>Neue Gitarren Übung</b>${Guitar.editorHTML(S.gt.lg, 'lg', S.gtSel)}<label class="row" style="gap:8px"><input type="checkbox" id="a_lib" style="width:22px;min-height:22px"> Auch in meine Bibliothek</label><button type="button" class="btn small" data-act="lessonGuitarOff">Verwerfen</button></div>` : '<button type="button" class="btn small" data-act="lessonGuitar">Akkorde, Schlagmuster oder Tabs schreiben</button>') :
             S.nt && S.nt.lb ? `<div class="col" style="gap:8px"><b>Neuer Beat</b>${DrumNotation.editorHTML(S.nt.lb, 'lb')}<label class="row" style="gap:8px"><input type="checkbox" id="a_lib" style="width:22px;min-height:22px"> Auch in meine Bibliothek</label><button type="button" class="btn small" data-act="lessonBeatOff">Beat verwerfen</button></div>` : '<button type="button" class="btn small" data-act="lessonBeat">Beat schreiben</button>'}
             <div class="field"><label for="a_free">Oder frei beschreiben</label><input id="a_free" maxlength="300" placeholder="z. B. Song Zentrum, Bridge mitspielen"></div>
-            <div class="field"><label for="a_url">Video oder Link (optional)</label><input id="a_url" type="url" inputmode="url" placeholder="YouTube Link einfügen"></div>
+            <div class="field"><label for="a_url">${gOnly ? 'YouTube Link: Song, Backing Track oder Video (optional)' : 'Video oder Link (optional)'}</label><input id="a_url" type="url" inputmode="url" placeholder="YouTube Link einfügen"></div>
             <div class="row" style="flex-wrap:nowrap"><div class="field" style="flex:1"><label for="a_from">Tempo von</label><input id="a_from" inputmode="numeric" placeholder="BPM" value="45"></div><div class="field" style="flex:1"><label for="a_bpm">Tempo bis</label><input id="a_bpm" inputmode="numeric" placeholder="BPM" value="100"></div><div class="field" style="flex:1"><label for="a_min">Min pro Tag</label><input id="a_min" inputmode="numeric" placeholder="10"></div></div><span class="small muted" id="a_songTempo" aria-live="polite"></span>
             <button class="btn" type="submit">Hausaufgabe hinzufügen</button>
           </form></section>
@@ -998,7 +1000,7 @@ function courseView() {
   const st = (l) => c.progress[l.id] ? c.progress[l.id].status : null;
   return `<div class="wrap" style="max-width:720px;align-items:stretch">
     <div class="row between"><button class="btn small" data-act="courseBack">Zurück</button>${c.level ? `<span class="pill">Level ${c.level.level} · ${esc(c.level.name)}</span>` : ''}</div>
-    <h1>${teacher && S.fileCourseOpen ? esc(S.file.student.first_name) + 's Weg' : teacher ? 'Schlagzeug Kurs' : 'Dein Weg'}</h1>
+    <h1>${teacher && S.fileCourseOpen ? esc(S.file.student.first_name) + 's Weg' : teacher ? (c.course === 'guitar' ? 'Gitarren Kurs' : 'Schlagzeug Kurs') : 'Dein Weg'}</h1>
     ${c.lessons.length ? c.levels.map((lv) => { const ls = c.lessons.filter((l) => l.level === lv.level); return `<section class="col"><h2 class="lv-head"><span class="lv-badge small-badge">${lv.level}</span>${esc(lv.name)}</h2>
       <section class="card"><div class="list">${ls.map((l) => `<div class="item"><span class="lesson-dot ${st(l) || ''}" aria-label="${st(l) === 'fertig' ? 'geschafft' : st(l) === 'offen' ? 'aufgegeben' : 'noch nicht dran'}">${st(l) === 'fertig' ? '✓' : l.num}</span><button class="t song-open" data-act="courseLesson" data-id="${l.id}"><b>${esc(l.title)}</b><span class="small muted">${lessonSummary(l)}${st(l) === 'offen' ? ' · Hausaufgabe' : ''}</span></button>
         ${teacher && S.fileCourseOpen ? `<button class="btn small" data-act="lessonState" data-id="${l.id}">${st(l) === 'fertig' ? 'Zurücksetzen' : st(l) === 'offen' ? 'Geschafft' : 'Aufgeben'}</button>` : ''}</div>`).join('')}</div></section></section>`; }).join('') : '<div class="empty">Der Kurs ist noch leer.</div>'}
@@ -1042,7 +1044,7 @@ function fileCourseCard(f) {
 }
 async function reloadCourse() {
   if (S.fileCourseOpen && S.file) S.file.course = await api('/api/course', { student_id: S.file.student.id });
-  else S.course = await api('/api/course');
+  else S.course = await api('/api/course', S.role === 'teacher' ? { course: S.courseKey || 'drums' } : {});
 }
 
 // ---------- Songs: Sonntag, Meine Setlist, Bibliothek, Bausteine ----------
@@ -1099,6 +1101,24 @@ function songTeachRow(x) {
     <button class="chip" data-act="songTeach" data-v="${x.pinned ? 'off' : 'on'}" aria-pressed="${!!x.teach}" ${x.teach && !x.pinned ? 'disabled title="Aufgegeben oder selbst angelegt, steht automatisch im Unterricht"' : ''}>${x.teach ? 'Im Unterricht ✓' : 'Zum Unterricht'}</button>
     ${[['worship', 'Worship'], ['andere', 'Andere']].map(([v, l]) => `<button class="chip" data-act="songKindSet" data-v="${v}" aria-pressed="${x.kind === v}">${l}</button>`).join('')}</div>`;
 }
+// ---------- Gitarre zum Song: Tonart, Capo, Akkorde, Schlagmuster, Akkordblatt ----------
+function songGuitarHTML(d) {
+  const sg = d.guitar; if (!sg) return '';
+  const g = Guitar.parse(sg.notation), caps = sg.key_sig ? Guitar.capoTable(sg.key_sig) : [];
+  return `${sg.key_sig ? `<p class="small"><b>Tonart ${esc(sg.key_sig)}</b>${caps.length ? ' · Capo Möglichkeiten: ' + caps.map((x) => `${x.shape} Griffe${x.capo ? ' mit Capo ' + x.capo : ' ohne Capo'}`).join(', ') : ''}</p>` : ''}
+    ${g ? Guitar.viewHTML(g, 'songGuitar') + (g.strum.cells.some(Boolean) ? `<button class="btn small" data-act="songGtPlay">${Guitar.isPlaying() ? 'Stopp' : 'Schlagmuster mit Akkorden abspielen'}</button>` : '') : ''}
+    ${sg.sheet ? `<pre class="card" style="white-space:pre-wrap;font-family:inherit;margin:0">${esc(sg.sheet)}</pre>` : ''}`;
+}
+function songGuitarSection(d, teacher) {
+  if (!teacher && !d.guitar) return '';
+  if (teacher && S.songGtEdit) return `<section class="col" style="gap:10px"><h2>Gitarre</h2><form id="songGtForm" class="col" style="gap:10px">
+    <div class="field" style="max-width:200px"><label for="sgt_key">Tonart des Originals</label><input id="sgt_key" maxlength="6" placeholder="z. B. A oder Bb" value="${esc((d.guitar && d.guitar.key_sig) || '')}"></div>
+    ${Guitar.editorHTML(S.gt.sg, 'sg', S.gtSel)}
+    <div class="field"><label for="sgt_sheet">Akkordfolge pro Teil</label><textarea id="sgt_sheet" rows="6" placeholder="Vers: G D Em C&#10;Chorus: C G D Em">${esc((d.guitar && d.guitar.sheet) || '')}</textarea></div>
+    <div class="row"><button class="btn primary" type="submit">Speichern</button><button class="btn" type="button" data-act="songGtEdit" data-v="0">Abbrechen</button></div></form></section>`;
+  return `<section class="col" style="gap:10px"><div class="row between"><h2>Gitarre</h2>${teacher ? `<button class="btn small" data-act="songGtEdit" data-v="1">${d.guitar ? 'Bearbeiten' : 'Akkorde hinzufügen'}</button>` : ''}</div>
+    ${d.guitar ? songGuitarHTML(d) : '<p class="small muted">Noch keine Akkorde für Gitarrenschüler.</p>'}</section>`;
+}
 function songView() {
   const d = S.song; if (!d) return '';
   const x = S.songs && S.songs.songs.find((y) => y.id === d.song.id);
@@ -1111,6 +1131,7 @@ function songView() {
       ${teacher ? `<form id="songBpmForm" class="row" style="gap:8px;flex-wrap:nowrap;align-items:center"><label for="sb_bpm" class="small">Original Tempo</label><input id="sb_bpm" inputmode="numeric" style="width:80px;min-height:40px;text-align:center" value="${d.song.bpm || ''}" placeholder="BPM"><button class="btn small" type="submit">Speichern</button>${d.song.bpm_source ? `<span class="small muted">Quelle: ${esc(d.song.bpm_source)}</span>` : ''}</form>` : d.song.bpm ? `<span class="small muted">Original Tempo ${d.song.bpm} BPM</span>` : ''}</div>
     ${teacher ? songTeachRow(x) : ''}
     ${songLinksSection(d, teacher)}
+    ${songGuitarSection(d, teacher)}
     ${teacher && d.playedBy && d.playedBy.length ? `<p class="small muted">Gespielt von: ${d.playedBy.map(esc).join(', ')}</p>` : ''}
     <section class="col"><h2>Bausteine${songCurVersion(d) && songVersions(d).length > 1 ? ' · ' + esc(songCurVersion(d)) : ''}</h2>
       ${songVersions(d).length > 1 ? `<div class="row" style="gap:6px">${songVersions(d).map((v) => `<button class="chip" data-act="songVer" data-v="${esc(v)}" aria-pressed="${v === songCurVersion(d)}">${esc(v)}</button>`).join('')}</div>` : ''}
@@ -1293,7 +1314,8 @@ function songBlocksHTML(a) {
   const vids = d.links.filter((l) => l.version === ver), first = vids.find((l) => ytId(l.url));
   const student = S.role === 'student';
   return `${first ? `<section class="col" style="gap:8px"><h3>Video · ${esc(ver)}</h3>${ytEmbed(first.url)}${vids.filter((l) => l !== first).map((l) => `<a class="btn small" href="${esc(l.url)}" target="_blank" rel="noopener">${esc(l.title || linkLabel({ url: l.url, source_type: /youtu/.test(l.url) ? 'youtube' : 'link' }))}</a>`).join('')}</section>` : ''}
-    ${partsFor(d, ver).length ? `<section class="col" style="gap:10px"><h3>Bausteine${ver ? ' · ' + esc(ver) : ''}</h3>${partsFor(d, ver).map((p) => `<section class="card col" style="gap:8px"><b>${esc(p.title)}</b>${p.notes ? `<span class="small muted">${esc(p.notes)}</span>` : ''}
+    ${d.guitar && (isGuitarOnly((stuData() || {}).student) || isDual((stuData() || {}).student)) ? `<section class="col" style="gap:10px"><h3>Gitarre</h3>${songGuitarHTML(d)}</section>` : ''}
+    ${!isGuitarOnly((stuData() || {}).student) && partsFor(d, ver).length ? `<section class="col" style="gap:10px"><h3>Bausteine${ver ? ' · ' + esc(ver) : ''}</h3>${partsFor(d, ver).map((p) => `<section class="card col" style="gap:8px"><b>${esc(p.title)}</b>${p.notes ? `<span class="small muted">${esc(p.notes)}</span>` : ''}
       ${ytId(p.url) ? ytEmbed(p.url) : ''}
       ${p.notation ? `<div id="pn_${p.id}">${notationPreview(p.notation, p.title)}</div><div class="row" style="gap:8px"><button class="btn small" data-act="partPlay" data-id="${p.id}">Abspielen</button>${beatClickChip()}${student ? `<button class="btn small primary" data-act="partPractice" data-id="${p.id}">Üben</button>` : ''}</div>` : ''}</section>`).join('')}</section>` : ''}`;
 }
@@ -1392,6 +1414,7 @@ function practiceView() {
     ${a && ytId(a.url) ? ytEmbed(a.url) : ''}
     ${songBlocksHTML(a)}
     ${a && Guitar.parse(a.notation) ? `${Guitar.viewHTML(Guitar.parse(a.notation), 'practiceGuitar')}
+      ${Guitar.parse(a.notation).chords.length >= 2 ? `<div id="chgBox">${chgBoxHTML(Guitar.parse(a.notation).chords.join(' '))}</div>` : ''}
       <div class="row">${Guitar.parse(a.notation).strum.cells.some(Boolean) ? `<button class="btn" data-act="gtPlay" data-mode="strum" style="flex:1">${Guitar.isPlaying() ? 'Stopp' : 'Schlagmuster abspielen'}</button>` : ''}${Guitar.parse(a.notation).tab.notes.length ? `<button class="btn" data-act="gtPlay" data-mode="tab" style="flex:1">Tabs abspielen</button>` : ''}</div>` : ''}
     ${a && DrumNotation.parse(a.notation) ? `<div class="nt-staff" id="practiceStaff">${DrumNotation.render(DrumNotation.parse(a.notation), { cursor: true, label: 'Noten: ' + (a.title || '') })}</div>
       <div class="row" style="flex-wrap:nowrap;gap:8px"><button class="btn" style="flex:1" data-act="beatPlay">${DrumNotation.isPlaying() ? 'Beat stoppen' : 'Beat abspielen'}</button>${beatClickChip()}</div>
@@ -1442,6 +1465,23 @@ function trkStart() { if (!TRK.since) TRK.since = performance.now(); }
 function trkStop() { if (TRK.since) { TRK.ms += performance.now() - TRK.since; TRK.since = 0; } }
 function trkText() { const ms = TRK.ms + (TRK.since ? performance.now() - TRK.since : 0); return clock(ms) + ' · ' + TRK.bars + ' Takte'; }
 function metDotsHTML(s) { return s.accents.map((v, i) => `<button type="button" class="met-dot acc${v}" data-act="metAcc" data-i="${i}" aria-label="Schlag ${i + 1}: ${['stumm', 'normal', 'betont'][v]}"></button>`).join(''); }
+// ---------- Akkordwechsel Trainer: 1 Minute, jeder saubere Wechsel ein Tipp ----------
+function chgBoxHTML(label) {
+  const d = stuData() || {}, list = (d.changes || []).filter((x) => x.chords === label), best = list.reduce((m, x) => Math.max(m, x.count), 0), run = S.chg && S.chg.label === label ? S.chg : null;
+  const left = run ? Math.max(0, Math.ceil((run.end - Date.now()) / 1000)) : 0;
+  return `<section class="card col" style="gap:10px"><div class="row between"><h3>Akkordwechsel Trainer</h3>${best ? `<span class="pill">Bestwert ${best}</span>` : ''}</div>
+    <span class="small muted">${esc(label)}: Eine Minute lang wechseln. Tippe bei jedem sauberen Wechsel.</span>
+    ${run ? `<button class="btn primary block" data-act="chgTap" style="min-height:96px;font-size:1.6rem">${run.count} Wechsel · ${left} s</button><button class="btn small" data-act="chgStop">Abbrechen</button>`
+      : `<button class="btn block" data-act="chgStart" data-label="${esc(label)}">1 Minute starten</button>`}
+    ${list.length ? `<span class="small muted">Zuletzt: ${list.slice(0, 5).map((x) => x.count).join(', ')}</span>` : ''}</section>`;
+}
+function chgRefresh() { const box = $('#chgBox'); if (box && S.chg) box.innerHTML = chgBoxHTML(S.chg.label); }
+async function chgFinish() {
+  const r = S.chg; clearInterval(S.chgTimer); S.chg = null; if (!r) return;
+  try { await api('/api/my/changes', { chords: r.label, count: r.count }); } catch (e) { toast(e.message); }
+  const d = stuData(); if (d) d.changes = [{ chords: r.label, count: r.count, created_at: new Date().toISOString() }].concat(d.changes || []);
+  const box = $('#chgBox'); if (box) box.innerHTML = chgBoxHTML(r.label); toast(r.count + ' Wechsel in einer Minute');
+}
 function metronomeCard(a) {
   const s = metSet();
   const subs = [[1, '♩', 'Viertel'], [2, '♫', 'Achtel'], [3, '3', 'Triolen'], [4, '♬', '16tel']];
@@ -1662,6 +1702,19 @@ document.addEventListener('click', async (ev) => {
       case 'newExercise': S.nt = {}; S.gt = {}; openOverlay(() => exerciseForm()); break;
       case 'newGuitar': S.nt = {}; S.gt = { gx: Guitar.empty() }; S.gtSel = null; S.exDraft = { source_type: 'noten', category: 'Gitarre' }; openOverlay(() => exerciseForm(S.exDraft)); break;
       case 'addGuitar': { const f = $('#exerciseForm'); S.exDraft = Object.fromEntries(new FormData(f)); S.exDraft.source_type = 'noten'; S.nt = {}; S.gt = { gx: Guitar.empty() }; S.gtSel = null; openOverlay(() => exerciseForm(S.exDraft)); break; }
+      case 'chgStart': S.chg = { label: el.dataset.label, count: 0, end: Date.now() + 60000 }; clearInterval(S.chgTimer); S.chgTimer = setInterval(() => { if (!S.chg) return clearInterval(S.chgTimer); if (Date.now() >= S.chg.end) chgFinish(); else chgRefresh(); }, 250); chgRefresh(); break;
+      case 'chgTap': if (S.chg) { S.chg.count++; chgRefresh(); } break;
+      case 'chgStop': clearInterval(S.chgTimer); { const l = S.chg && S.chg.label; S.chg = null; const box = $('#chgBox'); if (box && l) box.innerHTML = chgBoxHTML(l); } break;
+      case 'songGtEdit': {
+        S.songGtEdit = el.dataset.v === '1'; S.gt = S.gt || {}; S.gtSel = null;
+        if (S.songGtEdit) { const g = S.song.guitar && Guitar.parse(S.song.guitar.notation); S.gt.sg = g || { ...Guitar.empty(), chords: [], strum: { sub: 8, bars: 1, cells: Array(8).fill('') } }; }
+        openOverlay(songView); break;
+      }
+      case 'songGtPlay': {
+        if (Guitar.isPlaying()) { Guitar.stop(); el.textContent = 'Schlagmuster mit Akkorden abspielen'; break; }
+        const g = Guitar.parse(S.song.guitar.notation), root = $('#songGuitar'); metStop(); DrumNotation.stop();
+        Guitar.play(g, 'strum', g.bpm, Guitar.cursorFor(root && root.querySelector('.gt-strum'))); el.textContent = 'Stopp'; break;
+      }
       case 'gtPlay': {
         if (Guitar.isPlaying()) { Guitar.stop(); render(); break; }
         const r = store.get('run'); const a = runTask(r); const g = Guitar.parse(a.notation);
@@ -1781,7 +1834,11 @@ document.addEventListener('click', async (ev) => {
       }
       case 'video': S.videoId = id; openOverlay(videoView); break;
       case 'goalToggle': { const r = await api('/api/goal/toggle', { id }); const g = S.data.goals.find((x) => x.id === id); g.status = r.status; render(); if (r.status === 'erreicht') toast('Ziel erreicht!'); break; }
-      case 'course': S.fileCourseOpen = false; openOverlay(courseView); break;
+      case 'course': {
+        S.fileCourseOpen = false;
+        if (S.role === 'teacher' && (el.dataset.course || 'drums') !== (S.courseKey || 'drums')) { S.courseKey = el.dataset.course || 'drums'; S.course = await api('/api/course', { course: S.courseKey }); }
+        openOverlay(courseView); break;
+      }
       case 'exPlay': {
         if (S.exPlaying === id) { DrumNotation.stop(); S.exPlaying = null; el.textContent = 'Abspielen'; break; }
         const c = courseOf(), it = c.lessons.flatMap((x) => x.items).find((x) => x.id === id); const n = DrumNotation.parse(it.exercise.notation);
@@ -2071,6 +2128,9 @@ document.addEventListener('submit', async (ev) => {
       await api('/api/t/song/part/save', { song_id: S.song.song.id, title, url: $('#pt_url').value.trim() || null, notes: $('#pt_notes').value.trim() || null, notation: S.nt && S.nt.pt ? S.nt.pt : null, version: songCurVersion(S.song) });
       DrumNotation.stop(); if (S.nt) delete S.nt.pt; S.pt = null;
       S.song = await api('/api/song', { id: S.song.song.id }); S.songs = await api('/api/songs'); openOverlay(songView); toast('Baustein gespeichert');
+    } else if (fid === 'songGtForm') {
+      await api('/api/t/song/guitar', { song_id: S.song.song.id, notation: S.gt.sg, sheet: $('#sgt_sheet').value, key_sig: $('#sgt_key').value.trim() });
+      S.song = await api('/api/song', { id: S.song.song.id }); S.songGtEdit = false; openOverlay(songView); toast('Gitarre gespeichert');
     } else if (fid === 'appForm') {
       const r = await api('/api/t/student/app', { id: S.file.student.id, app_name: $('#app_name').value.trim(), color: $('#app_color').value });
       S.file.app = r.app; toast('Gespeichert. Link neu öffnen und zum Home Bildschirm hinzufügen');
