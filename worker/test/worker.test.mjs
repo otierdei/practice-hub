@@ -669,3 +669,17 @@ test('Hausaufgaben in der Stunde sofort speichern, Song in zwei Versionen, Zuord
   const f = (await w.call('/api/t/student', { id: w.a }, w.t)).data;
   assert.equal(f.assignments.find((a) => a.id === r.ids[0]).lesson_id, fin.id);
 });
+
+test('Baustein in der Stunde aufgeben: verlinkt, Tempo 45 bis Original Tempo, kein Doppel', async () => {
+  const w = await world();
+  const sg = (await w.call('/api/t/song/create', { title: 'Baustein Song' }, w.t)).data.id;
+  await w.call('/api/t/song/bpm', { song_id: sg, bpm: 72 }, w.t);
+  const pid = (await w.call('/api/t/song/part/save', { song_id: sg, title: 'Chorus' }, w.t)).data.id;
+  assert.ok(pid);
+  await w.call('/api/t/assignments/new', { student_id: w.a, items: [{ song_id: sg, version: 'Easy' }] }, w.t);
+  const r = (await w.call('/api/t/assignments/new', { student_id: w.a, items: [{ part_id: pid, version: 'Easy' }] }, w.t)).data;
+  assert.equal(r.ids.length, 1, 'Baustein neben dem Song erlaubt');
+  assert.equal((await w.call('/api/t/assignments/new', { student_id: w.a, items: [{ part_id: pid }] }, w.t)).data.ids.length, 0);
+  const a = (await w.call('/api/home', {}, w.ta)).data.assignments.find((x) => x.id === r.ids[0]);
+  assert.equal(a.title, 'Baustein Song: Chorus'); assert.equal(a.part_id, pid); assert.equal(a.start_bpm, 45); assert.equal(a.target_bpm, 72);
+});

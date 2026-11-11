@@ -202,8 +202,8 @@ details.card summary{cursor:pointer;font-family:var(--display);font-size:1.08rem
 </head>
 <body>
 <div id="app"><div class="wrap"><p class="muted">Lädt …</p></div></div>
-<script src="notation.js?v=57"></script>
-<script src="guitar.js?v=57"></script>
+<script src="notation.js?v=58"></script>
+<script src="guitar.js?v=58"></script>
 <script>
 'use strict';
 // ---------- Grundlagen ----------
@@ -728,8 +728,32 @@ document.addEventListener('input', (ev) => {
   if (ev.target.id !== 'a_song') return;
   const t = ev.target.value.trim().toLowerCase(), sg = t && S.songs && S.songs.songs.find((x) => x.title.toLowerCase() === t);
   const from = $('#a_from'), to = $('#a_bpm'), hint = $('#a_songTempo'); if (!from || !to) return;
-  if (sg) { from.value = ''; from.disabled = true; to.value = sg.bpm || ''; to.disabled = true; if (hint) hint.textContent = sg.bpm ? 'Song: Original Tempo ' + sg.bpm + ' BPM, kein Tempobereich' : 'Song: Original Tempo noch nicht eingetragen (im Song festlegen)'; }
-  else if (from.disabled) { from.disabled = false; to.disabled = false; from.value = DEF_TEMPO.start; to.value = DEF_TEMPO.target; if (hint) hint.textContent = ''; }
+  if (sg) { songTempoMode(sg); loadPartChoice(sg); }
+  else { const box = $('#a_partBox'); if (box) box.innerHTML = ''; if (from.disabled) { from.disabled = false; to.disabled = false; from.value = DEF_TEMPO.start; to.value = DEF_TEMPO.target; if (hint) hint.textContent = ''; } }
+});
+function songTempoMode(sg) {
+  const from = $('#a_from'), to = $('#a_bpm'), hint = $('#a_songTempo'); if (!from || !to) return;
+  from.value = ''; from.disabled = true; to.value = sg.bpm || ''; to.disabled = true;
+  if (hint) hint.textContent = sg.bpm ? 'Song: Original Tempo ' + sg.bpm + ' BPM, kein Tempobereich' : 'Song: Original Tempo noch nicht eingetragen (im Song festlegen)';
+}
+// Bausteine des Songs in der gewählten Version zur Auswahl anbieten
+const songDetailCache = {};
+async function loadPartChoice(sg) {
+  const box = $('#a_partBox'); if (!box) return;
+  let d; try { d = songDetailCache[sg.id] = await api('/api/song', { id: sg.id }); } catch (e) { box.innerHTML = ''; return; }
+  const cur = $('#a_song') && $('#a_song').value.trim().toLowerCase(); if (cur !== sg.title.toLowerCase()) return;
+  const ver = String(versionValue('a') || '').toLowerCase();
+  const parts = d.parts.filter((p) => !p.version || p.version.toLowerCase() === ver);
+  box.innerHTML = parts.length ? `<div class="field"><label for="a_part">Aufgeben als</label><select id="a_part" data-song="${esc(sg.id)}"><option value="">Ganzer Song</option>${parts.map((p) => `<option value="${esc(p.id)}">Baustein: ${esc(p.title)}${p.version ? ' (' + esc(p.version) + ')' : ''}</option>`).join('')}</select></div>`
+    : `<p class="small muted">${d.parts.length ? 'Keine Bausteine in dieser Version.' : 'Dieser Song hat noch keine Bausteine.'}</p>`;
+}
+document.addEventListener('change', (ev) => {
+  const id = ev.target.id; if (id !== 'a_part' && id !== 'a_ver') return;
+  const t = $('#a_song') && $('#a_song').value.trim().toLowerCase(), sg = t && S.songs && S.songs.songs.find((x) => x.title.toLowerCase() === t); if (!sg) return;
+  if (id === 'a_ver') { songTempoMode(sg); loadPartChoice(sg); return; }
+  const from = $('#a_from'), to = $('#a_bpm'), hint = $('#a_songTempo');
+  if (ev.target.value) { from.disabled = false; to.disabled = false; from.value = DEF_TEMPO.start; to.value = sg.bpm || ''; if (hint) hint.textContent = 'Baustein: Tempo von 45 bis Original Tempo' + (sg.bpm ? ' ' + sg.bpm : ''); }
+  else songTempoMode(sg);
 });
 document.addEventListener('change', (ev) => {
   if (ev.target.id !== 'a_ex') return;
@@ -802,6 +826,7 @@ function lessonView() {
           <form id="assignForm" class="col">
             ${(S.exercises || []).some((e) => e.category === 'Aufwärmen') ? `<details id="warmBox" ${S.warmOpen ? 'open' : ''}><summary class="small muted">Aufwärmen mit einem Tipp</summary><div class="row" style="gap:6px;margin-top:6px">${S.exercises.filter((e) => e.category === 'Aufwärmen').map((e) => `<button type="button" class="chip" data-act="warmAdd" data-id="${e.id}">${esc(e.title)}</button>`).join('')}</div></details>` : ''}
             <div class="row" style="flex-wrap:nowrap;align-items:flex-end"><div class="field" style="flex:1"><label for="a_song">Song</label><input id="a_song" list="a_songs" placeholder="Song suchen" autocomplete="off"><datalist id="a_songs">${(S.songs ? S.songs.songs : []).map((x) => `<option value="${esc(x.title)}"></option>`).join('')}</datalist></div><div style="width:170px">${versionField('a', 'Original')}</div></div>
+            <div id="a_partBox"></div>
             <div class="field"><label for="a_ex">Aus der Bibliothek</label><select id="a_ex"><option value="">Freie Aufgabe</option>${exOpts}</select></div>
             <div id="a_preview"></div>
             ${S.nt && S.nt.lb ? `<div class="col" style="gap:8px"><b>Neuer Beat</b>${DrumNotation.editorHTML(S.nt.lb, 'lb')}<label class="row" style="gap:8px"><input type="checkbox" id="a_lib" style="width:22px;min-height:22px"> Auch in meine Bibliothek</label><button type="button" class="btn small" data-act="lessonBeatOff">Beat verwerfen</button></div>` : '<button type="button" class="btn small" data-act="lessonBeat">Beat schreiben</button>'}
@@ -1875,6 +1900,13 @@ document.addEventListener('submit', async (ev) => {
         const sg = S.songs && S.songs.songs.find((x) => x.title.toLowerCase() === songTitle.toLowerCase());
         if (!sg) { toast('Song nicht gefunden. Unter Songs > Song anlegen'); return; }
         const ver = versionValue('a') || null;
+        const pid = $('#a_part') ? $('#a_part').value : '';
+        if (pid) {
+          const pt = ((songDetailCache[sg.id] || {}).parts || []).find((x) => x.id === pid);
+          if (S.file.assignments.some((a) => a.status === 'offen' && a.part_id === pid)) { toast('Du hast den Baustein schon aufgegeben'); return; }
+          if (await assignNow({ part_id: pid, version: ver, start_bpm: Number($('#a_from').value) || 45, target_bpm: Number($('#a_bpm').value) || sg.bpm || null, minutes_per_day: Number($('#a_min').value) || 10 })) { render(); toast(sg.title + ': ' + (pt ? pt.title : 'Baustein') + ' aufgegeben'); }
+          return;
+        }
         const vk = (v) => String(v || '').trim().toLowerCase();
         if (S.file.assignments.some((a) => a.status === 'offen' && a.song_id === sg.id && !a.part_id && vk(a.song_version) === vk(ver)) || S.lesson.new_assignments.some((a) => a.song_id === sg.id && vk(a.version) === vk(ver))) { toast('Du hast diese Version schon aufgegeben'); return; }
         if (await assignNow({ song_id: sg.id, version: ver, start_bpm: null, target_bpm: sg.bpm || null, minutes_per_day: Number($('#a_min').value) || 10 })) { render(); toast(sg.title + (ver ? ' (' + ver + ')' : '') + ' aufgegeben'); }

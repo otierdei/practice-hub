@@ -465,8 +465,22 @@ async function newAssignmentStatements(s, st, lessonId, items, closing, t, stmts
   const openSongs = new Set(openRows.filter((r) => !closing.has(r.id) && r.song_id && !r.part_id).map((r) => songKey(r.song_id, r.version)));
   const openEx = new Set(openRows.filter((r) => !closing.has(r.id) && r.exercise_id).map((r) => r.exercise_id));
   const openFt = new Set(openRows.filter((r) => !closing.has(r.id) && r.ft).map((r) => r.ft));
+  const openParts = new Set(openRows.filter((r) => !closing.has(r.id) && r.part_id).map((r) => r.part_id));
   const newIds = [];
   for (const a of (Array.isArray(items) ? items : []).slice(0, 20)) {
+    // Song Baustein: verlinkt (Noten bleiben im Song), Tempo 45 bis Original Tempo
+    if (a.part_id) {
+      const part = await s.first('SELECT p.id, p.song_id, p.title, sg.title AS song_title, COALESCE((SELECT bpm FROM song_meta WHERE song_id = sg.id), (SELECT MAX(bpm) FROM song_files WHERE song_id = sg.id)) AS song_bpm FROM song_parts p JOIN songs sg ON sg.id = p.song_id WHERE p.id = ?', str(a.part_id, 64));
+      if (!part) continue;
+      const title = part.song_title + ': ' + part.title;
+      if (openParts.has(part.id)) { skipped.push(title); continue; }
+      openParts.add(part.id);
+      const aid = uid(); newIds.push(aid);
+      stmts.push(['INSERT INTO assignment_songs (assignment_id, song_id, version) VALUES (?, ?, ?)', [aid, part.song_id, str(a.version, 40)]], ['INSERT INTO assignment_parts (assignment_id, part_id) VALUES (?, ?)', [aid, part.id]],
+        ['INSERT INTO assignments (id, student_id, lesson_id, exercise_id, free_text, target_bpm, start_bpm, minutes_per_day, due_date, status, created_at) VALUES (?, ?, ?, NULL, ?, ?, ?, ?, ?, ?, ?)',
+          [aid, st.id, lessonId, title, int(a.target_bpm, 20, 400) || part.song_bpm || null, int(a.start_bpm, 20, 400) || 45, int(a.minutes_per_day, 1, 240) || 10, isDate(a.due_date) ? a.due_date : null, 'offen', t]]);
+      continue;
+    }
     let exId = str(a.exercise_id, 64);
     if (exId && !(await s.first('SELECT id FROM exercises WHERE id = ?', exId))) exId = null;
     const songId = str(a.song_id, 200);
