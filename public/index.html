@@ -204,8 +204,8 @@ details.card summary{cursor:pointer;font-family:var(--display);font-size:1.08rem
 </head>
 <body>
 <div id="app"><div class="wrap"><p class="muted">Lädt …</p></div></div>
-<script src="notation.js?v=62"></script>
-<script src="guitar.js?v=62"></script>
+<script src="notation.js?v=63"></script>
+<script src="guitar.js?v=63"></script>
 <script>
 'use strict';
 // ---------- Grundlagen ----------
@@ -1407,11 +1407,13 @@ document.addEventListener('change', (ev) => {
 // Metronom Einstellungen (wie die Tempo App): Taktart, Betonung pro Schlag, Unterteilung, Klang, Lautstärke, Klick im Beat
 const MET_SIGS = ['2/4', '3/4', '4/4', '5/4', '6/8', '7/8', '9/8', '12/8'];
 function metSet() {
-  const s = Object.assign({ sig: '4/4', accents: null, sub: 1, sound: 'klick', vol: 0.8, beatClick: false }, store.get('metset', {}));
+  const s = Object.assign({ sig: '4/4', accents: null, sub: 2, sound: 'klick', vol: 0.8, beatClick: false }, store.get('metset', {}));
   const n = Number(s.sig.split('/')[0]); if (!Array.isArray(s.accents) || s.accents.length !== n) s.accents = Array.from({ length: n }, (_, i) => (i === 0 ? 2 : 1));
   return s;
 }
 function saveMetSet(s) { store.set('metset', s); applyBeatClick(); }
+// Bei jedem App Start Unterteilung auf Achtel (Otis Wunsch 11.11.), Änderung gilt bis zum nächsten Start
+try { const ms = store.get('metset', null); if (ms && ms.sub !== 2) { ms.sub = 2; store.set('metset', ms); } } catch (e) { /* egal */ }
 function applyBeatClick() { const s = metSet(); if (typeof DrumNotation.setClick !== 'function') { toast('Bitte die App einmal neu laden'); return; } DrumNotation.setClick({ on: s.beatClick, accents: s.accents, sub: s.sub, sound: s.sound, vol: s.vol }); }
 function tempoName(b) { return b < 40 ? 'Grave' : b < 60 ? 'Largo' : b < 66 ? 'Larghetto' : b < 76 ? 'Adagio' : b < 108 ? 'Andante' : b < 120 ? 'Moderato' : b < 156 ? 'Allegro' : b < 176 ? 'Vivace' : b < 200 ? 'Presto' : 'Prestissimo'; }
 const TRK = { ms: 0, since: 0, bars: 0 };
