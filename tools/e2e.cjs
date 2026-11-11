@@ -133,22 +133,20 @@ let n = 0; const ok = (m) => console.log('ok ' + (++n) + ' ' + m);
   await s.getByText('12 min gespeichert').waitFor(); ok('Sitzung gespeichert');
   await s.waitForFunction(() => (JSON.parse(localStorage.getItem('ph_outbox') || '[]')).length === 0); ok('Ausgang leer, Server hat die Sitzung');
 
-  // Unterrichtsmodus beim Schüler: Üben zählt nicht
+  // Unterrichtsmodus: nur Oti schaltet, im Modus zählt Üben nicht
+  assert.equal(await s.locator('[data-act=lessonModeOn]').count(), 0); ok('Kein Unterrichtsmodus Schalter beim Schüler');
+  await t.evaluate(async () => { await openLesson(S.file.student.id); });
+  assert.match(await t.textContent('body'), /Unterrichtsmodus beim Schüler an/);
+  await s.evaluate(async () => { await refreshLessonMode(); }); await s.getByText('Oti hat die Stunde gestartet').waitFor();
   { const before = await s.evaluate(() => S.data.sessions.length);
-    await s.click('[data-act=lessonModeOn]'); await s.getByText('Unterricht läuft').waitFor();
     await s.click('[data-act=practiceFree]'); await s.waitForTimeout(200);
     await s.evaluate(() => { const r = JSON.parse(localStorage.getItem('ph_run')); r.runningSince -= 5 * 60000; localStorage.setItem('ph_run', JSON.stringify(r)); });
     await s.click('[data-act=endPractice]'); await s.getByText('nicht als Übungszeit gespeichert').waitFor(); await s.click('#finishForm button[type=submit]');
     await s.getByText('Unterricht: zählt nicht als Übungszeit').waitFor();
     assert.equal(await s.evaluate(() => JSON.parse(localStorage.getItem('ph_outbox') || '[]').length), 0);
-    assert.equal(await s.evaluate(() => S.data.sessions.length), before);
-    await s.click('[data-act=lessonModeOff]'); await s.getByText('Unterrichtsmodus aus').waitFor(); }
-  ok('Unterrichtsmodus: Schalter beim Schüler, Üben wird nicht gezählt');
-  await t.evaluate(async () => { await openLesson(S.file.student.id); });
-  assert.match(await t.textContent('body'), /Unterrichtsmodus beim Schüler an/);
-  await s.evaluate(async () => { await refreshLessonMode(); }); await s.getByText('Oti hat die Stunde gestartet').waitFor();
+    assert.equal(await s.evaluate(() => S.data.sessions.length), before); }
   await t.click('[data-act=teacherLive][data-v="0"]'); await t.getByText('Unterrichtsmodus beim Schüler aus').first().waitFor();
-  await s.evaluate(async () => { await refreshLessonMode(); }); await s.locator('[data-act=lessonModeOn]').waitFor();
+  await s.evaluate(async () => { await refreshLessonMode(); }); await s.getByText('Unterricht läuft').waitFor({ state: 'detached' });
   await t.evaluate(() => { S.lesson = null; closeOverlay(); });
   ok('Unterrichtsmodus: Stunde bei Oti öffnen schaltet ihn beim Schüler an, Aus Knopf schaltet ab');
 
@@ -261,6 +259,11 @@ let n = 0; const ok = (m) => console.log('ok ' + (++n) + ' ' + m);
   await t.click('#ex [data-nt-act=mode][data-m=""]'); await t.click('#ex .nt-cell[data-k=hh][data-i="2"]'); assert.deepEqual(await t.evaluate(() => S.nt.ex.dyn), { 'hh:0': 'a' }, 'Note weg, Dynamik weg');
   await t.click('#ex [data-nt-act=mode][data-m="a"]'); await t.click('#ex .nt-cell[data-k=sn][data-i="9"]'); assert.ok(await t.evaluate(() => S.nt.ex.tracks.sn.includes(9)));
   await t.click('#ex .nt-cell[data-k=sn][data-i="9"]'); assert.ok(await t.evaluate(() => !S.nt.ex.tracks.sn.includes(9) && !S.nt.ex.dyn['sn:9']), 'im Betont Modus wieder entfernbar');
+  await t.click('#ex [data-nt-act=mode][data-m="f"]'); await t.click('#ex .nt-cell[data-k=sn][data-i="12"]');
+  assert.deepEqual(await t.evaluate(() => S.nt.ex.flam), { 'sn:12': 1 }); assert.ok(await t.locator('#ex .nt-grace').count() >= 1, 'Vorschlagsnote im Notenbild');
+  await t.click('#ex [data-nt-act=play]'); await t.waitForTimeout(400); await t.click('#ex [data-nt-act=play]');
+  await t.click('#ex .nt-cell[data-k=sn][data-i="12"]'); assert.ok(await t.evaluate(() => !S.nt.ex.tracks.sn.includes(12) && !S.nt.ex.flam['sn:12']));
+  await t.click('#ex .nt-cell[data-k=sn][data-i="12"]'); ok('Flam setzen, Vorschlagsnote zeigen, abspielen, wieder entfernen');
   await t.click('#ex [data-nt-act=mode][data-m=""]');
   await t.locator('#ex .nt-grid-wrap').screenshot({ path: __dirname + '/../t-dynamik-1440.png' }); ok('Beat Dynamik: betont und leise'); await t.click('[data-act=close]'); ok('Beat Sticking: R L und R R L L per Knopf');
   await t.click('[data-tab=bibliothek]'); await t.fill('#libQ', 'rock'); await t.waitForTimeout(100);

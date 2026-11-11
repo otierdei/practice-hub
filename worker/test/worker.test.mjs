@@ -752,3 +752,10 @@ test('Oti übernimmt Schüler Beat: mit Song als Baustein, ohne Song in die Bibl
   assert.ok((await w.call('/api/t/exercises', {}, w.t)).data.exercises.some((e) => e.id === r2.exercise_id && e.category === 'Schüler Beats'));
   const mine = (await w.call('/api/home', {}, w.tb)).data.my_beats; assert.ok(mine.find((x) => x.id === b1).part_id && mine.find((x) => x.id === b2).exercise_id);
 });
+
+test('Flam wird gespeichert, nur auf vorhandenen Noten', async () => {
+  const w = await world();
+  const id = (await w.call('/api/t/exercise/save', { title: 'Flam Beat', notation: { sig: '4/4', bars: 1, tracks: { sn: [0, 4] }, flam: { 'sn:0': 1, 'sn:2': 1, 'hh:0': 1 }, dyn: { 'sn:0': 'a' } } }, w.t)).data.id;
+  const e = (await w.call('/api/t/exercises', {}, w.t)).data.exercises.find((x) => x.id === id);
+  assert.deepEqual(JSON.parse(e.notation).flam, { 'sn:0': 1 }); assert.deepEqual(JSON.parse(e.notation).dyn, { 'sn:0': 'a' });
+});

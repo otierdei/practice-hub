@@ -28,7 +28,7 @@
 
   function empty(sig = '4/4', bars = 1, bpm = 80) {
     const tracks = {}; ROWS.forEach((r) => { tracks[r.k] = []; });
-    return { v: 2, sig, bars, bpm, tracks, stick: {}, dyn: {}, marks: {}, repeat: [] };
+    return { v: 2, sig, bars, bpm, tracks, stick: {}, dyn: {}, flam: {}, marks: {}, repeat: [] };
   }
   function parse(s) {
     if (!s) return null;
@@ -41,6 +41,7 @@
       for (const [k, v] of Object.entries(o.marks || {})) if (Number(k) < n.bars && v) n.marks[Number(k)] = String(v).slice(0, 30);
       n.repeat = (o.repeat || []).map(Number).filter((b) => b > 0 && b < n.bars);
       for (const [key, v] of Object.entries(o.dyn || {})) { const [k, i] = key.split(':'); if ((v === 'a' || v === 's') && (n.tracks[k] || []).includes(Number(i))) n.dyn[k + ':' + Number(i)] = v; }
+      for (const [key, v] of Object.entries(o.flam || {})) { const [k, i] = key.split(':'); if (v && (n.tracks[k] || []).includes(Number(i))) n.flam[k + ':' + Number(i)] = 1; }
       return n;
     } catch (e) { return null; }
   }
@@ -48,13 +49,23 @@
   function toggle(n, k, i) {
     if (k === 'stick') { n.stick = n.stick || {}; const v = n.stick[i]; if (!v) n.stick[i] = 'R'; else if (v === 'R') n.stick[i] = 'L'; else if (v === 'L') n.stick[i] = 'K'; else delete n.stick[i]; return; }
     const t = n.tracks[k];
-    if (t.includes(i)) { n.tracks[k] = t.filter((x) => x !== i); if (n.dyn) delete n.dyn[k + ':' + i]; }
+    if (t.includes(i)) { n.tracks[k] = t.filter((x) => x !== i); if (n.dyn) delete n.dyn[k + ':' + i]; if (n.flam) delete n.flam[k + ':' + i]; }
     else { t.push(i); t.sort((a, b) => a - b); const ex = EXCLUSIVE[k]; if (ex) n.tracks[ex] = n.tracks[ex].filter((x) => x !== i); }
   }
   // Dynamik: 'a' betont (lauter, Akzent >), 's' leise (kleiner, in Klammern). Setzt die Note, falls sie fehlt.
   const dynOf = (n, k, i) => (n.dyn || {})[k + ':' + i] || '';
+  // Flam: kleine Vorschlagsnote direkt vor der Hauptnote, unabhängig von betont/leise
+  const flamOf = (n, k, i) => !!(n.flam || {})[k + ':' + i];
   function setDyn(n, k, i, v) {
-    n.dyn = n.dyn || {}; const key = k + ':' + i;
+    const key = k + ':' + i;
+    if (v === 'f') {
+      n.flam = n.flam || {};
+      if (!(n.tracks[k] || []).includes(i)) { toggle(n, k, i); n.flam[key] = 1; }
+      else if (n.flam[key]) toggle(n, k, i); // nochmal Flam: Note entfernen
+      else n.flam[key] = 1;
+      return;
+    }
+    n.dyn = n.dyn || {};
     if (!(n.tracks[k] || []).includes(i)) { toggle(n, k, i); n.dyn[key] = v; return; }
     if (n.dyn[key] === v) toggle(n, k, i); // gleiche Dynamik nochmal: Note entfernen
     else n.dyn[key] = v;
@@ -72,6 +83,7 @@
     for (const k in n.tracks) n.tracks[k] = n.tracks[k].filter((i) => i < max);
     for (const k of Object.keys(n.stick || {})) if (Number(k) >= max) delete n.stick[k];
     for (const key of Object.keys(n.dyn || {})) if (Number(key.split(':')[1]) >= max) delete n.dyn[key];
+    for (const key of Object.keys(n.flam || {})) if (Number(key.split(':')[1]) >= max) delete n.flam[key];
     n.repeat = n.repeat.filter((b) => b < n.bars);
     for (const k of Object.keys(n.marks)) if (Number(k) >= n.bars) delete n.marks[k];
   }
@@ -125,6 +137,7 @@
           for (const h of nt.hits) {
             const d = dynOf(n, h.k, nt.i);
             out.push(head(d === 's' && !h.ghost ? { ...h, ghost: true } : h, xOf(nt.i), ink));
+            if (flamOf(n, h.k, nt.i)) out.push(grace(h, xOf(nt.i) - (d === 's' ? 19 : 13), ink, down));
           }
           if (nt.dot) out.push(`<circle cx="${xOf(nt.i) + 10}" cy="${yOf(nt.top % 2 === 0 ? nt.top + 1 : nt.top)}" r="1.8" fill="${ink}"/>`);
           const fromY = down ? yOf(nt.top) : yOf(nt.bot);
@@ -165,6 +178,12 @@
     if (opt.barsPerLine || n.bars === 1) return build(opt.barsPerLine || 1);
     // Standard: Laptop 2 Takte pro Zeile, Handy 1 Takt pro Zeile (per CSS umgeschaltet)
     return `<div class="nt-wide">${build(2)}</div><div class="nt-narrow">${build(1)}</div>`;
+  }
+  // Vorschlagsnote (Flam): kleiner Kopf, eigener Hals mit Fähnchen und Schrägstrich
+  function grace(h, x, ink, down) {
+    const y = yOf(h.p), dir = down ? 1 : -1, sx = x + (down ? -3.2 : 3.2), ty = y + dir * 17;
+    const hd = h.x ? `<path d="M${x - 3} ${y - 3} L${x + 3} ${y + 3} M${x + 3} ${y - 3} L${x - 3} ${y + 3}" stroke="${ink}" stroke-width="1.3"/>` : `<ellipse cx="${x}" cy="${y}" rx="3.6" ry="2.6" transform="rotate(-20 ${x} ${y})" fill="${ink}"/>`;
+    return `<g class="nt-grace">${hd}<line x1="${sx}" x2="${sx}" y1="${y}" y2="${ty}" stroke="${ink}" stroke-width="1"/><path d="M${sx} ${ty} q 6 ${-dir * 4} 4 ${-dir * 10}" fill="none" stroke="${ink}" stroke-width="1.3"/><line x1="${sx - 4}" y1="${ty - dir * 9}" x2="${sx + 6}" y2="${ty - dir * 1}" stroke="${ink}" stroke-width="1"/></g>`;
   }
   function head(h, x, ink) {
     const y = yOf(h.p), parts = [];
@@ -283,7 +302,10 @@
         }
       }
       const bar = Math.floor(i / pb), src = sourceBar(n, bar) * pb + (i % pb);
-      for (const r of ROWS) if (!P.mute.has(r.k) && n.tracks[r.k].includes(src)) hit(r.k, P.next, dynOf(n, r.k, src));
+      for (const r of ROWS) if (!P.mute.has(r.k) && n.tracks[r.k].includes(src)) {
+        if (flamOf(n, r.k, src)) hit(r.k, Math.max(ctx.currentTime + 0.005, P.next - 0.03), 's'); // Vorschlag kurz davor, leise
+        hit(r.k, P.next, dynOf(n, r.k, src));
+      }
       if (CLICK.on) {
         const spb = EIGHTH(n.sig) ? 2 : 4, j = i % pb, beats = pb / spb, acc = CLICK.accents && CLICK.accents.length === beats ? CLICK.accents : null;
         const sub = Math.max(1, Math.min(spb, CLICK.sub || 1)), every = spb / sub;
@@ -335,7 +357,7 @@
     }).join('')}</tr>`;
     const rows = stickRow + ROWS.map((r) => `<tr><th scope="row">${r.n}</th>${Array.from({ length: pb }, (_, j) => {
       const i = from + j;
-      return `<td class="${Math.floor(j / gs) % 2 ? 'nt-alt' : ''}"><button type="button" class="nt-cell" data-nt="${id}" data-k="${r.k}" data-i="${i}" aria-pressed="${has(n, r.k, i)}" data-dyn="${dynOf(n, r.k, i)}" aria-label="${r.n} auf ${esc(countLabel(n.sig, j))}, Takt ${curBar + 1}${dynOf(n, r.k, i) === 'a' ? ', betont' : dynOf(n, r.k, i) === 's' ? ', leise' : ''}" ${rep ? 'disabled' : ''}>${dynOf(n, r.k, i) === 'a' ? '&gt;' : dynOf(n, r.k, i) === 's' ? '( )' : ''}</button></td>`;
+      return `<td class="${Math.floor(j / gs) % 2 ? 'nt-alt' : ''}"><button type="button" class="nt-cell" data-nt="${id}" data-k="${r.k}" data-i="${i}" aria-pressed="${has(n, r.k, i)}" data-dyn="${dynOf(n, r.k, i)}" data-flam="${flamOf(n, r.k, i) ? 1 : ''}" aria-label="${r.n} auf ${esc(countLabel(n.sig, j))}, Takt ${curBar + 1}${dynOf(n, r.k, i) === 'a' ? ', betont' : dynOf(n, r.k, i) === 's' ? ', leise' : ''}${flamOf(n, r.k, i) ? ', Flam' : ''}" ${rep ? 'disabled' : ''}>${flamOf(n, r.k, i) ? 'fl' : ''}${dynOf(n, r.k, i) === 'a' ? '&gt;' : dynOf(n, r.k, i) === 's' ? '( )' : ''}</button></td>`;
     }).join('')}</tr>`).join('');
     const tabs = Array.from({ length: n.bars }, (_, b) => `<button type="button" class="nt-bartab" data-nt-bar="${b}" data-nt-id="${id}" aria-pressed="${b === curBar}">${b + 1}${n.repeat.includes(b) ? ' %' : ''}${n.marks[b] ? ' · ' + esc(n.marks[b]) : ''}</button>`).join('');
     return `<div class="nt-editor" id="${id}" data-bar="${curBar}">
@@ -353,12 +375,12 @@
         <div class="field" style="flex:2;min-width:150px"><label for="${id}-mark">Teil ab Takt ${curBar + 1}</label><input id="${id}-mark" data-nt-ctl="mark" maxlength="30" placeholder="z. B. Strophe, Refrain" value="${esc(n.marks[curBar] || '')}"></div>
         ${curBar > 0 ? `<label class="row small" style="flex:1;min-width:150px;gap:8px;color:var(--ink)"><input type="checkbox" data-nt-ctl="repeat" style="width:22px;min-height:22px" ${rep ? 'checked' : ''}> Wiederholt den Takt davor</label>` : ''}
       </div>
-      ${rep ? '' : `<div class="row" style="gap:6px;align-items:center" role="group" aria-label="Was ein Tipp ins Raster macht"><span class="small muted">Tippen:</span>${[['', 'Note an/aus'], ['a', 'Betont (lauter) >'], ['s', 'Leise ( )']].map(([m, l]) => `<button type="button" class="chip" data-nt-act="mode" data-m="${m}" data-nt-id="${id}" aria-pressed="${(EDMODE[id] || '') === m}">${l}</button>`).join('')}</div>`}
+      ${rep ? '' : `<div class="row" style="gap:6px;align-items:center" role="group" aria-label="Was ein Tipp ins Raster macht"><span class="small muted">Tippen:</span>${[['', 'Note an/aus'], ['a', 'Betont (lauter) >'], ['s', 'Leise ( )'], ['f', 'Flam']].map(([m, l]) => `<button type="button" class="chip" data-nt-act="mode" data-m="${m}" data-nt-id="${id}" aria-pressed="${(EDMODE[id] || '') === m}">${l}</button>`).join('')}</div>`}
       ${rep ? '<p class="small muted">Dieser Takt wiederholt den Takt davor. Haken entfernen, um ihn auszuschreiben.</p>' : `<div class="nt-grid-wrap"><table class="nt-grid">${head}${rows}</table></div>`}
     </div>`;
   }
 
   // Samples schon beim ersten Tippen irgendwo in der App vorladen
   if (typeof document !== 'undefined') document.addEventListener('pointerdown', () => { try { audio(); loadSamples(); } catch (e) { /* ohne Audio */ } }, { once: true, capture: true });
-  window.DrumNotation = { SIGS, ROWS, MAX_BARS, empty, parse, render, toggle, has, play, stop, setTempo, setMute, setTrainer, hit, editorHTML, cursorFor, total, perBar, setBars, usedKeys, isPlaying: () => P.playing, setDyn, dynOf, editMode: (id, m) => { if (m !== undefined) EDMODE[id] = m; return EDMODE[id] || ''; }, resetModes: () => { for (const k of Object.keys(EDMODE)) delete EDMODE[k]; }, samplesReady: () => samplesReady, autoStick, audio, click, setClick, loadSamples: () => { audio(); return loadSamples(); } };
+  window.DrumNotation = { SIGS, ROWS, MAX_BARS, empty, parse, render, toggle, has, play, stop, setTempo, setMute, setTrainer, hit, editorHTML, cursorFor, total, perBar, setBars, usedKeys, isPlaying: () => P.playing, setDyn, dynOf, flamOf, editMode: (id, m) => { if (m !== undefined) EDMODE[id] = m; return EDMODE[id] || ''; }, resetModes: () => { for (const k of Object.keys(EDMODE)) delete EDMODE[k]; }, samplesReady: () => samplesReady, autoStick, audio, click, setClick, loadSamples: () => { audio(); return loadSamples(); } };
 })();

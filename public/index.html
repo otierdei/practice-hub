@@ -172,6 +172,7 @@ input[type=range]{accent-color:var(--ring);width:100%;min-height:32px}
 .nt-cell[aria-pressed="true"]{background:var(--ring);border-color:var(--ring)}
 .nt-cell[data-dyn="a"]{color:var(--accent-ink);font-weight:800;font-size:.85rem;box-shadow:0 0 0 2px var(--ink)}
 .nt-cell[data-dyn="s"]{opacity:.55;font-size:.62rem;color:var(--accent-ink)}
+.nt-cell[data-flam="1"]{color:var(--accent-ink);font-weight:800;font-size:.7rem;font-style:italic}
 .nt-cell.nt-stick{font-weight:800;font-size:.8rem;color:var(--accent-ink)}.nt-cell.nt-stick[aria-pressed="false"]{color:var(--muted)}
 .nt-lines{display:flex;flex-direction:column;gap:0}
 .nt-bartabs{display:flex;gap:6px;flex-wrap:wrap}
@@ -204,8 +205,8 @@ details.card summary{cursor:pointer;font-family:var(--display);font-size:1.08rem
 </head>
 <body>
 <div id="app"><div class="wrap"><p class="muted">Lädt …</p></div></div>
-<script src="notation.js?v=64"></script>
-<script src="guitar.js?v=64"></script>
+<script src="notation.js?v=65"></script>
+<script src="guitar.js?v=65"></script>
 <script>
 'use strict';
 // ---------- Grundlagen ----------
@@ -1559,14 +1560,15 @@ function saveSession(feeling) {
 }
 // Unterrichtsmodus: in der Stunde zählt Üben nicht als Übungszeit. An per Schalter beim Schüler oder automatisch, wenn Oti die Stunde startet.
 function lessonModeUntil(d = S.preview ? S.preview.data : S.data) {
-  const own = store.get('unterricht', null), srv = d && d.lesson_live, t = new Date().toISOString();
-  return [own, srv].filter((x) => x && x > t).sort().pop() || null;
+  // Nur Oti schaltet den Modus (Otis Wunsch 11.11.), der eigene Schalter beim Schüler ist raus
+  const srv = d && d.lesson_live, t = new Date().toISOString();
+  return srv && srv > t ? srv : null;
 }
 const inLessonMode = () => !!lessonModeUntil();
 function lessonModeBanner(d) {
   const u = lessonModeUntil(d); const srv = d && d.lesson_live && d.lesson_live > new Date().toISOString();
-  if (!u) return `<button class="btn small" data-act="lessonModeOn" style="align-self:flex-start">Unterrichtsmodus</button>`;
-  return `<section class="card lesson-mode" role="status"><div class="row between" style="flex-wrap:nowrap;gap:12px"><span class="col" style="gap:2px"><b>Unterricht läuft</b><span class="small muted">${srv ? 'Oti hat die Stunde gestartet. ' : ''}Üben zählt jetzt nicht als Übungszeit. Bis ${new Date(u).toLocaleTimeString('de-DE', { hour: '2-digit', minute: '2-digit' })}.</span></span>${store.get('unterricht', null) && !srv ? '<button class="btn small" data-act="lessonModeOff">Beenden</button>' : ''}</div></section>`;
+  if (!u) return '';
+  return `<section class="card lesson-mode" role="status"><div class="row between" style="flex-wrap:nowrap;gap:12px"><span class="col" style="gap:2px"><b>Unterricht läuft</b><span class="small muted">${srv ? 'Oti hat die Stunde gestartet. ' : ''}Üben zählt jetzt nicht als Übungszeit. Bis ${new Date(u).toLocaleTimeString('de-DE', { hour: '2-digit', minute: '2-digit' })}.</span></span></div></section>`;
 }
 async function refreshLessonMode() {
   if (S.role !== 'student' || !S.data || S.preview || document.visibilityState === 'hidden') return;
@@ -1863,8 +1865,6 @@ document.addEventListener('click', async (ev) => {
       case 'resumePractice': { const rr = store.get('run'); await loadSongFor(S.data.assignments.find((x) => x.id === rr.assignment_id)); startPractice(rr.assignment_id, rr.part || null); break; }
       case 'partPractice': { const p = S.song.parts.find((x) => x.id === id); DrumNotation.stop(); S.overlay = null; { const pn = DrumNotation.parse(p.notation), sb = S.song.song.bpm; startPractice(null, { id: p.id, title: S.song.song.title + ': ' + p.title, notation: p.notation, notes: p.notes, song_id: S.song.song.id, factor: partFactor(pn, sb), bpm: sb || (pn && pn.bpm) }); } break; }
       case 'minimize': stopTick(); S.overlay = null; render(); break;
-      case 'lessonModeOn': { const m = ((S.preview ? S.preview.data : S.data).student.lesson_minutes || 45) + 15; store.set('unterricht', new Date(Date.now() + m * 60000).toISOString()); render(); toast('Unterrichtsmodus an'); break; }
-      case 'lessonModeOff': store.del('unterricht'); render(); toast('Unterrichtsmodus aus'); break;
       case 'teacherLive': { const on = el.dataset.v === '1'; const r = await api('/api/t/lesson/live', { student_id: S.file.student.id, on }); S.lessonLive = r.until; openOverlay(lessonView); toast(on ? 'Unterrichtsmodus beim Schüler an' : 'Unterrichtsmodus beim Schüler aus'); break; }
       case 'startStop': { const r = store.get('run'); if (r.runningSince) { r.accumulated += Date.now() - r.runningSince; r.runningSince = null; releaseWake(); } else { r.runningSince = Date.now(); requestWake(); } store.set('run', r); render(); break; }
       case 'bpm': setBpm(MET.bpm + Number(el.dataset.d)); break;
