@@ -206,8 +206,8 @@ details.card summary{cursor:pointer;font-family:var(--display);font-size:1.08rem
 </head>
 <body>
 <div id="app"><div class="wrap"><p class="muted">Lädt …</p></div></div>
-<script src="notation.js?v=72"></script>
-<script src="guitar.js?v=72"></script>
+<script src="notation.js?v=73"></script>
+<script src="guitar.js?v=73"></script>
 <script>
 'use strict';
 // ---------- Grundlagen ----------
@@ -1409,7 +1409,7 @@ function practiceView() {
     <div class="row between" style="flex-wrap:nowrap"><button class="btn small" data-act="minimize">Zurück</button><button class="clock-mini ${r.runningSince ? '' : 'paused'}" id="clockRing" data-act="startStop" aria-label="${r.runningSince ? 'Stoppuhr pausieren' : 'Stoppuhr starten'}">${clockRing(el, goal)}</button></div>
     <div class="col" style="align-items:center;gap:8px;text-align:center"><h1>${esc(a ? (a.title || a.free_text) : 'Frei üben')}</h1>
       ${a && a.book_ref ? `<span class="muted">${esc(a.book_ref)}</span>` : ''}
-      ${a && a.exercise_notes ? `<span class="muted small">${esc(a.exercise_notes)}</span>` : ''}
+      ${a && a.exercise_notes ? `<span class="muted small" style="white-space:pre-line">${esc(a.exercise_notes)}</span>` : ''}
       ${a && a.url && !ytId(a.url) ? `<a class="btn small" href="${esc(a.url)}" target="_blank" rel="noopener">${linkLabel(a)}</a>` : ''}</div>
     ${a && ytId(a.url) ? ytEmbed(a.url) : ''}
     ${songBlocksHTML(a)}
