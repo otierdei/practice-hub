@@ -204,8 +204,8 @@ details.card summary{cursor:pointer;font-family:var(--display);font-size:1.08rem
 </head>
 <body>
 <div id="app"><div class="wrap"><p class="muted">Lädt …</p></div></div>
-<script src="notation.js?v=63"></script>
-<script src="guitar.js?v=63"></script>
+<script src="notation.js?v=64"></script>
+<script src="guitar.js?v=64"></script>
 <script>
 'use strict';
 // ---------- Grundlagen ----------
@@ -1344,6 +1344,12 @@ const runKeyOf = (r) => (r ? runKey(r.assignment_id, r.part) : null);
 function startPractice(assignmentId, part = null) {
   let existing = store.get('run', null); const key = runKey(assignmentId, part);
   // Unter einer Minute zählt nicht: dann darf man einfach zur anderen Aufgabe wechseln
+  // Anderer Baustein im gleichen Song: Sitzung läuft weiter, nur der Baustein wechselt (Fall Effi 11.11.)
+  const exSong = existing && ((existing.part && existing.part.song_id) || ((S.data.assignments || []).find((x) => x.id === existing.assignment_id) || {}).song_id);
+  if (existing && part && part.song_id && exSong === part.song_id && runKeyOf(existing) !== runKey(existing.assignment_id, part)) {
+    const pn = DrumNotation.parse(part.notation); existing.titles = Array.from(new Set((existing.titles || (existing.part ? [existing.part.title] : [])).concat(part.title)));
+    existing.part = part; existing.bpm = part.bpm || (pn && pn.bpm) || existing.bpm; store.set('run', existing); assignmentId = existing.assignment_id;
+  } else
   if (existing && runKeyOf(existing) !== key && runElapsed(existing) < 60000) { store.del('run'); existing = null; releaseWake(); }
   else if (existing && runKeyOf(existing) !== key && runElapsed(existing) > 0) {
     toast('Erst die laufende Sitzung beenden'); assignmentId = existing.assignment_id; part = existing.part || null;
@@ -1545,7 +1551,7 @@ function finishForm() {
 function saveSession(feeling) {
   const r = store.get('run', null); if (!r) return;
   const el = runElapsed(r);
-  const s = { client_id: (crypto.randomUUID ? crypto.randomUUID() : String(Date.now()) + Math.random()), assignment_id: r.assignment_id, started_at: r.startedAt, ended_at: new Date().toISOString(), local_date: localDate(new Date(r.startedAt)), seconds: Math.max(1, Math.round(el / 1000)), bpm_reached: Number($('#fin_bpm').value) || null, feeling: feeling || null, note: [r.part ? 'Baustein: ' + r.part.title : '', $('#fin_note').value.trim()].filter(Boolean).join(' · ') || null };
+  const s = { client_id: (crypto.randomUUID ? crypto.randomUUID() : String(Date.now()) + Math.random()), assignment_id: r.assignment_id, started_at: r.startedAt, ended_at: new Date().toISOString(), local_date: localDate(new Date(r.startedAt)), seconds: Math.max(1, Math.round(el / 1000)), bpm_reached: Number($('#fin_bpm').value) || null, feeling: feeling || null, note: [r.titles && r.titles.length > 1 ? 'Bausteine: ' + r.titles.join(', ') : r.part ? 'Baustein: ' + r.part.title : '', $('#fin_note').value.trim()].filter(Boolean).join(' · ') || null };
   if (inLessonMode() && !S.preview) { store.del('run'); stopTick(); S.overlay = null; render(); toast('Unterricht: zählt nicht als Übungszeit'); return; }
   const ob = store.get('outbox', []); ob.push(s); store.set('outbox', ob);
   store.del('run'); stopTick();

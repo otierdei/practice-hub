@@ -337,8 +337,10 @@ let n = 0; const ok = (m) => console.log('ok ' + (++n) + ' ' + m);
   await t.evaluate(async () => { const sid = S.song.song.id, st = S.data.students[0]; S.previewFrom = S.overlay; S.file = await api('/api/t/student', { id: st.id }); startPreview(await api('/api/t/preview', { id: st.id })); S.song = await api('/api/song', { id: sid }); openOverlay(songView); });
   await t.click('[data-act=partPractice]'); await t.locator('#clockRing').waitFor(); assert.match(await t.textContent('.sheet h1'), /Am Kreuz: Groove Vers neu/);
   await t.evaluate(() => { const r = JSON.parse(localStorage.getItem('ph_pv_run')); r.runningSince -= 3 * 60000; localStorage.setItem('ph_pv_run', JSON.stringify(r)); });
+  await t.evaluate(() => { const p = S.song.parts[0]; startPractice(null, { id: 'block2', title: 'Am Kreuz: Block 2', notation: p.notation, notes: '', song_id: S.song.song.id, factor: 1, bpm: 60 }); });
+  assert.match(await t.textContent('.sheet h1'), /Block 2/); assert.match(await t.textContent('#clockRing'), /3:0\d/); ok('Zweiten Baustein im gleichen Song üben: springt nicht zurück, Zeit läuft weiter');
   await t.click('[data-act=endPractice]'); await t.click('#finishForm button[type=submit]'); await t.getByText('3 min gespeichert').waitFor();
-  assert.match(await t.evaluate(() => S.data.sessions[0].note), /^Baustein: Am Kreuz/); await t.click('[data-act=endPreview]'); ok('Baustein üben wie eine Übung (Stoppuhr, Sitzung mit Notiz)');
+  assert.match(await t.evaluate(() => S.data.sessions[0].note), /^Bausteine: Am Kreuz: Groove Vers neu, Am Kreuz: Block 2/); await t.click('[data-act=endPreview]'); ok('Baustein üben wie eine Übung (Stoppuhr, Sitzung mit Notiz)');
   await t.click('[data-act=close]');
 
   // Horizontaler Überlauf am iPhone
