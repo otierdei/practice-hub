@@ -56,7 +56,8 @@
   function setDyn(n, k, i, v) {
     n.dyn = n.dyn || {}; const key = k + ':' + i;
     if (!(n.tracks[k] || []).includes(i)) { toggle(n, k, i); n.dyn[key] = v; return; }
-    if (n.dyn[key] === v) delete n.dyn[key]; else n.dyn[key] = v;
+    if (n.dyn[key] === v) toggle(n, k, i); // gleiche Dynamik nochmal: Note entfernen
+    else n.dyn[key] = v;
   }
   function countLabel(sig, i) {
     const j = i % perBar(sig);
@@ -359,5 +360,5 @@
 
   // Samples schon beim ersten Tippen irgendwo in der App vorladen
   if (typeof document !== 'undefined') document.addEventListener('pointerdown', () => { try { audio(); loadSamples(); } catch (e) { /* ohne Audio */ } }, { once: true, capture: true });
-  window.DrumNotation = { SIGS, ROWS, MAX_BARS, empty, parse, render, toggle, has, play, stop, setTempo, setMute, setTrainer, hit, editorHTML, cursorFor, total, perBar, setBars, usedKeys, isPlaying: () => P.playing, setDyn, dynOf, editMode: (id, m) => { if (m !== undefined) EDMODE[id] = m; return EDMODE[id] || ''; }, samplesReady: () => samplesReady, autoStick, audio, click, setClick, loadSamples: () => { audio(); return loadSamples(); } };
+  window.DrumNotation = { SIGS, ROWS, MAX_BARS, empty, parse, render, toggle, has, play, stop, setTempo, setMute, setTrainer, hit, editorHTML, cursorFor, total, perBar, setBars, usedKeys, isPlaying: () => P.playing, setDyn, dynOf, editMode: (id, m) => { if (m !== undefined) EDMODE[id] = m; return EDMODE[id] || ''; }, resetModes: () => { for (const k of Object.keys(EDMODE)) delete EDMODE[k]; }, samplesReady: () => samplesReady, autoStick, audio, click, setClick, loadSamples: () => { audio(); return loadSamples(); } };
 })();

@@ -204,8 +204,8 @@ details.card summary{cursor:pointer;font-family:var(--display);font-size:1.08rem
 </head>
 <body>
 <div id="app"><div class="wrap"><p class="muted">Lädt …</p></div></div>
-<script src="notation.js?v=60"></script>
-<script src="guitar.js?v=60"></script>
+<script src="notation.js?v=61"></script>
+<script src="guitar.js?v=61"></script>
 <script>
 'use strict';
 // ---------- Grundlagen ----------
@@ -396,7 +396,7 @@ function render() {
   if (S.afterRender) { const f = S.afterRender; S.afterRender = null; f(); }
 }
 function openOverlay(fn) { S.overlay = fn; render(); const sh = $('.sheet'); if (sh) sh.scrollTop = 0; }
-function closeOverlay() { S.overlay = null; stopTick(); render(); }
+function closeOverlay() { S.overlay = null; stopTick(); if (DrumNotation.resetModes) DrumNotation.resetModes(); render(); }
 
 // ---------- Lehrer ----------
 function nowMinutes() { const d = new Date(); return d.getHours() * 60 + d.getMinutes(); }
@@ -1834,7 +1834,7 @@ document.addEventListener('click', (ev) => {
   const id = (cell && cell.dataset.nt) || (actBtn && actBtn.dataset.ntId) || barBtn.dataset.ntId; const n = S.nt && S.nt[id]; if (!n) return;
   if (barBtn) { refreshEditor(id, true, Number(barBtn.dataset.ntBar)); return; }
   if (cell) {
-    const k = cell.dataset.k, i = Number(cell.dataset.i), mode = k === 'stick' ? '' : DrumNotation.editMode(id);
+    const k = cell.dataset.k, i = Number(cell.dataset.i), mode = k === 'stick' || !DrumNotation.editMode ? '' : DrumNotation.editMode(id);
     if (mode) DrumNotation.setDyn(n, k, i, mode); else DrumNotation.toggle(n, k, i);
     if (k !== 'stick' && DrumNotation.has(n, k, i)) { try { DrumNotation.hit(k, 0, DrumNotation.dynOf(n, k, i)); } catch (e) {} }
     refreshEditor(id, false);
