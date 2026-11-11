@@ -610,3 +610,16 @@ test('Videos: eigene Version und Titel, Playthrough wird Oti Playthrough', async
   for (const st of SONG_SCHEMA.split(';').map((x) => x.trim()).filter((x) => /^UPDATE song_links/.test(x))) await w.env.DB.prepare(st).run();
   assert.equal((await w.call('/api/song', { id: sid }, w.t)).data.links[0].version, 'Oti Playthrough');
 });
+
+test('Tempo: Song ohne Bereich (Original), Baustein 45 bis Original', async () => {
+  const w = await world();
+  const sid = (await w.call('/api/t/song/create', { title: 'Tempo Regeln' }, w.t)).data.id;
+  await w.call('/api/t/song/bpm', { song_id: sid, bpm: 72 }, w.t);
+  await w.call('/api/t/lesson/finish', { student_id: w.b, date: '2026-10-10', new_assignments: [{ song_id: sid, version: 'Original', start_bpm: 45, target_bpm: 100 }] }, w.t);
+  const pid = (await w.call('/api/t/song/part/save', { song_id: sid, title: 'Chorus', notation: { sig: '4/4', bars: 1, tracks: { sn: [4] } } }, w.t)).data.id;
+  await w.call('/api/t/assignment/add', { student_id: w.b, part_id: pid }, w.t);
+  const as = (await w.call('/api/home', {}, w.tb)).data.assignments;
+  const song = as.find((a) => a.song_id === sid && !a.part_id), part = as.find((a) => a.part_id === pid);
+  assert.equal(song.start_bpm, null); assert.equal(song.target_bpm, 72);
+  assert.equal(part.start_bpm, 45); assert.equal(part.target_bpm, 72);
+});

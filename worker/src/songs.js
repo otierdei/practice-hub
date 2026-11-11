@@ -81,6 +81,8 @@ CREATE TABLE IF NOT EXISTS assignment_parts (
 INSERT OR IGNORE INTO assignment_parts (assignment_id, part_id)
   SELECT a.id, p.id FROM assignments a JOIN exercises e ON e.id = a.exercise_id AND e.archived = 1 JOIN assignment_songs x ON x.assignment_id = a.id
   JOIN song_parts p ON p.song_id = x.song_id JOIN songs sg ON sg.id = p.song_id WHERE e.title = sg.title || ': ' || p.title;
+-- Song Hausaufgaben haben keinen Tempobereich, nur das Original Tempo des Songs
+UPDATE assignments SET start_bpm = NULL WHERE start_bpm IS NOT NULL AND id IN (SELECT assignment_id FROM assignment_songs) AND id NOT IN (SELECT assignment_id FROM assignment_parts);
 `;
 
 export const LIEDER_ROOT = '1eRaPJfiT2-xeDRKzzUuX-R4ypyQOr7_r';

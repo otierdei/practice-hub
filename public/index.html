@@ -202,8 +202,8 @@ details.card summary{cursor:pointer;font-family:var(--display);font-size:1.08rem
 </head>
 <body>
 <div id="app"><div class="wrap"><p class="muted">Lädt …</p></div></div>
-<script src="notation.js?v=53"></script>
-<script src="guitar.js?v=53"></script>
+<script src="notation.js?v=54"></script>
+<script src="guitar.js?v=54"></script>
 <script>
 'use strict';
 // ---------- Grundlagen ----------
@@ -522,7 +522,7 @@ function studentFileView() {
     <section class="card col">${cancelButtons(st.id)}${(f.cancellations || []).length ? `<details><summary class="small muted">Absagen (${f.cancellations.length})</summary><div class="list">${f.cancellations.map((c) => `<div class="item"><span class="t">${esc(fmtDate(c.date))}</span><span class="small muted">${CANCEL[c.kind] || c.kind}</span></div>`).join('')}</div></details>` : ''}</section>
     <section class="card"><h3>Übezeit pro Woche</h3>${weeksCircles(f.sessions)}</section>
     <div class="grid2">
-      <section class="card"><h3>Offene Hausaufgaben</h3><div class="list" data-sort="asg">${open.length ? open.map((a, i) => `<div class="item" style="flex-wrap:wrap" data-sort-id="${a.id}">${grip(i + 1, open.length > 1)}<span class="t"><button class="link" data-act="asgDetail" data-id="${a.id}"><b>${esc(a.title || a.free_text)}</b>${asgInstrPill(a, S.file.student)}</button>${a.target_bpm ? ' <span class="muted small">Ziel ' + a.target_bpm + '</span>' : ''}<br><span class="muted small">${practicedFor(a, f.sessions)}</span><br>${assignBadges(a)}</span>${a.url ? `<a class="btn small" href="${esc(a.url)}" target="_blank" rel="noopener">${linkLabel(a)}</a>` : ''}<button class="btn small" data-act="addLink" data-id="${a.id}">${a.url ? 'Link ändern' : 'Link hinzufügen'}</button>
+      <section class="card"><h3>Offene Hausaufgaben</h3><div class="list" data-sort="asg">${open.length ? open.map((a, i) => `<div class="item" style="flex-wrap:wrap" data-sort-id="${a.id}">${grip(i + 1, open.length > 1)}<span class="t"><button class="link" data-act="asgDetail" data-id="${a.id}"><b>${esc(a.title || a.free_text)}</b>${asgInstrPill(a, S.file.student)}</button>${a.target_bpm ? ' <span class="muted small">' + (isSongTask(a) ? a.target_bpm + ' BPM' : 'Ziel ' + a.target_bpm) + '</span>' : ''}<br><span class="muted small">${practicedFor(a, f.sessions)}</span><br>${assignBadges(a)}</span>${a.url ? `<a class="btn small" href="${esc(a.url)}" target="_blank" rel="noopener">${linkLabel(a)}</a>` : ''}<button class="btn small" data-act="addLink" data-id="${a.id}">${a.url ? 'Link ändern' : 'Link hinzufügen'}</button>
         <div id="lk_${a.id}" class="row hidden" style="width:100%;flex-wrap:nowrap"><input id="lki_${a.id}" type="url" inputmode="url" placeholder="YouTube Link einfügen" style="flex:1"><button class="btn small primary" data-act="saveLink" data-id="${a.id}">Speichern</button></div></div>`).join('') : '<p class="muted">Keine.</p>'}</div></section>
       <section class="card"><h3>Ziele</h3><div class="list">${f.goals.length ? f.goals.map((g) => `<div class="item"><span class="t">${esc(g.title)}</span><span class="pill">${g.status === 'erreicht' ? 'erreicht' : 'offen'}</span></div>`).join('') : '<p class="muted">Noch keine Ziele.</p>'}</div></section>
     </div>
@@ -641,7 +641,7 @@ function assignmentDetailView() {
     <div class="row between"><button class="btn small" data-act="asgBack">Zurück</button><span class="pill">${a.status === 'offen' ? 'offen' : 'erledigt'}</span></div>
     <div class="col" style="gap:4px"><span class="muted">${esc(f.student.first_name)} · aufgegeben am ${esc(fmtDate(a.created_at))}</span><h1>${esc(a.title || a.free_text)}</h1>${assignBadges(a)}</div>
     <section class="card"><div class="list">
-      <div class="item"><span class="t">Tempo</span><span>${a.start_bpm || '?'} bis ${a.target_bpm || '?'} BPM</span></div>
+      <div class="item"><span class="t">Tempo</span><span>${tempoText(a) || 'offen'}</span></div>
       <div class="item"><span class="t">Pro Tag</span><span>${a.minutes_per_day || 10} min</span></div>
       <div class="item"><span class="t">Geübt</span><span>${total} min${ss.length ? ' in ' + ss.length + ' Sitzungen' : ''}</span></div>
       <div class="item"><span class="t">Bestes Tempo</span><span>${best ? best + ' BPM' : 'noch keins'}</span></div>
@@ -657,7 +657,7 @@ function assignmentDetailView() {
       ${a.part_id ? `<div class="field"><label for="ae_title">Baustein im Song</label><input id="ae_title" maxlength="120" value="${esc(a.part_title || '')}"></div><p class="small muted">Titel und Noten gehören zum Song Baustein. Änderungen gelten überall: im Song und bei allen Schülern mit diesem Baustein.</p>`
         : a.exercise_id && !a.ex_archived ? `<div class="field"><label for="ae_title">Übung in der Bibliothek</label><input id="ae_title" maxlength="120" value="${esc(a.title || '')}"></div><p class="small muted">Titel und Noten gehören zur Bibliothek. Änderungen gelten überall: Bibliothek, Kurs und alle Schüler mit dieser Übung.</p>`
         : `<div class="field"><label for="ae_text">Aufgabe</label><input id="ae_text" maxlength="300" value="${esc(a.free_text || a.title || '')}"></div>`}
-      <div class="row" style="flex-wrap:nowrap"><div class="field" style="flex:1"><label for="ae_from">Tempo von</label><input id="ae_from" inputmode="numeric" value="${a.start_bpm || ''}"></div><div class="field" style="flex:1"><label for="ae_to">Tempo bis</label><input id="ae_to" inputmode="numeric" value="${a.target_bpm || ''}"></div><div class="field" style="flex:1"><label for="ae_min">Min pro Tag</label><input id="ae_min" inputmode="numeric" value="${a.minutes_per_day || ''}"></div></div>
+      ${isSongTask(a) ? `<p class="small muted">Tempo: ${tempoText(a)}. Song Hausaufgaben haben keinen Tempobereich, ändern kannst du das Original Tempo im Song.</p><input type="hidden" id="ae_from" value=""><input type="hidden" id="ae_to" value="${a.target_bpm || ''}"><div class="field" style="max-width:160px"><label for="ae_min">Min pro Tag</label><input id="ae_min" inputmode="numeric" value="${a.minutes_per_day || ''}"></div>` : `<div class="row" style="flex-wrap:nowrap"><div class="field" style="flex:1"><label for="ae_from">Tempo von</label><input id="ae_from" inputmode="numeric" value="${a.start_bpm || ''}"></div><div class="field" style="flex:1"><label for="ae_to">Tempo bis</label><input id="ae_to" inputmode="numeric" value="${a.target_bpm || ''}"></div><div class="field" style="flex:1"><label for="ae_min">Min pro Tag</label><input id="ae_min" inputmode="numeric" value="${a.minutes_per_day || ''}"></div></div>`}
       ${S.nt && S.nt.ae ? DrumNotation.editorHTML(S.nt.ae, 'ae') : ''}
       <div class="row"><button class="btn primary" type="submit">Speichern</button><button class="btn" type="button" data-act="asgEditOff">Abbrechen</button></div></form>` : ''}
     <div class="row">
@@ -693,6 +693,13 @@ function defTempo(e) {
   if (e.category === 'Aufwärmen') return { start: (n && n.bpm) || DEF_TEMPO.start, target: e.target_bpm || DEF_TEMPO.target };
   return { start: DEF_TEMPO.start, target: e.target_bpm || DEF_TEMPO.target };
 }
+document.addEventListener('input', (ev) => {
+  if (ev.target.id !== 'a_song') return;
+  const t = ev.target.value.trim().toLowerCase(), sg = t && S.songs && S.songs.songs.find((x) => x.title.toLowerCase() === t);
+  const from = $('#a_from'), to = $('#a_bpm'), hint = $('#a_songTempo'); if (!from || !to) return;
+  if (sg) { from.value = ''; from.disabled = true; to.value = sg.bpm || ''; to.disabled = true; if (hint) hint.textContent = sg.bpm ? 'Song: Original Tempo ' + sg.bpm + ' BPM, kein Tempobereich' : 'Song: Original Tempo noch nicht eingetragen (im Song festlegen)'; }
+  else if (from.disabled) { from.disabled = false; to.disabled = false; from.value = DEF_TEMPO.start; to.value = DEF_TEMPO.target; if (hint) hint.textContent = ''; }
+});
 document.addEventListener('change', (ev) => {
   if (ev.target.id !== 'a_ex') return;
   const box = $('#a_preview'); if (!box) return;
@@ -734,12 +741,12 @@ document.addEventListener('pointerdown', (ev) => {
 });
 function newAsgNotation(a) { const e = a.exercise_id && (S.exercises || []).find((x) => x.id === a.exercise_id); return DrumNotation.parse(a.notation || (e && e.notation)); }
 function newAsgRow(a, i, num) {
-  const meta = [a.start_bpm || a.target_bpm ? (a.start_bpm || '?') + ' bis ' + (a.target_bpm || '?') + ' BPM' : '', a.minutes_per_day ? a.minutes_per_day + ' min' : ''].filter(Boolean).join(' · ');
+  const meta = [tempoText(a), a.minutes_per_day ? a.minutes_per_day + ' min' : ''].filter(Boolean).join(' · ');
   if (S.newAsgI !== i) return `<div class="item" data-sort-id="draft:${i}">${grip(num, (num || 0) > 1 || (S.lesson && S.lesson.new_assignments.length > 1))}<span class="t"><button class="link" data-act="newAsgOpen" data-i="${i}"><b>${esc(a.label)}</b></button> <span class="pill">neu</span><br><span class="muted small">${meta}</span></span><button class="btn small" data-act="rmAssign" data-i="${i}">Entfernen</button></div>`;
   const n = newAsgNotation(a), editText = !a.exercise_id && !a.song_id;
   return `<div class="item col" style="align-items:stretch;gap:10px"><div class="row between"><b>${esc(a.label)} <span class="pill">neu</span></b><button class="btn small" data-act="newAsgClose">Zuklappen</button></div>
     ${editText ? `<div class="field"><label for="na_text">Aufgabe</label><input id="na_text" maxlength="300" value="${esc(a.free_text || '')}"></div>` : ''}
-    <div class="row" style="flex-wrap:nowrap"><div class="field" style="flex:1"><label for="na_from">Tempo von</label><input id="na_from" inputmode="numeric" value="${a.start_bpm || ''}"></div><div class="field" style="flex:1"><label for="na_to">Tempo bis</label><input id="na_to" inputmode="numeric" value="${a.target_bpm || ''}"></div><div class="field" style="flex:1"><label for="na_min">Min pro Tag</label><input id="na_min" inputmode="numeric" value="${a.minutes_per_day || ''}"></div></div>
+    ${isSongTask(a) ? `<p class="small muted">Tempo: ${tempoText(a)}. Song Hausaufgaben haben keinen Tempobereich, ändern kannst du das Original Tempo im Song.</p><input type="hidden" id="na_from" value=""><input type="hidden" id="na_to" value="${a.target_bpm || ''}"><div class="field" style="max-width:160px"><label for="na_min">Min pro Tag</label><input id="na_min" inputmode="numeric" value="${a.minutes_per_day || ''}"></div>` : `<div class="row" style="flex-wrap:nowrap"><div class="field" style="flex:1"><label for="na_from">Tempo von</label><input id="na_from" inputmode="numeric" value="${a.start_bpm || ''}"></div><div class="field" style="flex:1"><label for="na_to">Tempo bis</label><input id="na_to" inputmode="numeric" value="${a.target_bpm || ''}"></div><div class="field" style="flex:1"><label for="na_min">Min pro Tag</label><input id="na_min" inputmode="numeric" value="${a.minutes_per_day || ''}"></div></div>`}
     ${n ? `<div class="nt-staff" id="na_staff">${DrumNotation.render(n, { cursor: true, label: 'Noten' })}</div><div class="row" style="gap:8px"><button type="button" class="btn small" data-act="newAsgPlay" data-i="${i}">Abspielen</button>${beatClickChip()}</div>` : ''}
     <div class="row" style="gap:8px"><button type="button" class="btn small primary" data-act="newAsgSave" data-i="${i}">Übernehmen</button><button class="btn small" data-act="rmAssign" data-i="${i}">Entfernen</button></div></div>`;
 }
@@ -768,7 +775,7 @@ function lessonView() {
             ${S.nt && S.nt.lb ? `<div class="col" style="gap:8px"><b>Neuer Beat</b>${DrumNotation.editorHTML(S.nt.lb, 'lb')}<label class="row" style="gap:8px"><input type="checkbox" id="a_lib" style="width:22px;min-height:22px"> Auch in meine Bibliothek</label><button type="button" class="btn small" data-act="lessonBeatOff">Beat verwerfen</button></div>` : '<button type="button" class="btn small" data-act="lessonBeat">Beat schreiben</button>'}
             <div class="field"><label for="a_free">Oder frei beschreiben</label><input id="a_free" maxlength="300" placeholder="z. B. Song Zentrum, Bridge mitspielen"></div>
             <div class="field"><label for="a_url">Video oder Link (optional)</label><input id="a_url" type="url" inputmode="url" placeholder="YouTube Link einfügen"></div>
-            <div class="row" style="flex-wrap:nowrap"><div class="field" style="flex:1"><label for="a_from">Tempo von</label><input id="a_from" inputmode="numeric" placeholder="BPM" value="45"></div><div class="field" style="flex:1"><label for="a_bpm">Tempo bis</label><input id="a_bpm" inputmode="numeric" placeholder="BPM" value="100"></div><div class="field" style="flex:1"><label for="a_min">Min pro Tag</label><input id="a_min" inputmode="numeric" placeholder="10"></div></div>
+            <div class="row" style="flex-wrap:nowrap"><div class="field" style="flex:1"><label for="a_from">Tempo von</label><input id="a_from" inputmode="numeric" placeholder="BPM" value="45"></div><div class="field" style="flex:1"><label for="a_bpm">Tempo bis</label><input id="a_bpm" inputmode="numeric" placeholder="BPM" value="100"></div><div class="field" style="flex:1"><label for="a_min">Min pro Tag</label><input id="a_min" inputmode="numeric" placeholder="10"></div></div><span class="small muted" id="a_songTempo" aria-live="polite"></span>
             <button class="btn" type="submit">Hausaufgabe hinzufügen</button>
           </form></section>
         ${suggestBlock(f)}
@@ -1173,11 +1180,17 @@ function ytThumb(url) { const m = /(?:youtu\.be\/|v=|shorts\/|embed\/)([A-Za-z0-
 // Schüler mit Schlagzeug und Gitarre: jede Hausaufgabe zeigt, für welches Instrument sie ist
 const isDual = (st) => /Schlagzeug/.test((st && st.instrument) || '') && /Gitarre/.test((st && st.instrument) || '');
 const asgInstrPill = (a, st) => (isDual(st) ? ` <span class="pill">${(window.Guitar && Guitar.parse(a.notation)) || a.category === 'Gitarre' ? 'Gitarre' : 'Schlagzeug'}</span>` : '');
+// Tempo Regeln: Song Hausaufgaben zeigen nur das Original Tempo des Songs, alles andere (Übungen, Beats, Fills, Bausteine) einen Bereich
+const isSongTask = (a) => !!(a && a.song_id && !a.part_id);
+function tempoText(a) {
+  if (isSongTask(a)) return a.target_bpm ? a.target_bpm + ' BPM (Original Tempo)' : 'Original Tempo';
+  return a.start_bpm || a.target_bpm ? (a.start_bpm || '?') + ' bis ' + (a.target_bpm || '?') + ' BPM' : '';
+}
 function assignmentCard(a, sessions, num) {
   const list = sessions.filter((s) => s.assignment_id === a.id);
   const today = mins(list.filter((s) => s.local_date === localDate()).reduce((t, s) => t + s.seconds, 0));
   const goal = a.minutes_per_day || 10;
-  const meta = [today ? today + ' von ' + goal + ' min heute' : goal + ' min am Tag', a.target_bpm ? 'Ziel ' + a.target_bpm + ' BPM' : '', a.book_ref ? esc(a.book_ref) : ''].filter(Boolean).join(' · ');
+  const meta = [today ? today + ' von ' + goal + ' min heute' : goal + ' min am Tag', a.target_bpm ? (isSongTask(a) ? a.target_bpm + ' BPM' : 'Ziel ' + a.target_bpm + ' BPM') : '', a.book_ref ? esc(a.book_ref) : ''].filter(Boolean).join(' · ');
   const th = ytThumb(a.url);
   return `<section class="card task"><div class="row" style="flex-wrap:nowrap;align-items:center;gap:14px">
     ${th ? `<button class="thumb" data-act="video" data-id="${a.id}" aria-label="Video ansehen: ${esc(a.title || a.free_text)}"><img src="${th}" alt="" loading="lazy" onerror="this.remove()"><span class="thumb-play">${PLAY}</span></button>` : `<span class="task-icon" aria-hidden="true">${taskIcon(a)}</span>`}
@@ -1810,7 +1823,7 @@ document.addEventListener('submit', async (ev) => {
         if (!sg) { toast('Song nicht gefunden. Unter Songs > Song anlegen'); return; }
         const ver = versionValue('a') || null;
         if (S.file.assignments.some((a) => a.status === 'offen' && a.song_id === sg.id) || S.lesson.new_assignments.some((a) => a.song_id === sg.id)) { toast('Du hast die Hausaufgabe schon aufgegeben'); return; }
-        S.lesson.new_assignments.push({ song_id: sg.id, version: ver, label: sg.title + (ver ? ' (' + ver + ')' : ''), start_bpm: Number($('#a_from').value) || null, target_bpm: Number($('#a_bpm').value) || null, minutes_per_day: Number($('#a_min').value) || 10 });
+        S.lesson.new_assignments.push({ song_id: sg.id, version: ver, label: sg.title + (ver ? ' (' + ver + ')' : ''), start_bpm: null, target_bpm: sg.bpm || null, minutes_per_day: Number($('#a_min').value) || 10 });
         saveDraft(); render(); return;
       }
       const exId = $('#a_ex').value; let free = $('#a_free').value.trim();

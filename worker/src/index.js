@@ -489,7 +489,7 @@ async function finishLesson(s, who, b) {
     const aid = uid(); newIds.push(aid);
     if (song) stmts.push(['INSERT INTO assignment_songs (assignment_id, song_id, version) VALUES (?, ?, ?)', [aid, song.id, str(a.version, 40)]]);
     stmts.push(['INSERT INTO assignments (id, student_id, lesson_id, exercise_id, free_text, target_bpm, start_bpm, minutes_per_day, due_date, status, created_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)',
-      [aid, st.id, lessonId, exId, free, int(a.target_bpm, 20, 400), int(a.start_bpm, 20, 400), int(a.minutes_per_day, 1, 240), isDate(a.due_date) ? a.due_date : null, 'offen', t]]);
+      [aid, st.id, lessonId, exId, free, int(a.target_bpm, 20, 400), song ? null : int(a.start_bpm, 20, 400), int(a.minutes_per_day, 1, 240), isDate(a.due_date) ? a.due_date : null, 'offen', t]]);
   }
   for (const id of (Array.isArray(b.close_assignments) ? b.close_assignments : []).slice(0, 50)) {
     stmts.push(["UPDATE assignments SET status = 'erledigt', done_at = COALESCE(done_at, ?) WHERE id = ? AND student_id = ?", [t, String(id), st.id]]);
@@ -795,7 +795,9 @@ async function route(env, req, path, body) {
       // Hausaufgabe ohne Stunde aufgeben, z. B. einen Song Baustein mit Noten
       const st = await s.first('SELECT id FROM students WHERE id = ?', String(body.student_id || ''));
       if (!st) throw new HttpError(404, 'Schüler nicht gefunden.');
-      const part = body.part_id ? await s.first('SELECT p.id, p.song_id, p.title, p.notes, sg.title AS song_title, n.notation FROM song_parts p JOIN songs sg ON sg.id = p.song_id LEFT JOIN song_part_notation n ON n.part_id = p.id WHERE p.id = ?', String(body.part_id)) : null;
+      const part = body.part_id ? await s.first('SELECT p.id, p.song_id, p.title, p.notes, sg.title AS song_title, n.notation, COALESCE((SELECT bpm FROM song_meta WHERE song_id = sg.id), (SELECT MAX(bpm) FROM song_files WHERE song_id = sg.id)) AS song_bpm FROM song_parts p JOIN songs sg ON sg.id = p.song_id LEFT JOIN song_part_notation n ON n.part_id = p.id WHERE p.id = ?', String(body.part_id)) : null;
+      // Bausteine: Standard Tempobereich 45 bis Original Tempo des Songs
+      if (part && body.start_bpm == null && body.target_bpm == null) { body.start_bpm = 45; body.target_bpm = part.song_bpm || null; }
       if (body.part_id && !part) throw new HttpError(404, 'Baustein nicht gefunden.');
       const title = str(body.free_text, 300) || (part ? part.song_title + ': ' + part.title : null);
       if (!title) throw new HttpError(400, 'Aufgabe fehlt.');
