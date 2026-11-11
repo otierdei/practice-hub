@@ -172,6 +172,7 @@ input[type=range]{accent-color:var(--ring);width:100%;min-height:32px}
 .nt-cell[aria-pressed="true"]{background:var(--ring);border-color:var(--ring)}
 .nt-cell[data-dyn="a"]{color:var(--accent-ink);font-weight:800;font-size:.85rem;box-shadow:0 0 0 2px var(--ink)}
 .nt-cell[data-dyn="s"]{opacity:.55;font-size:.62rem;color:var(--accent-ink)}
+.nt-cell.nt-sel{outline:3px solid var(--ring2);outline-offset:1px;position:relative;z-index:1}
 .nt-cell[data-flam="1"]{color:var(--accent-ink);font-weight:800;font-size:.7rem;font-style:italic}
 .nt-cell.nt-stick{font-weight:800;font-size:.8rem;color:var(--accent-ink)}.nt-cell.nt-stick[aria-pressed="false"]{color:var(--muted)}
 .nt-lines{display:flex;flex-direction:column;gap:0}
@@ -205,8 +206,8 @@ details.card summary{cursor:pointer;font-family:var(--display);font-size:1.08rem
 </head>
 <body>
 <div id="app"><div class="wrap"><p class="muted">Lädt …</p></div></div>
-<script src="notation.js?v=67"></script>
-<script src="guitar.js?v=67"></script>
+<script src="notation.js?v=68"></script>
+<script src="guitar.js?v=68"></script>
 <script>
 'use strict';
 // ---------- Grundlagen ----------
@@ -1907,6 +1908,7 @@ document.addEventListener('click', (ev) => {
     const k = cell.dataset.k, i = Number(cell.dataset.i), mode = k === 'stick' || !DrumNotation.editMode ? '' : DrumNotation.editMode(id);
     if (mode) DrumNotation.setDyn(n, k, i, mode); else DrumNotation.toggle(n, k, i);
     if (k !== 'stick' && DrumNotation.has(n, k, i)) { try { DrumNotation.hit(k, 0, DrumNotation.dynOf(n, k, i)); } catch (e) {} }
+    if (DrumNotation.select && k !== 'stick') DrumNotation.select(id, DrumNotation.has(n, k, i) ? k : null, i);
     refreshEditor(id, false);
   } else if (actBtn.dataset.ntAct === 'play') {
     if (DrumNotation.isPlaying()) { DrumNotation.stop(); actBtn.textContent = 'Abspielen'; }
@@ -1978,7 +1980,11 @@ function refreshEditor(id, full, bar) {
   const box = document.getElementById(id); if (!box) return;
   const n = S.nt[id];
   if (full) { const tmp = document.createElement('div'); tmp.innerHTML = DrumNotation.editorHTML(n, id, bar == null ? ntBar(id) : bar); box.replaceWith(tmp.firstElementChild); return; }
-  box.querySelector('.nt-staff').innerHTML = DrumNotation.render(n, { cursor: true });
+  const sel = DrumNotation.selOf ? DrumNotation.selOf(id) : null;
+  box.querySelector('.nt-staff').innerHTML = DrumNotation.render(n, { cursor: true, sel });
+  // Betont, leise, Flam und Auswahl sofort im Raster zeigen, nicht erst nach dem nächsten Taktwechsel
+  if (DrumNotation.cellText) box.querySelectorAll('.nt-cell:not(.nt-stick)').forEach((c) => { const k = c.dataset.k, i = Number(c.dataset.i);
+    c.dataset.dyn = DrumNotation.dynOf(n, k, i); c.dataset.flam = DrumNotation.flamOf(n, k, i) ? '1' : ''; c.textContent = DrumNotation.cellText(n, k, i); c.classList.toggle('nt-sel', !!sel && sel.k === k && sel.i === i); });
   box.querySelectorAll('.nt-cell').forEach((c) => { c.setAttribute('aria-pressed', String(DrumNotation.has(n, c.dataset.k, Number(c.dataset.i)))); if (c.dataset.k === 'stick') c.textContent = (n.stick || {})[c.dataset.i] || ''; });
   if (DrumNotation.isPlaying()) DrumNotation.play(n, n.bpm, DrumNotation.cursorFor(box.querySelector('.nt-staff')));
 }

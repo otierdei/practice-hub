@@ -136,6 +136,8 @@
         for (const nt of notes) {
           for (const h of nt.hits) {
             const d = dynOf(n, h.k, nt.i);
+            // Zuletzt angetippter Schlag im Editor: farbig hinterlegt
+            if (opt.sel && opt.sel.k === h.k && opt.sel.i === nt.i) out.push(`<circle class="nt-selmark" cx="${xOf(nt.i)}" cy="${yOf(h.p)}" r="9.5" fill="var(--ring2, #8a6236)" opacity=".45"/>`);
             out.push(head(d === 's' && !h.ghost ? { ...h, ghost: true } : h, xOf(nt.i), ink));
             if (flamOf(n, h.k, nt.i)) out.push(grace(h, xOf(nt.i) - (d === 's' ? 19 : 13), ink, down));
           }
@@ -347,6 +349,8 @@
   const usedKeys = (n) => ROWS.filter((r) => n.tracks[r.k].length).map((r) => r.k);
 
   // ---------- Editor: Takt wählen, Raster für einen Takt ----------
+  const EDSEL = {}; // pro Editor: zuletzt angetippter Schlag { k, i }
+  const cellText = (n, k, i) => (flamOf(n, k, i) ? 'fl' : '') + (dynOf(n, k, i) === 'a' ? '>' : dynOf(n, k, i) === 's' ? '( )' : '');
   const EDMODE = {}; // pro Editor: '' Note an/aus, 'a' betonen, 's' leise
   function editorHTML(n, id, curBar = 0) {
     const pb = perBar(n.sig), gs = groupSize(n.sig), from = curBar * pb, rep = n.repeat.includes(curBar);
@@ -357,7 +361,7 @@
     }).join('')}</tr>`;
     const rows = stickRow + ROWS.map((r) => `<tr><th scope="row">${r.n}</th>${Array.from({ length: pb }, (_, j) => {
       const i = from + j;
-      return `<td class="${Math.floor(j / gs) % 2 ? 'nt-alt' : ''}"><button type="button" class="nt-cell" data-nt="${id}" data-k="${r.k}" data-i="${i}" aria-pressed="${has(n, r.k, i)}" data-dyn="${dynOf(n, r.k, i)}" data-flam="${flamOf(n, r.k, i) ? 1 : ''}" aria-label="${r.n} auf ${esc(countLabel(n.sig, j))}, Takt ${curBar + 1}${dynOf(n, r.k, i) === 'a' ? ', betont' : dynOf(n, r.k, i) === 's' ? ', leise' : ''}${flamOf(n, r.k, i) ? ', Flam' : ''}" ${rep ? 'disabled' : ''}>${flamOf(n, r.k, i) ? 'fl' : ''}${dynOf(n, r.k, i) === 'a' ? '&gt;' : dynOf(n, r.k, i) === 's' ? '( )' : ''}</button></td>`;
+      return `<td class="${Math.floor(j / gs) % 2 ? 'nt-alt' : ''}"><button type="button" class="nt-cell${EDSEL[id] && EDSEL[id].k === r.k && EDSEL[id].i === i ? ' nt-sel' : ''}" data-nt="${id}" data-k="${r.k}" data-i="${i}" aria-pressed="${has(n, r.k, i)}" data-dyn="${dynOf(n, r.k, i)}" data-flam="${flamOf(n, r.k, i) ? 1 : ''}" aria-label="${r.n} auf ${esc(countLabel(n.sig, j))}, Takt ${curBar + 1}${dynOf(n, r.k, i) === 'a' ? ', betont' : dynOf(n, r.k, i) === 's' ? ', leise' : ''}${flamOf(n, r.k, i) ? ', Flam' : ''}" ${rep ? 'disabled' : ''}>${flamOf(n, r.k, i) ? 'fl' : ''}${dynOf(n, r.k, i) === 'a' ? '&gt;' : dynOf(n, r.k, i) === 's' ? '( )' : ''}</button></td>`;
     }).join('')}</tr>`).join('');
     const tabs = Array.from({ length: n.bars }, (_, b) => `<button type="button" class="nt-bartab" data-nt-bar="${b}" data-nt-id="${id}" aria-pressed="${b === curBar}">${b + 1}${n.repeat.includes(b) ? ' %' : ''}${n.marks[b] ? ' · ' + esc(n.marks[b]) : ''}</button>`).join('');
     return `<div class="nt-editor" id="${id}" data-bar="${curBar}">
@@ -366,7 +370,7 @@
         <div class="field" style="flex:1;min-width:90px"><label for="${id}-bars">Takte</label><select id="${id}-bars" data-nt-ctl="bars">${Array.from({ length: MAX_BARS }, (_, i) => i + 1).map((b) => `<option ${n.bars === b ? 'selected' : ''}>${b}</option>`).join('')}</select></div>
         <div class="field" style="flex:1;min-width:90px"><label for="${id}-bpm">Tempo</label><input id="${id}-bpm" data-nt-ctl="bpm" inputmode="numeric" value="${n.bpm}"></div>
       </div>
-      <div class="nt-staff">${render(n, { cursor: true })}</div>
+      <div class="nt-staff">${render(n, { cursor: true, sel: EDSEL[id] })}</div>
       <div class="row"><button type="button" class="btn small primary" data-nt-act="play" data-nt-id="${id}">Abspielen</button><button type="button" class="btn small" data-nt-act="clear" data-nt-id="${id}">Takt leeren</button></div>
       <div class="col" style="gap:6px"><span class="small muted">Sticking: Feld antippen wechselt R, L, K (Fuß), leer. Oder automatisch für alle Handschläge:</span>
         <div class="row" style="gap:6px"><button type="button" class="chip" data-nt-act="stick" data-p="RL" data-nt-id="${id}">R L abwechselnd</button><button type="button" class="chip" data-nt-act="stick" data-p="RRLL" data-nt-id="${id}">R R L L</button><button type="button" class="chip" data-nt-act="stick" data-p="R" data-nt-id="${id}">Alles R</button><button type="button" class="chip" data-nt-act="stick" data-p="" data-nt-id="${id}">Sticking löschen</button></div></div>
@@ -382,5 +386,5 @@
 
   // Samples schon beim ersten Tippen irgendwo in der App vorladen
   if (typeof document !== 'undefined') document.addEventListener('pointerdown', () => { try { audio(); loadSamples(); } catch (e) { /* ohne Audio */ } }, { once: true, capture: true });
-  window.DrumNotation = { SIGS, ROWS, MAX_BARS, empty, parse, render, toggle, has, play, stop, setTempo, setMute, setTrainer, hit, editorHTML, cursorFor, total, perBar, setBars, usedKeys, isPlaying: () => P.playing, setDyn, dynOf, flamOf, editMode: (id, m) => { if (m !== undefined) EDMODE[id] = m; return EDMODE[id] || ''; }, resetModes: () => { for (const k of Object.keys(EDMODE)) delete EDMODE[k]; }, samplesReady: () => samplesReady, autoStick, audio, click, setClick, loadSamples: () => { audio(); return loadSamples(); } };
+  window.DrumNotation = { SIGS, ROWS, MAX_BARS, empty, parse, render, toggle, has, play, stop, setTempo, setMute, setTrainer, hit, editorHTML, cursorFor, total, perBar, setBars, usedKeys, isPlaying: () => P.playing, setDyn, dynOf, flamOf, cellText, select: (id, k, i) => { if (k == null) delete EDSEL[id]; else EDSEL[id] = { k, i }; }, selOf: (id) => EDSEL[id] || null, editMode: (id, m) => { if (m !== undefined) EDMODE[id] = m; return EDMODE[id] || ''; }, resetModes: () => { for (const k of Object.keys(EDMODE)) delete EDMODE[k]; for (const k of Object.keys(EDSEL)) delete EDSEL[k]; }, samplesReady: () => samplesReady, autoStick, audio, click, setClick, loadSamples: () => { audio(); return loadSamples(); } };
 })();
