@@ -711,3 +711,10 @@ test('Unterrichtssongs: Reiter, Kategorien, Vorschläge aus Notizen ohne Setlist
   await w.call('/api/t/song/teaching', { song_id: lib, state: 'off' }, w.t);
   assert.equal((await w.call('/api/songs', {}, w.t)).data.songs.find((x) => x.id === lib).kind, 'worship', 'Aus Unterricht entfernen behält Kategorie');
 });
+
+test('Beat Dynamik: betont und leise werden gespeichert, Unsinn verworfen', async () => {
+  const w = await world();
+  const id = (await w.call('/api/t/exercise/save', { title: 'Akzent Beat', notation: { sig: '4/4', bars: 1, tracks: { hh: [0, 2, 4], sn: [4] }, dyn: { 'hh:0': 'a', 'hh:2': 's', 'sn:4': 'a', 'hh:6': 'a', 'bd:0': 'a', 'cr:0': 'x' } } }, w.t)).data.id;
+  const e = (await w.call('/api/t/exercises', {}, w.t)).data.exercises.find((x) => x.id === id);
+  assert.deepEqual(JSON.parse(e.notation).dyn, { 'hh:0': 'a', 'hh:2': 's', 'sn:4': 'a' });
+});

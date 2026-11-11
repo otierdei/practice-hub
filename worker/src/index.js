@@ -400,7 +400,12 @@ export function cleanNotation(n) {
   for (const [k, v] of Object.entries(o.stick && typeof o.stick === 'object' ? o.stick : {})) {
     const i = Number(k); if (Number.isInteger(i) && i >= 0 && i < steps && (v === 'R' || v === 'L' || v === 'K')) stick[i] = v;
   }
-  return JSON.stringify({ v: 2, sig, bars, bpm: int(o.bpm, 30, 300) || 80, tracks, stick, marks, repeat });
+  const dyn = {};
+  for (const [key, v] of Object.entries(o.dyn && typeof o.dyn === 'object' ? o.dyn : {})) {
+    const [k, i] = String(key).split(':'); const n = Number(i);
+    if ((v === 'a' || v === 's') && tracks[k] && tracks[k].includes(n)) dyn[k + ':' + n] = v;
+  }
+  return JSON.stringify({ v: 2, sig, bars, bpm: int(o.bpm, 30, 300) || 80, tracks, stick, dyn, marks, repeat });
 }
 // Gitarre: Akkorde, Schlagmuster, Tabs, Capo
 function cleanGuitar(o) {

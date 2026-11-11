@@ -170,6 +170,8 @@ input[type=range]{accent-color:var(--ring);width:100%;min-height:32px}
 .nt-grid .nt-bar{border-left:2px solid var(--line)}
 .nt-cell{width:30px;height:30px;border-radius:50%;border:1.5px solid var(--line);background:transparent;padding:0;display:block}
 .nt-cell[aria-pressed="true"]{background:var(--ring);border-color:var(--ring)}
+.nt-cell[data-dyn="a"]{color:var(--accent-ink);font-weight:800;font-size:.85rem;box-shadow:0 0 0 2px var(--ink)}
+.nt-cell[data-dyn="s"]{opacity:.55;font-size:.62rem;color:var(--accent-ink)}
 .nt-cell.nt-stick{font-weight:800;font-size:.8rem;color:var(--accent-ink)}.nt-cell.nt-stick[aria-pressed="false"]{color:var(--muted)}
 .nt-lines{display:flex;flex-direction:column;gap:0}
 .nt-bartabs{display:flex;gap:6px;flex-wrap:wrap}
@@ -1832,12 +1834,15 @@ document.addEventListener('click', (ev) => {
   const id = (cell && cell.dataset.nt) || (actBtn && actBtn.dataset.ntId) || barBtn.dataset.ntId; const n = S.nt && S.nt[id]; if (!n) return;
   if (barBtn) { refreshEditor(id, true, Number(barBtn.dataset.ntBar)); return; }
   if (cell) {
-    DrumNotation.toggle(n, cell.dataset.k, Number(cell.dataset.i));
-    if (cell.dataset.k !== 'stick' && DrumNotation.has(n, cell.dataset.k, Number(cell.dataset.i))) { try { DrumNotation.hit(cell.dataset.k, 0); } catch (e) {} }
+    const k = cell.dataset.k, i = Number(cell.dataset.i), mode = k === 'stick' ? '' : DrumNotation.editMode(id);
+    if (mode) DrumNotation.setDyn(n, k, i, mode); else DrumNotation.toggle(n, k, i);
+    if (k !== 'stick' && DrumNotation.has(n, k, i)) { try { DrumNotation.hit(k, 0, DrumNotation.dynOf(n, k, i)); } catch (e) {} }
     refreshEditor(id, false);
   } else if (actBtn.dataset.ntAct === 'play') {
     if (DrumNotation.isPlaying()) { DrumNotation.stop(); actBtn.textContent = 'Abspielen'; }
     else { playBeat(n, document.querySelector('#' + id + ' .nt-staff'), n.bpm); actBtn.textContent = 'Stopp'; }
+  } else if (actBtn.dataset.ntAct === 'mode') {
+    DrumNotation.editMode(id, actBtn.dataset.m || ''); refreshEditor(id, true, ntBar(id));
   } else if (actBtn.dataset.ntAct === 'stick') {
     DrumNotation.autoStick(n, actBtn.dataset.p || ''); refreshEditor(id, true, ntBar(id));
     } else if (actBtn.dataset.ntAct === 'clear') {
