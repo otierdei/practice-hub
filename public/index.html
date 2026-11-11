@@ -202,8 +202,8 @@ details.card summary{cursor:pointer;font-family:var(--display);font-size:1.08rem
 </head>
 <body>
 <div id="app"><div class="wrap"><p class="muted">Lädt …</p></div></div>
-<script src="notation.js?v=56"></script>
-<script src="guitar.js?v=56"></script>
+<script src="notation.js?v=57"></script>
+<script src="guitar.js?v=57"></script>
 <script>
 'use strict';
 // ---------- Grundlagen ----------
@@ -622,6 +622,13 @@ async function openLesson(id) {
 function assignBadges(a) {
   const weeks = Math.floor((Date.now() - new Date(a.created_at).getTime()) / (7 * 864e5));
   return [a.student_done_at ? `<span class="pill ok">Schüler ✓ ${esc(fmtDate(a.student_done_at))}</span>` : '', weeks >= 1 ? `<span class="pill">${weeks === 1 ? 'seit 1 Woche' : 'seit ' + weeks + ' Wochen'} offen</span>` : ''].join('');
+}
+// Hausaufgabe in der Stunde sofort speichern: gleich sortierbar, der Schüler sieht sie sofort
+async function assignNow(item) {
+  const r = await api('/api/t/assignments/new', { student_id: S.file.student.id, items: [item] });
+  if (!r.ids.length) { toast('Du hast die Hausaufgabe schon aufgegeben'); return false; }
+  if (S.lesson) { S.lesson.attach = (S.lesson.attach || []).concat(r.ids); saveDraft(); }
+  const f = await api('/api/t/student', { id: S.file.student.id }); f.course = S.file.course; S.file = f; return true;
 }
 function isDuplicateAssignment(f, draft, exId, free) {
   const ft = (free || '').trim().toLowerCase();
@@ -1601,7 +1608,7 @@ document.addEventListener('click', async (ev) => {
       case 'finishLesson': {
         el.disabled = true;
         const L = S.lesson;
-        const res = await api('/api/t/lesson/finish', { student_id: L.student_id, date: localDate(), minutes: S.file.student.lesson_minutes, notes_shared: L.notes_shared, notes_teacher: L.notes_teacher, new_assignments: L.new_assignments, close_assignments: L.close_assignments, goals_reached: L.goals_reached, new_goals: L.new_goals });
+        const res = await api('/api/t/lesson/finish', { student_id: L.student_id, date: localDate(), minutes: S.file.student.lesson_minutes, notes_shared: L.notes_shared, notes_teacher: L.notes_teacher, new_assignments: L.new_assignments, attach_assignments: L.attach || [], close_assignments: L.close_assignments, goals_reached: L.goals_reached, new_goals: L.new_goals });
         store.del('draft_' + L.student_id); S.lesson = null; closeOverlay();
         toast((res.merged ? 'Stunde von heute ergänzt' : 'Stunde gespeichert') + (res.skipped && res.skipped.length ? '. Du hast die Hausaufgabe schon aufgegeben: ' + res.skipped.join(', ') : '')); load(); break;
       }
@@ -1638,8 +1645,7 @@ document.addEventListener('click', async (ev) => {
       case 'sugEx': {
         const e = S.exercises.find((x) => x.id === id); const n = DrumNotation.parse(e.notation);
         if (isDuplicateAssignment(S.file, S.lesson.new_assignments, e.id, null)) { toast('Du hast die Hausaufgabe schon aufgegeben'); break; }
-        S.lesson.new_assignments.push({ exercise_id: e.id, free_text: null, label: e.title, start_bpm: defTempo(e).start, target_bpm: defTempo(e).target, minutes_per_day: 10 });
-        saveDraft(); openOverlay(lessonView); toast(e.title + ' aufgegeben'); break;
+        if (await assignNow({ exercise_id: e.id, free_text: null, start_bpm: defTempo(e).start, target_bpm: defTempo(e).target, minutes_per_day: 10 })) { openOverlay(lessonView); toast(e.title + ' aufgegeben'); } break;
       }
       case 'sugLesson': {
         await api('/api/t/course/assign', { student_id: S.file.student.id, lesson_id: id, status: 'offen' });
@@ -1648,8 +1654,7 @@ document.addEventListener('click', async (ev) => {
       case 'warmAdd': {
         const e = S.exercises.find((x) => x.id === id); const n = DrumNotation.parse(e.notation);
         if (isDuplicateAssignment(S.file, S.lesson.new_assignments, e.id, null)) { toast('Du hast die Hausaufgabe schon aufgegeben'); break; }
-        S.lesson.new_assignments.push({ exercise_id: e.id, free_text: null, label: e.title, start_bpm: defTempo(e).start, target_bpm: defTempo(e).target, minutes_per_day: 5 });
-        saveDraft(); openOverlay(lessonView); toast(e.title + ' aufgegeben'); break;
+        if (await assignNow({ exercise_id: e.id, free_text: null, start_bpm: defTempo(e).start, target_bpm: defTempo(e).target, minutes_per_day: 5 })) { openOverlay(lessonView); toast(e.title + ' aufgegeben'); } break;
       }
       case 'cancel': case 'cancelUndo': {
         await api('/api/t/cancel', { student_id: id, date: localDate(), kind: el.dataset.k, undo: act === 'cancelUndo' });
@@ -1870,23 +1875,23 @@ document.addEventListener('submit', async (ev) => {
         const sg = S.songs && S.songs.songs.find((x) => x.title.toLowerCase() === songTitle.toLowerCase());
         if (!sg) { toast('Song nicht gefunden. Unter Songs > Song anlegen'); return; }
         const ver = versionValue('a') || null;
-        if (S.file.assignments.some((a) => a.status === 'offen' && a.song_id === sg.id) || S.lesson.new_assignments.some((a) => a.song_id === sg.id)) { toast('Du hast die Hausaufgabe schon aufgegeben'); return; }
-        S.lesson.new_assignments.push({ song_id: sg.id, version: ver, label: sg.title + (ver ? ' (' + ver + ')' : ''), start_bpm: null, target_bpm: sg.bpm || null, minutes_per_day: Number($('#a_min').value) || 10 });
-        saveDraft(); render(); return;
+        const vk = (v) => String(v || '').trim().toLowerCase();
+        if (S.file.assignments.some((a) => a.status === 'offen' && a.song_id === sg.id && !a.part_id && vk(a.song_version) === vk(ver)) || S.lesson.new_assignments.some((a) => a.song_id === sg.id && vk(a.version) === vk(ver))) { toast('Du hast diese Version schon aufgegeben'); return; }
+        if (await assignNow({ song_id: sg.id, version: ver, start_bpm: null, target_bpm: sg.bpm || null, minutes_per_day: Number($('#a_min').value) || 10 })) { render(); toast(sg.title + (ver ? ' (' + ver + ')' : '') + ' aufgegeben'); }
+        return;
       }
       const exId = $('#a_ex').value; let free = $('#a_free').value.trim();
       const beat = S.nt && S.nt.lb && !exId ? S.nt.lb : null;
       if (beat && !Object.values(beat.tracks).some((t) => t.length)) { toast('Der Beat ist noch leer'); return; }
       if (beat) {
         if (!free) free = 'Beat vom ' + new Date().toLocaleDateString('de-DE');
-        S.lesson.new_assignments.push({ exercise_id: null, free_text: free, notation: beat, save_library: !!($('#a_lib') && $('#a_lib').checked), label: free + ' (Noten)', start_bpm: Number($('#a_from').value) || beat.bpm, target_bpm: Number($('#a_bpm').value) || null, minutes_per_day: Number($('#a_min').value) || 10 });
-        delete S.nt.lb; delete S.lesson.beat; saveDraft(); render(); return;
+        if (await assignNow({ exercise_id: null, free_text: free, notation: beat, save_library: !!($('#a_lib') && $('#a_lib').checked), start_bpm: Number($('#a_from').value) || beat.bpm, target_bpm: Number($('#a_bpm').value) || null, minutes_per_day: Number($('#a_min').value) || 10 })) { delete S.nt.lb; delete S.lesson.beat; saveDraft(); render(); toast(free + ' aufgegeben'); }
+        return;
       }
       if (!exId && !free) { toast('Übung wählen oder Aufgabe beschreiben'); return; }
       if (isDuplicateAssignment(S.file, S.lesson.new_assignments, exId || null, exId ? null : free)) { toast('Du hast die Hausaufgabe schon aufgegeben'); return; }
       const ex = S.exercises.find((e) => e.id === exId);
-      S.lesson.new_assignments.push({ exercise_id: exId || null, free_text: exId ? null : free, url: exId ? null : ($('#a_url').value.trim() || null), label: ex ? ex.title : free, start_bpm: Number($('#a_from').value) || null, target_bpm: Number($('#a_bpm').value) || (ex && ex.target_bpm) || null, minutes_per_day: Number($('#a_min').value) || 10 });
-      saveDraft(); render();
+      if (await assignNow({ exercise_id: exId || null, free_text: exId ? null : free, url: exId ? null : ($('#a_url').value.trim() || null), start_bpm: Number($('#a_from').value) || null, target_bpm: Number($('#a_bpm').value) || (ex && ex.target_bpm) || null, minutes_per_day: Number($('#a_min').value) || 10 })) { render(); toast((ex ? ex.title : free) + ' aufgegeben'); }
     } else if (fid === 'itemForm') {
       const kind = S.itemKind || 'video'; let title = $('#it_title').value.trim();
       const exId = kind === 'exercise' && $('#it_ex') ? $('#it_ex').value : null;

@@ -46,21 +46,24 @@ let n = 0; const ok = (m) => console.log('ok ' + (++n) + ' ' + m);
   await t.click('section[aria-label="Gerade dran"] [data-act=lesson]');
   await t.getByText('Hausaufgabe hinzufügen').waitFor(); if (await t.locator('#warmBox').count()) { assert.equal(await t.locator('#warmBox').evaluate((d) => d.open), false); ok('Aufwärmen zugeklappt'); } assert.deepEqual(await t.locator('#a_ver option').allTextContents(), ['Original', 'Easy', 'Reel', 'Oti Playthrough', 'Fill', 'Eigene Bezeichnung …']); await t.selectOption('#a_ver', '__eigen'); assert.ok(await t.isVisible('#a_custom')); await t.selectOption('#a_ver', 'Original'); ok('Hausaufgabe: Versionen wie bei Songs'); { const sg = await t.evaluate(async () => { const r = await api('/api/t/song/create', { title: 'Tempo Song E2E' }); await api('/api/t/song/bpm', { song_id: r.id, bpm: 74 }); S.songs = await api('/api/songs'); render(); return r.id; });
   await t.fill('#a_song', 'Tempo Song E2E'); assert.equal(await t.inputValue('#a_bpm'), '74'); assert.equal(await t.isDisabled('#a_from'), true);
-  await t.click('#assignForm button[type=submit]'); assert.match(await t.textContent('[data-sort-id^="draft:"]:has-text("Tempo Song E2E")'), /74 BPM \(Original Tempo\)/);
-  await t.click('[data-sort-id^="draft:"]:has-text("Tempo Song E2E") [data-act=rmAssign]'); await t.fill('#a_song', ''); assert.equal(await t.inputValue('#a_from'), '45'); ok('Song Hausaufgabe: nur Original Tempo, kein Bereich'); } if (await t.locator('#sugBox').count()) { assert.equal(await t.locator('#sugBox').evaluate((d) => d.open), false); ok('Vorschläge zugeklappt'); } assert.match(await t.textContent('#lessonPractice'), /Geübt seit .*: \d+ min an \d von 7 Tagen/); ok('Übungszeit oben in der Stunde');
+  await t.click('#assignForm button[type=submit]'); await t.getByText('Tempo Song E2E (Original) aufgegeben').waitFor(); assert.match(await t.textContent('[data-sort="asg"] > [data-sort-id]:not([data-sort-id^="draft:"]):has-text("Tempo Song E2E")'), /Ziel 74/);
+  await t.fill('#a_song', 'Tempo Song E2E'); await t.selectOption('#a_ver', 'Reel'); await t.click('#assignForm button[type=submit]'); await t.getByText('Tempo Song E2E (Reel) aufgegeben').waitFor();
+  await t.fill('#a_song', 'Tempo Song E2E'); await t.selectOption('#a_ver', 'Reel'); await t.click('#assignForm button[type=submit]'); await t.getByText('Du hast diese Version schon aufgegeben').waitFor();
+  assert.equal(await t.locator('[data-sort="asg"] > [data-sort-id]:has-text("Tempo Song E2E")').count(), 2); ok('Song in zwei Versionen aufgeben (Original und Reel), gleiche Version blockiert');
+  await t.evaluate(async () => { for (const a of S.file.assignments.filter((x) => /Tempo Song E2E/.test(x.title || x.free_text))) await api('/api/t/assignment/delete', { id: a.id }); const f = await api('/api/t/student', { id: S.file.student.id }); f.course = S.file.course; S.file = f; openOverlay(lessonView); });
+  await t.fill('#a_song', ''); assert.equal(await t.inputValue('#a_from'), '45'); ok('Song Hausaufgabe: nur Original Tempo, kein Bereich'); } if (await t.locator('#sugBox').count()) { assert.equal(await t.locator('#sugBox').evaluate((d) => d.open), false); ok('Vorschläge zugeklappt'); } assert.match(await t.textContent('#lessonPractice'), /Geübt seit .*: \d+ min an \d von 7 Tagen/); ok('Übungszeit oben in der Stunde');
   assert.equal(await t.inputValue('#a_from'), '45'); assert.equal(await t.inputValue('#a_bpm'), '100');
   await t.selectOption('#a_ex', { label: 'Grooves: Paradiddle Groove' });
   assert.equal(await t.inputValue('#a_from'), '45'); assert.equal(await t.inputValue('#a_bpm'), '96'); ok('Tempo Standard 45 bis 100, eigenes Ziel der Übung gilt');
-  await t.fill('#a_min', '15'); await t.click('#assignForm button[type=submit]');
+  await t.fill('#a_min', '15'); await t.click('#assignForm button[type=submit]'); await t.getByText('Paradiddle Groove aufgegeben').waitFor();
   await t.fill('#a_free', 'Heilige Braut, Strophe mitspielen'); await t.click('#assignForm button[type=submit]');
-  { const items = t.locator('[data-sort="asg"] > [data-sort-id^="draft:"]'); const h = await items.nth(0).locator('[data-drag]').boundingBox(), l = await items.nth(1).boundingBox();
-    await t.mouse.move(h.x + 10, h.y + h.height / 2); await t.mouse.down(); await t.mouse.move(h.x + 10, l.y + l.height - 3, { steps: 8 }); await t.mouse.up(); await t.waitForTimeout(200);
-    assert.deepEqual(await t.evaluate(() => S.lesson.new_assignments.map((a) => a.label.slice(0, 7))), ['Heilige', 'Paradid']);
-    const h2 = await items.nth(0).locator('[data-drag]').boundingBox(), l2 = await items.nth(1).boundingBox();
-    await t.mouse.move(h2.x + 10, h2.y + h2.height / 2); await t.mouse.down(); await t.mouse.move(h2.x + 10, l2.y + l2.height - 3, { steps: 8 }); await t.mouse.up(); await t.waitForTimeout(200);
-    ok('Neue Hausaufgaben in der Stunde per Ziehen sortieren'); }
-  await t.click('[data-act=newAsgOpen][data-i="1"]'); await t.fill('#na_from', '50'); await t.fill('#na_to', '80'); await t.fill('#na_text', 'Heilige Braut, Strophe und Refrain'); await t.click('[data-act=newAsgSave]');
-  await t.getByText('Heilige Braut, Strophe und Refrain').waitFor(); assert.match(await t.textContent('.item:has-text("Strophe und Refrain")'), /50 bis 80 BPM/); ok('Neue Hausaufgabe antippen und vor dem Speichern ändern');
+  await t.getByText('Heilige Braut, Strophe mitspielen aufgegeben').waitFor();
+  assert.equal(await t.locator('[data-sort="asg"] > [data-sort-id^="draft:"]').count(), 0, 'keine Entwürfe mehr, sofort gespeichert');
+  { const items = t.locator('[data-sort="asg"] > [data-sort-id]'); const n = await items.count(); const h = await items.nth(n - 1).locator('[data-drag]').boundingBox(), first = await items.nth(0).boundingBox();
+    await t.mouse.move(h.x + 10, h.y + h.height / 2); await t.mouse.down(); await t.mouse.move(h.x + 10, first.y + 3, { steps: 10 }); await t.mouse.up(); await t.getByText('Reihenfolge gespeichert').waitFor();
+    const f = await t.evaluate(async () => (await api('/api/t/student', { id: S.file.student.id })).assignments.filter((a) => a.status === 'offen').map((a) => (a.title || a.free_text).slice(0, 7)));
+    assert.equal(f[0], 'Heilige', 'neue Hausaufgabe ganz nach oben gezogen, ohne Stunde zu beenden');
+    ok('Neue Hausaufgaben sofort gespeichert und zwischen alten sortierbar'); }
   await t.fill('#g_title', 'Groove sauber auf 96'); await t.click('#goalForm button[type=submit]');
   await t.fill('#l_shared', 'Hi Hat locker lassen.'); await t.fill('#l_priv', 'Wirkte müde');
   // Entwurf überlebt Neuladen

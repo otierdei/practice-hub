@@ -392,8 +392,8 @@ test('Songs: Unterricht Song, Links mit Versionen, Song als Hausaufgabe, gespiel
   assert.equal((await w.call('/api/t/song/create', { title: 'Yellow' }, w.ta)).status, 403);
   const add = await w.call('/api/t/song/links/add', { song_id: sid, lines: 'Easy | https://youtu.be/aaaaaaaaaaa\nOriginal: youtu.be/bbbbbbbbbbb\nhttps://youtu.be/ccccccccccc\nkein link' }, w.t);
   assert.equal(add.data.added, 3);
-  const r = await w.call('/api/t/lesson/finish', { student_id: w.a, date: '2026-10-03', new_assignments: [{ song_id: sid, version: 'Easy' }, { song_id: sid, version: 'Original' }] }, w.t);
-  assert.deepEqual(r.data.skipped, ['Yellow'], 'Song nur einmal offen');
+  const r = await w.call('/api/t/lesson/finish', { student_id: w.a, date: '2026-10-03', new_assignments: [{ song_id: sid, version: 'Easy' }, { song_id: sid, version: 'Easy' }] }, w.t);
+  assert.deepEqual(r.data.skipped, ['Yellow (Easy)'], 'gleiche Version nur einmal offen');
   const a = (await w.call('/api/home', {}, w.ta)).data.assignments.find((x) => x.song_id === sid);
   assert.equal(a.song_version, 'Easy'); assert.equal(a.free_text, 'Yellow (Easy)');
   const d = (await w.call('/api/song', { id: sid }, w.ta)).data;
@@ -652,4 +652,20 @@ test('Unterrichtsmodus: Üben während der Stunde zählt nicht als Übungszeit',
   assert.equal((await w.call('/api/lesson/live', {}, w.ta)).data.until, null, 'Stunde beenden beendet den Modus');
   const r3 = (await w.call('/api/session/add', { client_id: 'u3', started_at: iso(5000000), ended_at: iso(5600000), local_date: '2026-11-11', seconds: 600 }, w.ta)).data;
   assert.ok(r3.id && !r3.in_lesson, 'nach der Stunde zählt wieder');
+});
+
+test('Hausaufgaben in der Stunde sofort speichern, Song in zwei Versionen, Zuordnung zur Stunde', async () => {
+  const w = await world();
+  const sg = (await w.call('/api/t/song/create', { title: 'Versionen Song' }, w.t)).data.id;
+  const r = (await w.call('/api/t/assignments/new', { student_id: w.a, items: [{ song_id: sg, version: 'Original' }] }, w.t)).data;
+  assert.equal(r.ids.length, 1);
+  assert.equal((await w.call('/api/t/assignments/new', { student_id: w.a, items: [{ song_id: sg, version: 'Reel' }] }, w.t)).data.ids.length, 1, 'andere Version erlaubt');
+  const dup = (await w.call('/api/t/assignments/new', { student_id: w.a, items: [{ song_id: sg, version: 'reel' }] }, w.t)).data;
+  assert.equal(dup.ids.length, 0); assert.equal(dup.skipped.length, 1);
+  assert.equal((await w.call('/api/t/assignments/new', { student_id: w.a, items: [{ free_text: 'X' }] }, w.ta)).status, 403);
+  const home = (await w.call('/api/home', {}, w.ta)).data;
+  assert.equal(home.assignments.filter((a) => a.song_id === sg).length, 2, 'Schüler sieht sie sofort');
+  const fin = (await w.call('/api/t/lesson/finish', { student_id: w.a, date: '2026-11-11', attach_assignments: r.ids }, w.t)).data;
+  const f = (await w.call('/api/t/student', { id: w.a }, w.t)).data;
+  assert.equal(f.assignments.find((a) => a.id === r.ids[0]).lesson_id, fin.id);
 });

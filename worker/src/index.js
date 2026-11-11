@@ -455,35 +455,26 @@ async function orderAppend(s, studentId, newIds) {
   return rows.map((x) => x.id).filter((x) => !newIds.includes(x)).concat(newIds)
     .map((x, i) => ['INSERT INTO assignment_order (assignment_id, sort) VALUES (?, ?) ON CONFLICT(assignment_id) DO UPDATE SET sort = excluded.sort', [x, i]]);
 }
-async function finishLesson(s, who, b) {
-  const st = await s.first('SELECT id, first_name FROM students WHERE id = ?', b.student_id);
-  if (!st) throw new HttpError(404, 'Schüler nicht gefunden.');
-  const date = isDate(b.date) ? b.date : new Date().toISOString().slice(0, 10);
-  const t = now();
-  // Gibt es am selben Tag schon eine Stunde, wird sie ergänzt statt doppelt angelegt
-  const same = await s.first('SELECT id, minutes, notes_teacher, notes_shared FROM lessons WHERE student_id = ? AND date = ? ORDER BY created_at DESC LIMIT 1', st.id, date);
-  const lessonId = same ? same.id : uid();
-  const stmts = [same
-    ? ['UPDATE lessons SET minutes = ?, notes_teacher = ?, notes_shared = ? WHERE id = ?', [Math.max(same.minutes || 0, int(b.minutes, 5, 240) || 0) || null, mergeNotes(same.notes_teacher, str(b.notes_teacher, 3000)), mergeNotes(same.notes_shared, str(b.notes_shared, 3000)), same.id]]
-    : ['INSERT INTO lessons (id, student_id, date, minutes, notes_teacher, notes_shared, created_at) VALUES (?, ?, ?, ?, ?, ?, ?)',
-      [lessonId, st.id, date, int(b.minutes, 5, 240), str(b.notes_teacher, 3000), str(b.notes_shared, 3000), t]]];
+// Neue Hausaufgaben anlegen (in der Stunde sofort oder beim Beenden). Schreibt in stmts, liefert neue IDs und übersprungene Titel.
+async function newAssignmentStatements(s, st, lessonId, items, closing, t, stmts) {
   const skipped = [];
-  const closing = new Set((Array.isArray(b.close_assignments) ? b.close_assignments : []).map(String));
   // Kleinschreibung in JS, weil SQLite LOWER keine Umlaute kennt
-  const openRows = (await s.all("SELECT a.id, a.exercise_id, a.free_text, x.song_id FROM assignments a LEFT JOIN assignment_songs x ON x.assignment_id = a.id WHERE a.student_id = ? AND a.status = 'offen'", st.id)).map((r) => ({ ...r, ft: (r.free_text || '').trim().toLowerCase() }));
-  const openSongs = new Set(openRows.filter((r) => !closing.has(r.id) && r.song_id).map((r) => r.song_id));
+  const openRows = (await s.all("SELECT a.id, a.exercise_id, a.free_text, x.song_id, x.version, ap.part_id FROM assignments a LEFT JOIN assignment_songs x ON x.assignment_id = a.id LEFT JOIN assignment_parts ap ON ap.assignment_id = a.id WHERE a.student_id = ? AND a.status = 'offen'", st.id)).map((r) => ({ ...r, ft: (r.free_text || '').trim().toLowerCase() }));
+  // Song Hausaufgaben: gleicher Song in einer anderen Version (Original, Reel, …) ist erlaubt. Bausteine zählen nicht als Song.
+  const songKey = (id, v) => id + '|' + String(v || '').trim().toLowerCase();
+  const openSongs = new Set(openRows.filter((r) => !closing.has(r.id) && r.song_id && !r.part_id).map((r) => songKey(r.song_id, r.version)));
   const openEx = new Set(openRows.filter((r) => !closing.has(r.id) && r.exercise_id).map((r) => r.exercise_id));
   const openFt = new Set(openRows.filter((r) => !closing.has(r.id) && r.ft).map((r) => r.ft));
   const newIds = [];
-  for (const a of (Array.isArray(b.new_assignments) ? b.new_assignments : []).slice(0, 20)) {
+  for (const a of (Array.isArray(items) ? items : []).slice(0, 20)) {
     let exId = str(a.exercise_id, 64);
     if (exId && !(await s.first('SELECT id FROM exercises WHERE id = ?', exId))) exId = null;
     const songId = str(a.song_id, 200);
     const song = songId ? await s.first('SELECT id, title FROM songs WHERE id = ?', songId) : null;
     const free = song ? str((song.title + (a.version ? ' (' + a.version + ')' : '')), 300) : str(a.free_text, 300);
     if (!exId && !free) continue;
-    if (song && openSongs.has(song.id)) { skipped.push(song.title); continue; }
-    if (song) { openSongs.add(song.id); exId = null; }
+    if (song && openSongs.has(songKey(song.id, a.version))) { skipped.push(free); continue; }
+    if (song) { openSongs.add(songKey(song.id, a.version)); exId = null; }
     // Keine doppelte Hausaufgabe: gleiche Übung oder gleicher Text ist schon offen
     const ft = (free || '').trim().toLowerCase();
     if (!a.notation && !song && ((exId && openEx.has(exId)) || (!exId && ft && openFt.has(ft)))) { skipped.push(free || exId); continue; }
@@ -506,6 +497,24 @@ async function finishLesson(s, who, b) {
     stmts.push(['INSERT INTO assignments (id, student_id, lesson_id, exercise_id, free_text, target_bpm, start_bpm, minutes_per_day, due_date, status, created_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)',
       [aid, st.id, lessonId, exId, free, int(a.target_bpm, 20, 400), song ? null : int(a.start_bpm, 20, 400), int(a.minutes_per_day, 1, 240), isDate(a.due_date) ? a.due_date : null, 'offen', t]]);
   }
+  return { newIds, skipped };
+}
+async function finishLesson(s, who, b) {
+  const st = await s.first('SELECT id, first_name FROM students WHERE id = ?', b.student_id);
+  if (!st) throw new HttpError(404, 'Schüler nicht gefunden.');
+  const date = isDate(b.date) ? b.date : new Date().toISOString().slice(0, 10);
+  const t = now();
+  // Gibt es am selben Tag schon eine Stunde, wird sie ergänzt statt doppelt angelegt
+  const same = await s.first('SELECT id, minutes, notes_teacher, notes_shared FROM lessons WHERE student_id = ? AND date = ? ORDER BY created_at DESC LIMIT 1', st.id, date);
+  const lessonId = same ? same.id : uid();
+  const stmts = [same
+    ? ['UPDATE lessons SET minutes = ?, notes_teacher = ?, notes_shared = ? WHERE id = ?', [Math.max(same.minutes || 0, int(b.minutes, 5, 240) || 0) || null, mergeNotes(same.notes_teacher, str(b.notes_teacher, 3000)), mergeNotes(same.notes_shared, str(b.notes_shared, 3000)), same.id]]
+    : ['INSERT INTO lessons (id, student_id, date, minutes, notes_teacher, notes_shared, created_at) VALUES (?, ?, ?, ?, ?, ?, ?)',
+      [lessonId, st.id, date, int(b.minutes, 5, 240), str(b.notes_teacher, 3000), str(b.notes_shared, 3000), t]]];
+  const closing = new Set((Array.isArray(b.close_assignments) ? b.close_assignments : []).map(String));
+  const { newIds, skipped } = await newAssignmentStatements(s, st, lessonId, b.new_assignments, closing, t, stmts);
+  // In der Stunde sofort gespeicherte Hausaufgaben dieser Stunde zuordnen
+  for (const id of (Array.isArray(b.attach_assignments) ? b.attach_assignments : []).slice(0, 50)) stmts.push(['UPDATE assignments SET lesson_id = ? WHERE id = ? AND student_id = ? AND lesson_id IS NULL', [lessonId, String(id), st.id]]);
   for (const id of (Array.isArray(b.close_assignments) ? b.close_assignments : []).slice(0, 50)) {
     stmts.push(["UPDATE assignments SET status = 'erledigt', done_at = COALESCE(done_at, ?) WHERE id = ? AND student_id = ?", [t, String(id), st.id]]);
   }
@@ -793,6 +802,18 @@ async function route(env, req, path, body) {
       await s.batch([['UPDATE exercises SET archived = 1 WHERE id = ?', [String(body.id || '')]], logRow(who, 'archive', 'exercises', String(body.id || ''), 'archiviert')]);
       return { ok: true };
     case '/api/t/lesson/finish': return finishLesson(s, who, body);
+    case '/api/t/assignments/new': {
+      // Hausaufgabe in der Stunde sofort speichern, damit Oti sie gleich sortieren kann und der Schüler sie sieht
+      const st = await s.first('SELECT id, first_name FROM students WHERE id = ?', String(body.student_id || ''));
+      if (!st) throw new HttpError(404, 'Schüler nicht gefunden.');
+      const t = now(), stmts = [];
+      const { newIds, skipped } = await newAssignmentStatements(s, st, null, body.items, new Set(), t, stmts);
+      if (!newIds.length) return { ids: [], skipped };
+      stmts.push(logRow(who, 'create', 'assignments', newIds[0], newIds.length + ' Hausaufgabe(n) in der Stunde'));
+      await s.batch(stmts);
+      const ord = await orderAppend(s, st.id, newIds); if (ord.length) await s.batch(ord);
+      return { ids: newIds, skipped };
+    }
     case '/api/t/lesson/live': {
       // Stunde läuft: Schüler App im Unterrichtsmodus. Endet mit "Stunde beenden" oder spätestens nach Stundenlänge plus 15 Minuten.
       const st = await s.first('SELECT id, lesson_minutes FROM students WHERE id = ?', String(body.student_id || ''));
