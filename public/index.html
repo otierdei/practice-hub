@@ -202,8 +202,8 @@ details.card summary{cursor:pointer;font-family:var(--display);font-size:1.08rem
 </head>
 <body>
 <div id="app"><div class="wrap"><p class="muted">Lädt …</p></div></div>
-<script src="notation.js?v=58"></script>
-<script src="guitar.js?v=58"></script>
+<script src="notation.js?v=59"></script>
+<script src="guitar.js?v=59"></script>
 <script>
 'use strict';
 // ---------- Grundlagen ----------
@@ -1004,9 +1004,10 @@ function songRow(x, mine) {
 function songResults() {
   const sg = S.songs; if (!sg) return '';
   const q = slugify(S.songQ || ''), lang = S.songLang || '';
-  let list = sg.songs.filter((x) => (!lang || x.lang === lang) && (!q || slugify(x.title).includes(q)));
+  // Reiter Unterricht: Songs, die Oti wirklich unterrichtet (eingetragen, aufgegeben oder selbst angelegt), unterteilt in Worship und Andere
+  let list = sg.songs.filter((x) => (lang === 'unterricht' ? x.teach && (!S.songKind || x.kind === S.songKind) : !lang || x.lang === lang) && (!q || slugify(x.title).includes(q)));
   if (S.songVideos) list = list.filter((x) => x.parts);
-  const more = list.length > 40; list = list.slice(0, 40);
+  const max = lang === 'unterricht' ? 300 : 40; const more = list.length > max; list = list.slice(0, max);
   return list.length ? list.map((x) => songRow(x, sg.mine.includes(x.id))).join('') + (more ? '<p class="small muted">Mehr Treffer: Suche genauer.</p>' : '') : '<p class="muted">Kein Song gefunden.</p>';
 }
 function slugify(t) { return String(t).toLowerCase().normalize('NFC').replace(/[^\p{L}\p{N}]+/gu, ' ').trim(); }
@@ -1024,7 +1025,26 @@ function songsTab(teacher) {
     <section class="col"><h2>Alle Songs <span class="muted small">(${sg.songs.length})</span></h2>
       <input id="songQ" type="search" placeholder="Song suchen" value="${esc(S.songQ || '')}" autocomplete="off">
       <div class="row" style="gap:6px">${[['', 'Alle'], ['de', 'Deutsch'], ['en', 'Englisch'], ['unterricht', 'Unterricht']].map(([v, l]) => `<button class="chip" data-act="songLang" data-v="${v}" aria-pressed="${(S.songLang || '') === v}">${l}</button>`).join('')}<button class="chip" data-act="songVideos" aria-pressed="${!!S.songVideos}">Mit Videos</button></div>
-      <section class="card"><div class="list" id="songList">${songResults()}</div></section></section>`;
+      ${S.songLang === 'unterricht' ? `<div class="row" style="gap:6px">${[['', 'Alle Unterrichtssongs'], ['worship', 'Worship'], ['andere', 'Andere']].map(([v, l]) => `<button class="chip" data-act="songKind" data-v="${v}" aria-pressed="${(S.songKind || '') === v}">${l} <span class="muted">${sg.songs.filter((x) => x.teach && (!v || x.kind === v)).length}</span></button>`).join('')}</div>` : ''}
+      <section class="card"><div class="list" id="songList">${songResults()}</div></section>
+      ${teacher && S.songLang === 'unterricht' ? songSuggestBox() : ''}</section>`;
+}
+// Vorschläge aus Stundennotizen: Songs, die in Notizen vorkommen, aber noch nicht im Reiter Unterricht stehen
+function songSuggestBox() {
+  const list = S.songSug;
+  return `<details class="card" id="songSugBox" ${S.songSugOpen ? 'open' : ''}><summary><b>Vorschläge aus deinen Notizen</b>${list ? ' <span class="muted small">(' + list.length + ')</span>' : ''}</summary>
+    ${!list ? '<p class="small muted">Wird geladen …</p>' : list.length ? `<p class="small muted">Lieder, die in Stundennotizen oder Hausaufgaben am Zeilenanfang stehen. Setlisten werden übersprungen.</p><div class="list">${list.map((x, i) => `<div class="item"><span class="t"><b>${esc(x.title)}</b><br><span class="small muted">${x.lessons} ${x.lessons === 1 ? 'Stunde' : 'Stunden'}, ${x.students} ${x.students === 1 ? 'Schüler' : 'Schüler'} · „${esc(x.line)}“</span></span><div class="row" style="gap:6px;flex-wrap:nowrap"><button class="btn small primary" data-act="sugSongAdd" data-i="${i}">Hinzufügen</button><button class="btn small" data-act="sugSongHide" data-i="${i}">Ausblenden</button></div></div>`).join('')}</div>` : '<p class="small muted">Keine weiteren Vorschläge.</p>'}</details>`;
+}
+document.addEventListener('toggle', async (ev) => {
+  if (!ev.target || ev.target.id !== 'songSugBox') return;
+  S.songSugOpen = ev.target.open;
+  if (ev.target.open && !S.songSug) { try { S.songSug = (await api('/api/t/songs/suggest')).suggestions; } catch (e) { S.songSug = []; toast(e.message); } render(); }
+}, true);
+function songTeachRow(x) {
+  if (!x) return '';
+  return `<div class="row small" style="gap:6px;align-items:center;flex-wrap:wrap"><span class="muted">Unterricht:</span>
+    <button class="chip" data-act="songTeach" data-v="${x.pinned ? 'off' : 'on'}" aria-pressed="${!!x.teach}" ${x.teach && !x.pinned ? 'disabled title="Aufgegeben oder selbst angelegt, steht automatisch im Unterricht"' : ''}>${x.teach ? 'Im Unterricht ✓' : 'Zum Unterricht'}</button>
+    ${[['worship', 'Worship'], ['andere', 'Andere']].map(([v, l]) => `<button class="chip" data-act="songKindSet" data-v="${v}" aria-pressed="${x.kind === v}">${l}</button>`).join('')}</div>`;
 }
 function songView() {
   const d = S.song; if (!d) return '';
@@ -1036,6 +1056,7 @@ function songView() {
     <div class="row between"><button class="btn small" data-act="close">Zurück</button>${S.role === 'student' ? `<button class="btn small ${mine ? '' : 'primary'}" data-act="mySong" data-id="${esc(d.song.id)}">${mine ? 'In meiner Setlist ✓' : 'Zu meiner Setlist'}</button>` : ''}</div>
     <div class="col" style="gap:4px"><h1>${esc(d.song.title)}</h1><span class="muted">${esc(x ? songMeta({ ...x, parts: 0 }) : '')}</span>
       ${teacher ? `<form id="songBpmForm" class="row" style="gap:8px;flex-wrap:nowrap;align-items:center"><label for="sb_bpm" class="small">Original Tempo</label><input id="sb_bpm" inputmode="numeric" style="width:80px;min-height:40px;text-align:center" value="${d.song.bpm || ''}" placeholder="BPM"><button class="btn small" type="submit">Speichern</button>${d.song.bpm_source ? `<span class="small muted">Quelle: ${esc(d.song.bpm_source)}</span>` : ''}</form>` : d.song.bpm ? `<span class="small muted">Original Tempo ${d.song.bpm} BPM</span>` : ''}</div>
+    ${teacher ? songTeachRow(x) : ''}
     ${songLinksSection(d, teacher)}
     ${teacher && d.playedBy && d.playedBy.length ? `<p class="small muted">Gespielt von: ${d.playedBy.map(esc).join(', ')}</p>` : ''}
     <section class="col"><h2>Bausteine${songCurVersion(d) && songVersions(d).length > 1 ? ' · ' + esc(songCurVersion(d)) : ''}</h2>
@@ -1721,6 +1742,16 @@ document.addEventListener('click', async (ev) => {
       case 'linkVideo': S.linkId = id; openOverlay(linkVideoView); break;
       case 'linkDelete': await api('/api/t/song/link/delete', { id }); S.song = await api('/api/song', { id: S.song.song.id }); openOverlay(songView); break;
       case 'songNew': S.songNew = !S.songNew; render(); break;
+      case 'songKind': S.songKind = el.dataset.v || null; render(); break;
+      case 'sugSongAdd': case 'sugSongHide': {
+        const x = S.songSug[Number(el.dataset.i)]; const add = act === 'sugSongAdd';
+        await api('/api/t/song/teaching', { song_id: x.id, state: add ? 'on' : 'hidden' });
+        S.songSug.splice(Number(el.dataset.i), 1); S.songSugOpen = true; S.songs = await api('/api/songs'); render(); toast(add ? x.title + ' im Unterricht' : x.title + ' ausgeblendet'); break;
+      }
+      case 'songTeach': case 'songKindSet': {
+        const sid = S.song.song.id, b = act === 'songTeach' ? { song_id: sid, state: el.dataset.v } : { song_id: sid, kind: el.dataset.v };
+        await api('/api/t/song/teaching', b); S.songs = await api('/api/songs'); S.songSug = null; openOverlay(songView); toast('Gespeichert'); break;
+      }
       case 'songCand': S.songCand = (await api('/api/t/song/candidates')).candidates; openOverlay(songCandView); break;
       case 'candAdd': { const x = S.songCand[Number(el.dataset.i)]; await api('/api/t/song/create', { title: x.t }); S.songCand.splice(Number(el.dataset.i), 1); S.songs = await api('/api/songs'); openOverlay(songCandView); toast(x.t + ' angelegt'); break; }
       case 'sheet': window.open(driveUrl(id), '_blank', 'noopener'); break;

@@ -1,5 +1,11 @@
 // Songs aus dem Lobpreis Ordner (Google Drive, öffentlich lesbar), Setlists, Bausteine, Meine Setlist
 export const SONG_SCHEMA = `
+CREATE TABLE IF NOT EXISTS song_teaching (
+  song_id TEXT PRIMARY KEY,   -- Unterrichtssongs: state 'on' = im Reiter Unterricht, 'hidden' = kein Vorschlag mehr
+  state TEXT,
+  kind TEXT,                  -- 'worship' oder 'andere'; ohne Eintrag: Drive Songs worship, sonst andere
+  updated_at TEXT
+);
 CREATE TABLE IF NOT EXISTS songs (
   id TEXT PRIMARY KEY,        -- Sprache:normalisierter Titel
   title TEXT NOT NULL,
@@ -184,16 +190,19 @@ async function sundaySetlist(s) {
 export async function songsHome(s, who) {
   const studentId = who.role === 'teacher' ? null : who.studentId;
   const [lib, parts, mine, worship, meta] = await Promise.all([
-    s.all(`SELECT s.id, s.title, s.lang, GROUP_CONCAT(DISTINCT f.key_sig) AS keys, COALESCE(MAX(m.bpm), MAX(f.bpm)) AS bpm
+    s.all(`SELECT s.id, s.title, s.lang, GROUP_CONCAT(DISTINCT f.key_sig) AS keys, COALESCE(MAX(m.bpm), MAX(f.bpm)) AS bpm,
+             (SELECT state FROM song_teaching WHERE song_id = s.id) AS t_state, (SELECT kind FROM song_teaching WHERE song_id = s.id) AS t_kind,
+             EXISTS (SELECT 1 FROM assignment_songs x WHERE x.song_id = s.id) AS assigned
            FROM songs s LEFT JOIN song_files f ON f.song_id = s.id LEFT JOIN song_meta m ON m.song_id = s.id GROUP BY s.id
-           HAVING COUNT(f.drive_id) > 0 OR s.lang = 'unterricht' OR EXISTS (SELECT 1 FROM song_parts p WHERE p.song_id = s.id) OR EXISTS (SELECT 1 FROM song_links k WHERE k.song_id = s.id) ORDER BY s.title COLLATE NOCASE`),
+           HAVING COUNT(f.drive_id) > 0 OR s.lang = 'unterricht' OR EXISTS (SELECT 1 FROM song_teaching t WHERE t.song_id = s.id AND t.state = 'on') OR EXISTS (SELECT 1 FROM song_parts p WHERE p.song_id = s.id) OR EXISTS (SELECT 1 FROM song_links k WHERE k.song_id = s.id) ORDER BY s.title COLLATE NOCASE`),
     s.all('SELECT song_id, COUNT(*) AS n FROM (SELECT song_id FROM song_parts UNION ALL SELECT song_id FROM song_links) GROUP BY song_id'),
     studentId ? s.all('SELECT song_id FROM student_songs WHERE student_id = ? ORDER BY added_at', studentId) : [],
     studentId ? s.first('SELECT 1 AS w FROM worship_students WHERE student_id = ?', studentId) : { w: 1 },
     s.first("SELECT v FROM meta WHERE k = 'songs_synced'"),
   ]);
   const pn = {}; for (const p of parts) pn[p.song_id] = p.n;
-  const songs = lib.map((x) => ({ id: x.id, title: x.title, lang: x.lang, keys: (x.keys || '').split(',').filter(Boolean), bpm: x.bpm, parts: pn[x.id] || 0 }));
+  const songs = lib.map((x) => ({ id: x.id, title: x.title, lang: x.lang, keys: (x.keys || '').split(',').filter(Boolean), bpm: x.bpm, parts: pn[x.id] || 0,
+    teach: x.t_state === 'on' || x.lang === 'unterricht' || !!x.assigned, pinned: x.t_state === 'on', kind: songKind(x) }));
   return { songs, mine: mine.map((m) => m.song_id), sunday: worship ? await sundaySetlist(s) : null, worship: !!worship, synced: meta ? JSON.parse(meta.v) : null };
 }
 
@@ -223,4 +232,30 @@ export function parseLinkLines(text, fallback = 'Original') {
     out.push({ version: (before || fallback).slice(0, 40), url: m[1] });
   }
   return out;
+}
+
+export const songKind = (x) => x.t_kind || (x.lang === 'de' || x.lang === 'en' ? 'worship' : 'andere');
+
+// Unterrichtssongs: Vorschläge aus Stundennotizen und Hausaufgaben. Zählt nur Zeilen, die mit dem Songtitel beginnen,
+// und überspringt Setlisten (Opfer:, Schluss:, Liste …), damit Sonntagslisten nicht als Unterricht zählen.
+const normT = (t) => String(t || '').toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '').replace(/[^a-z0-9 ]+/g, ' ').replace(/\s+/g, ' ').trim();
+const SETLIST = /^(opfer|schluss|reserve|liste|set ?list|set|sonntag|samstag|montag|vorbereitung)\b/;
+export async function songSuggestions(s) {
+  const songs = await s.all(`SELECT s.id, s.title, s.lang, t.state, EXISTS (SELECT 1 FROM assignment_songs x WHERE x.song_id = s.id) AS assigned FROM songs s LEFT JOIN song_teaching t ON t.song_id = s.id`);
+  const cand = songs.filter((x) => !(x.state === 'on' || x.state === 'hidden' || x.lang === 'unterricht' || x.assigned))
+    .map((x) => ({ id: x.id, title: x.title, k: normT(x.title.replace(/\s*\(.*?\)\s*/g, ' ')) })).filter((x) => x.k.length >= 4)
+    .sort((a, b) => b.k.length - a.k.length);
+  const rows = (await s.all('SELECT student_id, date, notes_teacher, notes_shared FROM lessons')).map((r) => [r.student_id, r.date, (r.notes_teacher || '') + '\n' + (r.notes_shared || '')])
+    .concat((await s.all('SELECT student_id, created_at, free_text FROM assignments WHERE free_text IS NOT NULL')).map((r) => [r.student_id, String(r.created_at).slice(0, 10), r.free_text]));
+  const hits = {};
+  for (const [sid, date, text] of rows) {
+    for (const raw of String(text).split(/\n|;|•/)) {
+      const n = normT(raw); if (!n || SETLIST.test(n)) continue;
+      const m = cand.find((c) => n === c.k || n.startsWith(c.k + ' ')); if (!m) continue;
+      const h = hits[m.id] || (hits[m.id] = { id: m.id, title: m.title, keys: new Set(), students: new Set(), line: raw.trim().replace(/https?:\S*/g, '').slice(0, 90) });
+      h.keys.add(sid + '|' + date); h.students.add(sid);
+    }
+  }
+  return Object.values(hits).map((h) => ({ id: h.id, title: h.title, lessons: h.keys.size, students: h.students.size, line: h.line }))
+    .sort((a, b) => b.lessons - a.lessons || b.students - a.students).slice(0, 120);
 }

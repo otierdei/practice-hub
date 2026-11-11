@@ -683,3 +683,31 @@ test('Baustein in der Stunde aufgeben: verlinkt, Tempo 45 bis Original Tempo, ke
   const a = (await w.call('/api/home', {}, w.ta)).data.assignments.find((x) => x.id === r.ids[0]);
   assert.equal(a.title, 'Baustein Song: Chorus'); assert.equal(a.part_id, pid); assert.equal(a.start_bpm, 45); assert.equal(a.target_bpm, 72);
 });
+
+test('Unterrichtssongs: Reiter, Kategorien, Vorschläge aus Notizen ohne Setlisten', async () => {
+  const w = await world();
+  const own = (await w.call('/api/t/song/create', { title: 'Yellow' }, w.t)).data.id;
+  const lib = (await w.call('/api/t/song/create', { title: 'Goodness of God' }, w.t)).data.id;
+  const setl = (await w.call('/api/t/song/create', { title: 'Mein Retter Erlöser' }, w.t)).data.id;
+  // Bibliothekssongs simulieren (wie aus Drive): Sprache en/de
+  w.env.DB.raw.prepare("UPDATE songs SET lang = 'en' WHERE id = ?").run(lib); w.env.DB.raw.prepare("INSERT INTO song_files (drive_id, song_id, name, kind, seen_at) VALUES ('d1', ?, 'Goodness of God.pdf', 'pdf', '2026-11-01')").run(lib);
+  w.env.DB.raw.prepare("UPDATE songs SET lang = 'de' WHERE id = ?").run(setl);
+  await w.call('/api/t/lesson/finish', { student_id: w.a, date: '2026-10-01', notes_teacher: 'Goodness of God – bis Chorus 2\nOpfer: Mein Retter Erlöser E' }, w.t);
+  await w.call('/api/t/lesson/finish', { student_id: w.b, date: '2026-10-02', notes_teacher: 'Goodness of God mit Video' }, w.t);
+  const sug = (await w.call('/api/t/songs/suggest', {}, w.t)).data.suggestions;
+  const g = sug.find((x) => x.id === lib);
+  assert.equal(g.lessons, 2); assert.equal(g.students, 2);
+  assert.ok(!sug.some((x) => x.id === setl), 'Setlisten zählen nicht');
+  assert.ok(!sug.some((x) => x.id === own), 'eigene Unterrichtssongs sind schon drin');
+  assert.equal((await w.call('/api/t/songs/suggest', {}, w.ta)).status, 403);
+  let songs = (await w.call('/api/songs', {}, w.t)).data.songs;
+  assert.equal(songs.find((x) => x.id === own).teach, true); assert.equal(songs.find((x) => x.id === own).kind, 'andere');
+  assert.equal(songs.find((x) => x.id === lib).teach, false); assert.equal(songs.find((x) => x.id === lib).kind, 'worship');
+  await w.call('/api/t/song/teaching', { song_id: lib, state: 'on' }, w.t);
+  await w.call('/api/t/song/teaching', { song_id: own, kind: 'worship' }, w.t);
+  songs = (await w.call('/api/songs', {}, w.t)).data.songs;
+  assert.equal(songs.find((x) => x.id === lib).teach, true); assert.equal(songs.find((x) => x.id === own).kind, 'worship');
+  assert.ok(!(await w.call('/api/t/songs/suggest', {}, w.t)).data.suggestions.some((x) => x.id === lib));
+  await w.call('/api/t/song/teaching', { song_id: lib, state: 'off' }, w.t);
+  assert.equal((await w.call('/api/songs', {}, w.t)).data.songs.find((x) => x.id === lib).kind, 'worship', 'Aus Unterricht entfernen behält Kategorie');
+});

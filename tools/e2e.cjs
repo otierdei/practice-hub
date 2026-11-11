@@ -284,6 +284,13 @@ let n = 0; const ok = (m) => console.log('ok ' + (++n) + ' ' + m);
   await t.reload(); await t.getByRole('heading', { name: 'Heute', exact: true }).waitFor();
   await t.click('[data-tab=songs]'); await t.click('[data-act=songNew]'); await t.fill('#sn_title', 'Am Kreuz'); await t.click('#songNewForm button[type=submit]');
   await t.waitForTimeout(600); if (!(await t.getByText('Baustein hinzufügen').count())) await t.getByText('Am Kreuz').first().click();
+  { assert.match(await t.textContent('[data-act=songTeach]'), /Im Unterricht/); await t.click('[data-act=songKindSet][data-v=worship]'); await t.getByText('Gespeichert').first().waitFor();
+    assert.equal(await t.getAttribute('[data-act=songKindSet][data-v=worship]', 'aria-pressed'), 'true');
+    await t.click('[data-act=close]'); await t.click('[data-act=songLang][data-v=unterricht]'); await t.click('[data-act=songKind][data-v=worship]');
+    assert.match(await t.textContent('#songList'), /Am Kreuz/); await t.click('[data-act=songKind][data-v=andere]'); assert.doesNotMatch(await t.textContent('#songList'), /Am Kreuz/);
+    await t.click('#songSugBox summary'); await t.locator('#songSugBox').getByText(/Keine weiteren Vorschläge|Stunde/).first().waitFor();
+    await t.click('[data-act=songKind][data-v=worship]'); await t.locator('#songList').getByText('Am Kreuz').first().click(); await t.getByText('Baustein hinzufügen').waitFor();
+    ok('Reiter Unterricht: Worship und Andere, Kategorie im Song umstellen, Vorschläge aus Notizen'); }
   await t.getByText('Baustein hinzufügen').waitFor(); await t.fill('#pt_notes', 'Hinweis bleibt');
   await t.setInputFiles('#pt_img', __dirname + '/../t-akte-1440.png'); await t.getByText('2 Beispiele erkannt').waitFor();
   assert.equal(await t.inputValue('#pt_title'), 'Beispiel 1'); assert.equal(await t.inputValue('#pt_notes'), 'Hinweis bleibt');

@@ -1,6 +1,6 @@
 import { COURSE_SCHEMA, courseData, courseImport } from './course.js';
 import { transcribeImage } from './transcribe.js';
-import { SONG_SCHEMA, syncSongs, songsHome, songDetail, parseLinkLines, slug } from './songs.js';
+import { SONG_SCHEMA, syncSongs, songsHome, songDetail, parseLinkLines, slug, songSuggestions } from './songs.js';
 // Practice Hub Worker v1 (04.11.2026)
 // Rechte werden bei jeder Anfrage aus dem Gerätetoken abgeleitet, nie aus der Anfrage.
 
@@ -663,6 +663,18 @@ async function route(env, req, path, body) {
       await s.run("INSERT INTO songs (id, title, lang, updated_at) VALUES (?, ?, 'unterricht', ?) ON CONFLICT(id) DO NOTHING", id, title, now());
       return { id };
     }
+    case '/api/t/song/teaching': {
+      // Song in den Reiter Unterricht aufnehmen, entfernen, als Vorschlag ausblenden oder Kategorie setzen
+      const song = await s.first('SELECT id FROM songs WHERE id = ?', String(body.song_id || ''));
+      if (!song) throw new HttpError(404, 'Song nicht gefunden.');
+      const cur = await s.first('SELECT state, kind FROM song_teaching WHERE song_id = ?', song.id) || {};
+      const state = body.state === undefined ? cur.state || null : ({ on: 'on', hidden: 'hidden', off: null })[body.state];
+      if (body.state !== undefined && state === undefined) throw new HttpError(400, 'Unbekannter Status.');
+      const kind = body.kind === undefined ? cur.kind || null : (['worship', 'andere'].includes(body.kind) ? body.kind : null);
+      await s.run('INSERT INTO song_teaching (song_id, state, kind, updated_at) VALUES (?, ?, ?, ?) ON CONFLICT(song_id) DO UPDATE SET state = excluded.state, kind = excluded.kind, updated_at = excluded.updated_at', song.id, state, kind, now());
+      return { ok: true, state, kind };
+    }
+    case '/api/t/songs/suggest': return { suggestions: await songSuggestions(s) };
     case '/api/t/song/links/add': {
       const song = await s.first('SELECT id FROM songs WHERE id = ?', String(body.song_id || ''));
       if (!song) throw new HttpError(404, 'Song nicht gefunden.');
