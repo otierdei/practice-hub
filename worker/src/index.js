@@ -628,6 +628,13 @@ async function route(env, req, path, body) {
       await s.batch(items.map((it, i) => ['INSERT INTO song_links (id, song_id, version, title, url, sort, created_at) VALUES (?, ?, ?, ?, ?, ?, ?)', [uid(), song.id, it.version, null, cleanUrl(it.url), n + i, now()]]).concat([logRow(who, 'create', 'song_links', song.id, items.length + ' Links')]));
       return { added: items.length };
     }
+    case '/api/t/song/link/update': {
+      const l = await s.first('SELECT id FROM song_links WHERE id = ?', String(body.id || ''));
+      if (!l) throw new HttpError(404, 'Video nicht gefunden.');
+      const version = str(body.version, 40); if (!version) throw new HttpError(400, 'Version fehlt.');
+      await s.batch([['UPDATE song_links SET version = ?, title = ? WHERE id = ?', [version, str(body.title, 120), l.id]], logRow(who, 'update', 'song_links', l.id, version)]);
+      return { ok: true };
+    }
     case '/api/t/song/link/delete': await s.run('DELETE FROM song_links WHERE id = ?', String(body.id || '')); return { ok: true };
     case '/api/t/song/candidates': {
       // Mögliche Songs aus freien Hausaufgaben Texten; Oti entscheidet selbst, was ein Song ist

@@ -255,6 +255,10 @@ let n = 0; const ok = (m) => console.log('ok ' + (++n) + ' ' + m);
     await t.click('.sheet [data-act=partPlay]'); await t.waitForTimeout(300); assert.equal(await t.evaluate(() => DrumNotation.isPlaying()), true);
     await t.click('.sheet [data-act=bpm][data-d="5"]'); assert.equal(await t.textContent('#bpmVal'), '65'); await t.click('.sheet [data-act=partPlay]'); ok('Baustein spielt im Metronom Tempo, Plus ändert live');
     await t.evaluate(async (sid) => { S.song = await api('/api/song', { id: sid }); openOverlay(songView); }, sid); }
+  await t.selectOption('#lk_ver', '__eigen'); await t.fill('#lk_custom', 'Drumcam'); await t.fill('#lk_lines', 'https://youtu.be/bcdefghijkl'); await t.click('#linksForm button[type=submit]');
+  await t.locator('[data-act=songVer][data-v="Drumcam"]').first().waitFor(); await t.click('[data-act=songVer][data-v="Drumcam"] >> nth=0');
+  await t.click('[data-act=linkEdit]'); await t.fill('#le_title', 'Probe Drumcam'); await t.selectOption('#le_ver', 'Oti Playthrough'); await t.click('#linkEditForm button[type=submit]');
+  await t.getByText('Probe Drumcam').first().waitFor(); assert.ok(!(await t.locator('#lk_ver option', { hasText: 'Mittel' }).count())); ok('Videos: eigene Version, Titel und Version ändern, Mittel weg');
   await t.click('[data-act=partEdit]'); await t.fill('#pe_title', 'Groove Vers neu'); await t.click('#pe [data-k=sn][data-i="2"]'); await t.click('#partEditForm button[type=submit]');
   await t.getByText('Gespeichert, gilt überall').waitFor(); assert.ok((await t.evaluate(() => JSON.parse(S.song.parts[0].notation).tracks.sn)).includes(2)); assert.equal(await t.evaluate(() => S.song.parts[0].title), 'Groove Vers neu'); ok('Baustein bearbeiten: Titel und Noten');
   await t.evaluate(async () => { const sid = S.song.song.id, st = S.data.students[0]; S.previewFrom = S.overlay; S.file = await api('/api/t/student', { id: st.id }); startPreview(await api('/api/t/preview', { id: st.id })); S.song = await api('/api/song', { id: sid }); openOverlay(songView); });

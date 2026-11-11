@@ -202,8 +202,8 @@ details.card summary{cursor:pointer;font-family:var(--display);font-size:1.08rem
 </head>
 <body>
 <div id="app"><div class="wrap"><p class="muted">Lädt …</p></div></div>
-<script src="notation.js?v=51"></script>
-<script src="guitar.js?v=51"></script>
+<script src="notation.js?v=52"></script>
+<script src="guitar.js?v=52"></script>
 <script>
 'use strict';
 // ---------- Grundlagen ----------
@@ -1044,6 +1044,15 @@ const partsFor = (d, ver) => d.parts.filter((p) => !p.version || !ver || p.versi
 // Tempo eines Bausteins: standardmäßig Original Tempo des Songs. Doppelt ausgeschriebene Bausteine (32tel als 16tel) laufen mit Faktor 2.
 function partFactor(n, songBpm) { return songBpm && n && Math.abs(n.bpm / songBpm - 2) < 0.15 ? 2 : 1; }
 function partBpm(n, d) { const sb = d && d.song && d.song.bpm; return sb ? sb * partFactor(n, sb) : n.bpm; }
+// Versionen für Videos: feste Auswahl, bereits genutzte eigene und „Eigene Bezeichnung“ mit freiem Feld
+const VERSION_BASE = ['Original', 'Easy', 'Reel', 'Oti Playthrough', 'Fill'];
+function versionField(px, cur, used = [], label = 'Version') {
+  const opts = [...new Set(VERSION_BASE.concat(used))];
+  return `<div class="field"><label for="${px}_ver">${label}</label><select id="${px}_ver" data-ver-select="${px}">${opts.map((v) => `<option ${v === cur ? 'selected' : ''}>${esc(v)}</option>`).join('')}<option value="__eigen">Eigene Bezeichnung …</option></select></div>
+    <div class="field hidden" id="${px}_custom_box"><label for="${px}_custom">Eigene Bezeichnung</label><input id="${px}_custom" maxlength="40" placeholder="z. B. Live, Akustik, Drumcam"></div>`;
+}
+const versionValue = (px) => { const v = $('#' + px + '_ver').value; return v === '__eigen' ? ($('#' + px + '_custom').value.trim() || 'Original') : v; };
+document.addEventListener('change', (ev) => { const px = ev.target.dataset && ev.target.dataset.verSelect; if (!px) return; const b = $('#' + px + '_custom_box'); if (b) { b.classList.toggle('hidden', ev.target.value !== '__eigen'); if (ev.target.value === '__eigen') $('#' + px + '_custom').focus(); } });
 function songLinksSection(d, teacher) {
   const versions = [...new Set(d.links.map((l) => l.version))];
   const cur = versions.includes(S.songVersion) ? S.songVersion : versions[0];
@@ -1052,10 +1061,14 @@ function songLinksSection(d, teacher) {
     ${versions.length > 1 ? `<div class="row" style="gap:6px">${versions.map((v) => `<button class="chip" data-act="songVer" data-v="${esc(v)}" aria-pressed="${v === cur}">${esc(v)}</button>`).join('')}</div>` : ''}
     ${list.length ? list.map((l) => `<section class="card task"><div class="row" style="flex-wrap:nowrap;align-items:center;gap:14px">
       ${ytThumb(l.url) ? `<button class="thumb" data-act="linkVideo" data-id="${l.id}" aria-label="Video ansehen: ${esc(cur)}"><img src="${ytThumb(l.url)}" alt="" loading="lazy" onerror="this.remove()"><span class="thumb-play">${PLAY}</span></button>` : `<a class="btn small" href="${esc(l.url)}" target="_blank" rel="noopener">Link öffnen</a>`}
-      <div class="col" style="gap:2px;flex:1;min-width:0"><b>${esc(l.version)}</b><span class="small muted">${esc(linkLabel({ url: l.url, source_type: /youtu/.test(l.url) ? 'youtube' : 'link' }))}</span></div>
-      ${teacher ? `<button class="btn small danger" data-act="linkDelete" data-id="${l.id}">Entfernen</button>` : ''}</div></section>`).join('') : `<div class="empty">${teacher ? 'Noch keine Videos. Füg unten Links ein, eine Zeile pro Link.' : 'Noch keine Videos zu diesem Song.'}</div>`}
+      <div class="col" style="gap:2px;flex:1;min-width:0"><b>${esc(l.title || l.version)}</b><span class="small muted">${l.title ? esc(l.version) + ' · ' : ''}${esc(linkLabel({ url: l.url, source_type: /youtu/.test(l.url) ? 'youtube' : 'link' }))}</span></div>
+      ${teacher ? `<button class="btn small" data-act="linkEdit" data-id="${l.id}">Umbenennen</button><button class="btn small danger" data-act="linkDelete" data-id="${l.id}">Entfernen</button>` : ''}</div>
+      ${teacher && S.linkEdit === l.id ? `<form id="linkEditForm" class="col" style="gap:8px;margin-top:10px">
+        <div class="field"><label for="le_title">Titel (optional)</label><input id="le_title" maxlength="120" value="${esc(l.title || '')}" placeholder="z. B. Drumcam Probe 12.11."></div>
+        ${versionField('le', l.version, versions)}
+        <div class="row"><button class="btn primary small" type="submit">Speichern</button><button class="btn small" type="button" data-act="linkEditOff">Abbrechen</button></div></form>` : ''}</section>`).join('') : `<div class="empty">${teacher ? 'Noch keine Videos. Füg unten Links ein, eine Zeile pro Link.' : 'Noch keine Videos zu diesem Song.'}</div>`}
     ${teacher ? `<form id="linksForm" class="card col"><b>Links hinzufügen</b>
-      <div class="field"><label for="lk_ver">Version (wenn in der Zeile keine steht)</label><select id="lk_ver">${['Original', 'Easy', 'Mittel', 'Playthrough', 'Fill'].map((v) => `<option>${v}</option>`).join('')}</select></div>
+      ${versionField('lk', 'Original', versions, 'Version (wenn in der Zeile keine steht)')}
       <div class="field"><label for="lk_lines">Eine Zeile pro Link, z. B. "Easy | https://youtu.be/…"</label><textarea id="lk_lines" rows="4" placeholder="Easy | https://youtu.be/…&#10;Original | https://youtu.be/…"></textarea></div>
       <button class="btn primary" type="submit">Speichern</button></form>` : ''}
   </section>`;
@@ -1630,6 +1643,8 @@ document.addEventListener('click', async (ev) => {
         const r = await api('/api/t/song/part/sync', { id, version: v });
         S.song = await api('/api/song', { id: S.song.song.id }); rerenderSong(); toast(r.created ? `„${p.title}“ nach ${v} kopiert` : `${v}: Baustein mit „${p.title}“ überschrieben`); break;
       }
+      case 'linkEdit': S.linkEdit = id; rerenderSong(); break;
+      case 'linkEditOff': S.linkEdit = null; rerenderSong(); break;
       case 'partEditOff': S.partEdit = null; if (S.nt) delete S.nt.pe; rerenderSong(); break;
       case 'peNew': S.nt = S.nt || {}; S.nt.pe = DrumNotation.empty('4/4', 1, (S.song && S.song.song.bpm) || 70); rerenderSong(); break;
       case 'ptNew': S.nt = S.nt || {}; S.nt.pt = DrumNotation.empty('4/4', 1, (S.song && S.song.song.bpm) || 70); rerenderSong(); break;
@@ -1822,7 +1837,7 @@ document.addEventListener('submit', async (ev) => {
       const title = $('#sn_title').value.trim(); if (!title) return;
       const r = await api('/api/t/song/create', { title }); S.songNew = false; S.songs = await api('/api/songs'); await openSong(r.id); toast('Song angelegt');
     } else if (fid === 'linksForm') {
-      const r = await api('/api/t/song/links/add', { song_id: S.song.song.id, lines: $('#lk_lines').value, version: $('#lk_ver').value });
+      const r = await api('/api/t/song/links/add', { song_id: S.song.song.id, lines: $('#lk_lines').value, version: versionValue('lk') });
       S.song = await api('/api/song', { id: S.song.song.id }); S.songs = await api('/api/songs'); openOverlay(songView); toast(r.added + ' Links gespeichert');
     } else if (fid === 'asgEditForm') {
       await api('/api/t/assignment/update', { id: S.asgId, title: $('#ae_title') ? $('#ae_title').value.trim() || null : null, free_text: $('#ae_text') ? $('#ae_text').value.trim() || null : null, start_bpm: Number($('#ae_from').value) || null, target_bpm: Number($('#ae_to').value) || null, minutes_per_day: Number($('#ae_min').value) || null, notation: S.nt && S.nt.ae ? S.nt.ae : null });
@@ -1836,6 +1851,9 @@ document.addEventListener('submit', async (ev) => {
       await api('/api/t/song/part/save', { song_id: S.song.song.id, title, url: $('#pt_url').value.trim() || null, notes: $('#pt_notes').value.trim() || null, notation: S.nt && S.nt.pt ? S.nt.pt : null, version: songCurVersion(S.song) });
       DrumNotation.stop(); if (S.nt) delete S.nt.pt; S.pt = null;
       S.song = await api('/api/song', { id: S.song.song.id }); S.songs = await api('/api/songs'); openOverlay(songView); toast('Baustein gespeichert');
+    } else if (fid === 'linkEditForm') {
+      const v = versionValue('le'); await api('/api/t/song/link/update', { id: S.linkEdit, title: $('#le_title').value.trim() || null, version: v });
+      S.linkEdit = null; S.songVersion = v; S.song = await api('/api/song', { id: S.song.song.id }); rerenderSong(); toast('Gespeichert');
     } else if (fid === 'songBpmForm') {
       await api('/api/t/song/bpm', { song_id: S.song.song.id, bpm: Number($('#sb_bpm').value) || null, source: 'Oti' });
       S.song = await api('/api/song', { id: S.song.song.id }); S.songs = await api('/api/songs'); rerenderSong(); toast('Tempo gespeichert, gilt für alle Hausaufgaben mit diesem Song');

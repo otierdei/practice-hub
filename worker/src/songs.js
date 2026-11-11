@@ -50,6 +50,7 @@ CREATE TABLE IF NOT EXISTS song_links (
   sort INTEGER NOT NULL DEFAULT 0,
   created_at TEXT NOT NULL
 );
+UPDATE song_links SET version = 'Oti Playthrough' WHERE version = 'Playthrough';
 CREATE TABLE IF NOT EXISTS assignment_songs (
   assignment_id TEXT PRIMARY KEY,
   song_id TEXT NOT NULL,
@@ -71,6 +72,7 @@ CREATE TABLE IF NOT EXISTS song_part_version (
   version TEXT NOT NULL
 );
 INSERT OR IGNORE INTO song_part_version (part_id, version) SELECT id, 'Easy' FROM song_parts WHERE title LIKE '%(Easy)';
+UPDATE song_part_version SET version = 'Oti Playthrough' WHERE version = 'Playthrough';
 INSERT OR IGNORE INTO song_part_version (part_id, version) SELECT id, 'Original' FROM song_parts WHERE title LIKE '%(Original)';
 CREATE TABLE IF NOT EXISTS assignment_parts (
   assignment_id TEXT PRIMARY KEY,

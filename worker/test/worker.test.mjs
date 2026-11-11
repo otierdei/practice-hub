@@ -596,3 +596,17 @@ test('Bausteine pro Version, Übernehmen nur auf Wunsch', async () => {
   const r2 = (await w.call('/api/t/song/part/sync', { id: pe, version: 'Akustik' }, w.t)).data; assert.equal(r2.created, true);
   assert.ok((await w.call('/api/song', { id: sid }, w.t)).data.parts.some((p) => p.title === 'Chorus (Akustik)' && p.version === 'Akustik'));
 });
+
+test('Videos: eigene Version und Titel, Playthrough wird Oti Playthrough', async () => {
+  const w = await world();
+  const sid = (await w.call('/api/t/song/create', { title: 'Video Song' }, w.t)).data.id;
+  await w.call('/api/t/song/links/add', { song_id: sid, lines: 'https://youtu.be/abcdefghijk', version: 'Drumcam Live' }, w.t);
+  let l = (await w.call('/api/song', { id: sid }, w.t)).data.links[0]; assert.equal(l.version, 'Drumcam Live');
+  assert.equal((await w.call('/api/t/song/link/update', { id: l.id, version: 'Reel', title: 'Reel vom Sonntag' }, w.tb)).status, 403);
+  await w.call('/api/t/song/link/update', { id: l.id, version: 'Reel', title: 'Reel vom Sonntag' }, w.t);
+  l = (await w.call('/api/song', { id: sid }, w.ta)).data.links[0]; assert.equal(l.version, 'Reel'); assert.equal(l.title, 'Reel vom Sonntag');
+  await w.env.DB.prepare("UPDATE song_links SET version = 'Playthrough' WHERE id = ?").bind(l.id).run();
+  const { SONG_SCHEMA } = await import('../src/songs.js');
+  for (const st of SONG_SCHEMA.split(';').map((x) => x.trim()).filter((x) => /^UPDATE song_links/.test(x))) await w.env.DB.prepare(st).run();
+  assert.equal((await w.call('/api/song', { id: sid }, w.t)).data.links[0].version, 'Oti Playthrough');
+});
