@@ -2,6 +2,13 @@
 import { slug } from './songs.js';
 
 export const COURSE_SCHEMA = `
+CREATE TABLE IF NOT EXISTS lesson_windows (
+  id TEXT PRIMARY KEY,
+  student_id TEXT NOT NULL,
+  started_at TEXT NOT NULL,
+  until TEXT NOT NULL
+);
+CREATE INDEX IF NOT EXISTS idx_lesson_windows_student ON lesson_windows (student_id, until);
 CREATE TABLE IF NOT EXISTS course_levels (
   course TEXT NOT NULL,
   level INTEGER NOT NULL,

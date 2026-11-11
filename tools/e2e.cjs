@@ -110,6 +110,25 @@ let n = 0; const ok = (m) => console.log('ok ' + (++n) + ' ' + m);
   await s.getByText('12 min gespeichert').waitFor(); ok('Sitzung gespeichert');
   await s.waitForFunction(() => (JSON.parse(localStorage.getItem('ph_outbox') || '[]')).length === 0); ok('Ausgang leer, Server hat die Sitzung');
 
+  // Unterrichtsmodus beim Schüler: Üben zählt nicht
+  { const before = await s.evaluate(() => S.data.sessions.length);
+    await s.click('[data-act=lessonModeOn]'); await s.getByText('Unterricht läuft').waitFor();
+    await s.click('[data-act=practiceFree]'); await s.waitForTimeout(200);
+    await s.evaluate(() => { const r = JSON.parse(localStorage.getItem('ph_run')); r.runningSince -= 5 * 60000; localStorage.setItem('ph_run', JSON.stringify(r)); });
+    await s.click('[data-act=endPractice]'); await s.getByText('nicht als Übungszeit gespeichert').waitFor(); await s.click('#finishForm button[type=submit]');
+    await s.getByText('Unterricht: zählt nicht als Übungszeit').waitFor();
+    assert.equal(await s.evaluate(() => JSON.parse(localStorage.getItem('ph_outbox') || '[]').length), 0);
+    assert.equal(await s.evaluate(() => S.data.sessions.length), before);
+    await s.click('[data-act=lessonModeOff]'); await s.getByText('Unterrichtsmodus aus').waitFor(); }
+  ok('Unterrichtsmodus: Schalter beim Schüler, Üben wird nicht gezählt');
+  await t.evaluate(async () => { await openLesson(S.file.student.id); });
+  assert.match(await t.textContent('body'), /Unterrichtsmodus beim Schüler an/);
+  await s.evaluate(async () => { await refreshLessonMode(); }); await s.getByText('Oti hat die Stunde gestartet').waitFor();
+  await t.click('[data-act=teacherLive][data-v="0"]'); await t.getByText('Unterrichtsmodus beim Schüler aus').first().waitFor();
+  await s.evaluate(async () => { await refreshLessonMode(); }); await s.locator('[data-act=lessonModeOn]').waitFor();
+  await t.evaluate(() => { S.lesson = null; closeOverlay(); });
+  ok('Unterrichtsmodus: Stunde bei Oti öffnen schaltet ihn beim Schüler an, Aus Knopf schaltet ab');
+
   // Offline üben, dann nachsenden
   await sc.setOffline(true);
   await s.click('[data-act=practiceFree]'); await s.waitForTimeout(200);

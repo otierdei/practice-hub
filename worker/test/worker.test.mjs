@@ -632,3 +632,24 @@ test('Manifest nimmt den persönlichen Code für die Home Bildschirm App mit', a
   const bad = await manifestFor('<script>').json();
   assert.equal(bad.start_url, '/');
 });
+
+test('Unterrichtsmodus: Üben während der Stunde zählt nicht als Übungszeit', async () => {
+  const w = await world();
+  assert.equal((await w.call('/api/home', {}, w.ta)).data.lesson_live, null);
+  assert.equal((await w.call('/api/t/lesson/live', { student_id: w.a, on: true }, w.ta)).status, 403, 'Schüler startet keine Stunde');
+  const on = (await w.call('/api/t/lesson/live', { student_id: w.a, on: true }, w.t)).data;
+  assert.ok(on.until > new Date().toISOString());
+  assert.equal((await w.call('/api/lesson/live', {}, w.ta)).data.until, on.until);
+  assert.equal((await w.call('/api/lesson/live', {}, w.tb)).data.until, null, 'andere Schüler nicht betroffen');
+  const t0 = Date.now();
+  const iso = (ms) => new Date(t0 + ms).toISOString();
+  const r = (await w.call('/api/session/add', { client_id: 'u1', started_at: iso(1000), ended_at: iso(600000), local_date: '2026-11-11', seconds: 599 }, w.ta)).data;
+  assert.equal(r.in_lesson, true);
+  // Vor der Stunde begonnen: nur die Zeit davor zählt
+  const r2 = (await w.call('/api/session/add', { client_id: 'u2', started_at: iso(-300000), ended_at: iso(600000), local_date: '2026-11-11', seconds: 900 }, w.ta)).data;
+  assert.ok(r2.trimmed >= 590 && r2.trimmed <= 610, String(r2.trimmed));
+  await w.call('/api/t/lesson/finish', { student_id: w.a, notes_shared: '' }, w.t);
+  assert.equal((await w.call('/api/lesson/live', {}, w.ta)).data.until, null, 'Stunde beenden beendet den Modus');
+  const r3 = (await w.call('/api/session/add', { client_id: 'u3', started_at: iso(5000000), ended_at: iso(5600000), local_date: '2026-11-11', seconds: 600 }, w.ta)).data;
+  assert.ok(r3.id && !r3.in_lesson, 'nach der Stunde zählt wieder');
+});

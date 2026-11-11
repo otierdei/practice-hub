@@ -120,6 +120,11 @@ const logRow = (who, action, entity, id, summary) => [
 ];
 
 // ---------- Lesen für Schüler und Eltern ----------
+// Läuft gerade eine Stunde bei Oti? Dann ist der Schüler im Unterrichtsmodus.
+async function lessonLive(s, studentId) {
+  const t = now(); const w = await s.first('SELECT until FROM lesson_windows WHERE student_id = ? AND started_at <= ? AND until > ? ORDER BY until DESC LIMIT 1', studentId, t, t);
+  return w ? w.until : null;
+}
 async function studentView(s, studentId, role) {
   const st = await s.first('SELECT id, first_name, birth_year, is_minor, weekday, lesson_time, lesson_minutes, level, instrument FROM students WHERE id = ?', studentId);
   if (!st) throw new HttpError(404, 'Schüler nicht gefunden.');
@@ -135,7 +140,8 @@ async function studentView(s, studentId, role) {
     s.all('SELECT id, date, minutes, notes_shared FROM lessons WHERE student_id = ? ORDER BY date DESC LIMIT 60', studentId),
     s.first(`SELECT given_at FROM consents WHERE student_id = ? AND kind = 'app' ORDER BY given_at DESC LIMIT 1`, studentId),
   ]);
-  return { role, student: st, assignments, sessions, goals, lessons, consent: consent ? consent.given_at : null, consentVersion: CONSENT_VERSION, canGoal: role === 'student' && canSetGoals(st) };
+  const live = await lessonLive(s, studentId);
+  return { role, student: st, assignments, sessions, goals, lessons, lesson_live: live, consent: consent ? consent.given_at : null, consentVersion: CONSENT_VERSION, canGoal: role === 'student' && canSetGoals(st) };
 }
 
 // Alle Schüler dürfen eigene Ziele eintragen (Altersgrenze auf Otis Wunsch entfernt)
@@ -158,6 +164,14 @@ async function addSession(s, who, b) {
     const e = await s.first('SELECT id FROM exercises WHERE id = ?', exerciseId);
     if (!e) exerciseId = null;
   }
+  // Unterrichtsmodus: Üben während der Stunde zählt nicht als Übungszeit. Beginnt die Sitzung vor der Stunde, zählt nur die Zeit davor.
+  let secs = seconds;
+  const w = await s.first('SELECT started_at, until FROM lesson_windows WHERE student_id = ? AND until > ? AND started_at < ? ORDER BY started_at LIMIT 1', who.studentId, started, ended);
+  if (w) {
+    if (started >= w.started_at) return { ok: true, in_lesson: true };
+    secs = Math.min(seconds, Math.floor((Date.parse(w.started_at) - Date.parse(started)) / 1000));
+    if (secs < 1) return { ok: true, in_lesson: true };
+  }
   const dup = await s.first('SELECT id, student_id FROM practice_sessions WHERE client_id = ?', clientId);
   if (dup) {
     if (dup.student_id !== who.studentId) throw new HttpError(409, 'Konflikt.');
@@ -167,10 +181,10 @@ async function addSession(s, who, b) {
   await s.batch([
     [`INSERT INTO practice_sessions (id, client_id, student_id, assignment_id, exercise_id, started_at, ended_at, local_date, seconds, bpm_reached, feeling, note, created_at)
       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
-      [id, clientId, who.studentId, assignmentId, exerciseId, started, ended, b.local_date, seconds, int(b.bpm_reached, 20, 400), int(b.feeling, 1, 5), str(b.note, 500), now()]],
-    logRow(who, 'session', 'practice_sessions', id, `${Math.round(seconds / 60)} min geübt`),
+      [id, clientId, who.studentId, assignmentId, exerciseId, started, ended, b.local_date, secs, int(b.bpm_reached, 20, 400), int(b.feeling, 1, 5), str(b.note, 500), now()]],
+    logRow(who, 'session', 'practice_sessions', id, `${Math.round(secs / 60)} min geübt`),
   ]);
-  return { id };
+  return secs < seconds ? { id, trimmed: seconds - secs } : { id };
 }
 
 // ---------- Lehrer ----------
@@ -265,6 +279,7 @@ function deleteStudentStatements(id) {
     ['DELETE FROM access WHERE student_id = ?', [id]],
     ['DELETE FROM consents WHERE student_id = ?', [id]],
     ['DELETE FROM practice_sessions WHERE student_id = ?', [id]],
+    ['DELETE FROM lesson_windows WHERE student_id = ?', [id]],
     ['DELETE FROM assignments WHERE student_id = ?', [id]],
     ['DELETE FROM goals WHERE student_id = ?', [id]],
     ['DELETE FROM lessons WHERE student_id = ?', [id]],
@@ -501,6 +516,7 @@ async function finishLesson(s, who, b) {
     const title = str(g.title || g, 160);
     if (title) stmts.push(['INSERT INTO goals (id, student_id, title, status, created_at) VALUES (?, ?, ?, ?, ?)', [uid(), st.id, title, 'offen', t]]);
   }
+  stmts.push(['UPDATE lesson_windows SET until = ? WHERE student_id = ? AND until > ?', [t, st.id, t]]);
   stmts.push(logRow(who, 'lesson', 'lessons', lessonId, `Stunde mit ${st.first_name}${same ? ' (ergänzt)' : ''}`));
   await s.batch(stmts);
   const ord = await orderAppend(s, st.id, newIds); if (ord.length) await s.batch(ord);
@@ -514,6 +530,7 @@ export async function cleanup(env) {
   const old = await s.all("SELECT id FROM students WHERE status = 'archiviert' AND archived_at < ?", yearAgo);
   for (const r of old) await s.batch(deleteStudentStatements(r.id));
   await s.run('DELETE FROM devices WHERE expires_at < ?', now());
+  await s.run('DELETE FROM lesson_windows WHERE until < ?', new Date(Date.now() - 30 * DAY).toISOString());
   await s.run('DELETE FROM attempts WHERE at < ?', new Date(Date.now() - DAY).toISOString());
   await s.run('DELETE FROM log WHERE at < ?', new Date(Date.now() - 2 * 365 * DAY).toISOString());
   return { deletedStudents: old.length };
@@ -563,6 +580,10 @@ async function route(env, req, path, body) {
     const done = g.status !== 'erreicht';
     await s.run('UPDATE goals SET status = ?, reached_at = ? WHERE id = ?', done ? 'erreicht' : 'offen', done ? now() : null, g.id);
     return { ok: true, status: done ? 'erreicht' : 'offen' };
+  }
+  if (path === '/api/lesson/live') {
+    if (!own) throw new HttpError(403, 'Kein Zugriff.');
+    return { until: await lessonLive(s, who.studentId) };
   }
   if (path === '/api/session/add') {
     if (who.role !== 'student') throw new HttpError(403, 'Nur Schüler können Übezeit eintragen.');
@@ -772,6 +793,17 @@ async function route(env, req, path, body) {
       await s.batch([['UPDATE exercises SET archived = 1 WHERE id = ?', [String(body.id || '')]], logRow(who, 'archive', 'exercises', String(body.id || ''), 'archiviert')]);
       return { ok: true };
     case '/api/t/lesson/finish': return finishLesson(s, who, body);
+    case '/api/t/lesson/live': {
+      // Stunde läuft: Schüler App im Unterrichtsmodus. Endet mit "Stunde beenden" oder spätestens nach Stundenlänge plus 15 Minuten.
+      const st = await s.first('SELECT id, lesson_minutes FROM students WHERE id = ?', String(body.student_id || ''));
+      if (!st) throw new HttpError(404, 'Schüler nicht gefunden.');
+      const t = now(), cur = await s.first('SELECT id FROM lesson_windows WHERE student_id = ? AND started_at <= ? AND until > ? ORDER BY until DESC LIMIT 1', st.id, t, t);
+      if (!body.on) { if (cur) await s.run('UPDATE lesson_windows SET until = ? WHERE id = ?', t, cur.id); return { until: null }; }
+      const until = new Date(Date.now() + ((st.lesson_minutes || 45) + 15) * 60000).toISOString();
+      if (cur) await s.run('UPDATE lesson_windows SET until = MAX(until, ?) WHERE id = ?', until, cur.id);
+      else await s.run('INSERT INTO lesson_windows (id, student_id, started_at, until) VALUES (?, ?, ?, ?)', uid(), st.id, t, until);
+      return { until };
+    }
     case '/api/t/lessons/merge': {
       // Mehrere Stunden eines Schülers am selben Tag zu einer zusammenführen (Notizen, Hausaufgaben, Minuten)
       const keep = await s.first('SELECT * FROM lessons WHERE id = ?', String(body.keep_id || ''));
