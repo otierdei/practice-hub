@@ -373,6 +373,8 @@ let n = 0; const ok = (m) => console.log('ok ' + (++n) + ' ' + m);
   // Schüler (Simulation): Akkordwechsel Trainer in der Gitarren Übung
   await t.click('.sheet [data-act=preview]'); await t.getByText('Simulation als').waitFor();
   await t.locator('.card:has-text("G C Wechsel E2E") [data-act=practice]').first().click();
+  assert.equal(await t.locator('#beats').count(), 1, 'Metronom bei Gitarren Übung');
+  { const v = await t.getAttribute('[data-act=gtTempo] >> nth=-1', 'data-v'); await t.click('[data-act=gtTempo] >> nth=-1'); assert.equal(await t.textContent('#bpmVal'), v); }
   await t.click('[data-act=chgStart]'); for (let i = 0; i < 3; i++) await t.click('[data-act=chgTap]');
   await t.evaluate(() => { S.chg.end = Date.now(); }); await t.getByText('3 Wechsel in einer Minute').first().waitFor();
   assert.match(await t.textContent('#chgBox'), /Bestwert 3/);

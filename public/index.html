@@ -206,8 +206,8 @@ details.card summary{cursor:pointer;font-family:var(--display);font-size:1.08rem
 </head>
 <body>
 <div id="app"><div class="wrap"><p class="muted">Lädt …</p></div></div>
-<script src="notation.js?v=71"></script>
-<script src="guitar.js?v=71"></script>
+<script src="notation.js?v=72"></script>
+<script src="guitar.js?v=72"></script>
 <script>
 'use strict';
 // ---------- Grundlagen ----------
@@ -1414,6 +1414,8 @@ function practiceView() {
     ${a && ytId(a.url) ? ytEmbed(a.url) : ''}
     ${songBlocksHTML(a)}
     ${a && Guitar.parse(a.notation) ? `${Guitar.viewHTML(Guitar.parse(a.notation), 'practiceGuitar')}
+      ${gtTempoSteps(a)}
+      ${metronomeCard(a)}
       ${Guitar.parse(a.notation).chords.length >= 2 ? `<div id="chgBox">${chgBoxHTML(Guitar.parse(a.notation).chords.join(' '))}</div>` : ''}
       <div class="row">${Guitar.parse(a.notation).strum.cells.some(Boolean) ? `<button class="btn" data-act="gtPlay" data-mode="strum" style="flex:1">${Guitar.isPlaying() ? 'Stopp' : 'Schlagmuster abspielen'}</button>` : ''}${Guitar.parse(a.notation).tab.notes.length ? `<button class="btn" data-act="gtPlay" data-mode="tab" style="flex:1">Tabs abspielen</button>` : ''}</div>` : ''}
     ${a && DrumNotation.parse(a.notation) ? `<div class="nt-staff" id="practiceStaff">${DrumNotation.render(DrumNotation.parse(a.notation), { cursor: true, label: 'Noten: ' + (a.title || '') })}</div>
@@ -1422,7 +1424,7 @@ function practiceView() {
       <div class="col" style="gap:8px"><span class="small muted">Stumm schalten und selbst spielen:</span>
         <div class="row" style="gap:6px">${DrumNotation.usedKeys(DrumNotation.parse(a.notation)).map((k) => `<button type="button" class="chip" data-act="beatMute" data-k="${k}" aria-pressed="${(S.beatMute || []).includes(k)}">${DrumNotation.ROWS.find((r) => r.k === k).n}</button>`).join('')}</div>
 </div>` : ''}
-    ${a && DrumNotation.parse(a.notation) ? '' : metronomeCard(a)}
+    ${a && (DrumNotation.parse(a.notation) || Guitar.parse(a.notation)) ? '' : metronomeCard(a)}
     <button class="btn primary block" data-act="endPractice" ${el < 1000 ? 'disabled' : ''}>Sitzung beenden</button>
   </div>`;
 }
@@ -1466,6 +1468,12 @@ function trkStop() { if (TRK.since) { TRK.ms += performance.now() - TRK.since; T
 function trkText() { const ms = TRK.ms + (TRK.since ? performance.now() - TRK.since : 0); return clock(ms) + ' · ' + TRK.bars + ' Takte'; }
 function metDotsHTML(s) { return s.accents.map((v, i) => `<button type="button" class="met-dot acc${v}" data-act="metAcc" data-i="${i}" aria-label="Schlag ${i + 1}: ${['stumm', 'normal', 'betont'][v]}"></button>`).join(''); }
 // ---------- Akkordwechsel Trainer: 1 Minute, jeder saubere Wechsel ein Tipp ----------
+// Tempo Stufen wie bei Play Alongs: langsam, mittel, Ziel. Antippen stellt Metronom und Gitarre um.
+function gtTempoSteps(a) {
+  const g = Guitar.parse(a.notation), lo = a.start_bpm || (g && g.bpm) || 60, hi = Math.max(lo, a.target_bpm || lo + 30), mid = Math.round((lo + hi) / 10) * 5;
+  const steps = [['Langsam', lo], ['Mittel', mid], ['Ziel', hi]].filter((x, i, arr) => i === 0 || x[1] !== arr[i - 1][1]);
+  return `<div class="row" style="gap:6px;align-items:center"><span class="small muted">Tempo Stufen:</span>${steps.map(([l, b]) => `<button type="button" class="chip" data-act="gtTempo" data-v="${b}" aria-pressed="${MET.bpm === b}">${l} ${b}</button>`).join('')}</div>`;
+}
 function chgBoxHTML(label) {
   const d = stuData() || {}, list = (d.changes || []).filter((x) => x.chords === label), best = list.reduce((m, x) => Math.max(m, x.count), 0), run = S.chg && S.chg.label === label ? S.chg : null;
   const left = run ? Math.max(0, Math.ceil((run.end - Date.now()) / 1000)) : 0;
@@ -1715,11 +1723,15 @@ document.addEventListener('click', async (ev) => {
         const g = Guitar.parse(S.song.guitar.notation), root = $('#songGuitar'); metStop(); DrumNotation.stop();
         Guitar.play(g, 'strum', g.bpm, Guitar.cursorFor(root && root.querySelector('.gt-strum'))); el.textContent = 'Stopp'; break;
       }
+      case 'gtTempo': setBpm(Number(el.dataset.v)); document.querySelectorAll('[data-act="gtTempo"]').forEach((b) => b.setAttribute('aria-pressed', String(b === el))); break;
       case 'gtPlay': {
         if (Guitar.isPlaying()) { Guitar.stop(); render(); break; }
         const r = store.get('run'); const a = runTask(r); const g = Guitar.parse(a.notation);
         metStop(); const root = $('#practiceGuitar');
-        Guitar.play(g, el.dataset.mode, MET.bpm, Guitar.cursorFor(root && root.querySelector(el.dataset.mode === 'tab' ? '.gt-tab' : '.gt-strum')));
+        // Metronom Automatik gilt auch hier: nach X Durchläufen schneller
+        const cur = Guitar.cursorFor(root && root.querySelector(el.dataset.mode === 'tab' ? '.gt-tab' : '.gt-strum')); let last = -1, loops = 0;
+        const onStep = (i) => { cur(i); if (i >= 0 && i < last) { loops++; const m = metAuto(); if (m.on && loops % Math.max(1, m.bars) === 0) setBpm(Math.min(m.max, MET.bpm + m.add)); } if (i >= 0) last = i; };
+        Guitar.play(g, el.dataset.mode, MET.bpm, onStep);
         el.textContent = 'Stopp'; break;
       }
       case 'tuner': {
