@@ -805,3 +805,20 @@ test('Gitarre: Akkordwechsel Trainer und Gitarre pro Song', async () => {
   assert.equal(d.guitar.sheet, 'Vers: G D Em C'); assert.equal(d.guitar.key_sig, 'A'); assert.equal(JSON.parse(d.guitar.notation).capo, 2);
   assert.equal((await w.call('/api/t/song/guitar', { song_id: sg, sheet: 'x' }, w.ta)).status, 403);
 });
+
+test('Songs umbenennen und löschen (ausblenden), offene Hausaufgabe blockiert', async () => {
+  const w = await world();
+  const a = (await w.call('/api/t/song/create', { title: 'Alter Titel' }, w.t)).data.id;
+  const b = (await w.call('/api/t/song/create', { title: 'Anderer Song' }, w.t)).data.id;
+  assert.equal((await w.call('/api/t/song/rename', { id: a, title: 'anderer song' }, w.t)).status, 409);
+  assert.equal((await w.call('/api/t/song/rename', { id: a, title: 'Neuer Titel' }, w.t)).status, 200);
+  assert.equal((await w.call('/api/song', { id: a }, w.t)).data.song.title, 'Neuer Titel');
+  assert.equal((await w.call('/api/t/song/rename', { id: a, title: 'X' }, w.ta)).status, 403);
+  await w.call('/api/t/assignments/new', { student_id: w.a, items: [{ song_id: b, free_text: 'Song' }] }, w.t);
+  assert.equal((await w.call('/api/t/song/delete', { id: b }, w.t)).status, 409);
+  assert.equal((await w.call('/api/t/song/delete', { id: a }, w.t)).status, 200);
+  const list = (await w.call('/api/songs', {}, w.t)).data.songs.map((x) => x.id);
+  assert.ok(!list.includes(a) && list.includes(b));
+  await w.call('/api/t/song/create', { title: 'Alter Titel' }, w.t);
+  assert.ok((await w.call('/api/songs', {}, w.t)).data.songs.some((x) => x.id === a), 'neu anlegen holt ihn zurück');
+});

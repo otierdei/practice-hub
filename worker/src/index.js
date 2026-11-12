@@ -718,8 +718,26 @@ async function route(env, req, path, body) {
       // Song aus dem Unterricht, der nicht im Lobpreis Ordner liegt
       const title = str(body.title, 160); if (!title) throw new HttpError(400, 'Titel fehlt.');
       const id = 'unterricht:' + slug(title);
-      await s.run("INSERT INTO songs (id, title, lang, updated_at) VALUES (?, ?, 'unterricht', ?) ON CONFLICT(id) DO NOTHING", id, title, now());
+      await s.batch([["INSERT INTO songs (id, title, lang, updated_at) VALUES (?, ?, 'unterricht', ?) ON CONFLICT(id) DO NOTHING", [id, title, now()]], ['DELETE FROM song_hidden WHERE song_id = ?', [id]]]);
       return { id };
+    }
+    case '/api/t/song/rename': {
+      const sg = await s.first('SELECT id FROM songs WHERE id = ?', String(body.id || ''));
+      if (!sg) throw new HttpError(404, 'Song nicht gefunden.');
+      const title = str(body.title, 160); if (!title) throw new HttpError(400, 'Titel fehlt.');
+      const clash = (await s.all('SELECT id, title FROM songs WHERE id != ? AND id NOT IN (SELECT song_id FROM song_hidden)', sg.id)).find((x) => slug(x.title) === slug(title));
+      if (clash) throw new HttpError(409, `Es gibt schon einen Song "${clash.title}".`);
+      await s.run('UPDATE songs SET title = ? WHERE id = ?', title, sg.id);
+      return { ok: true };
+    }
+    case '/api/t/song/delete': {
+      // Ausblenden statt löschen: Drive Songs kämen beim Abgleich zurück. Offene Hausaufgaben blockieren.
+      const sg = await s.first('SELECT id, title FROM songs WHERE id = ?', String(body.id || ''));
+      if (!sg) throw new HttpError(404, 'Song nicht gefunden.');
+      const open = await s.all("SELECT DISTINCT st.first_name FROM assignment_songs x JOIN assignments a ON a.id = x.assignment_id JOIN students st ON st.id = a.student_id WHERE x.song_id = ? AND a.status = 'offen'", sg.id);
+      if (open.length) throw new HttpError(409, `${sg.title} ist noch offene Hausaufgabe bei ${open.map((r) => r.first_name).join(', ')}.`);
+      await s.batch([['INSERT INTO song_hidden (song_id, hidden_at) VALUES (?, ?) ON CONFLICT(song_id) DO NOTHING', [sg.id, now()]], ['DELETE FROM student_songs WHERE song_id = ?', [sg.id]]]);
+      return { ok: true };
     }
     case '/api/t/song/teaching': {
       // Song in den Reiter Unterricht aufnehmen, entfernen, als Vorschlag ausblenden oder Kategorie setzen

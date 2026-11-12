@@ -66,6 +66,11 @@ CREATE INDEX IF NOT EXISTS i_song_links ON song_links(song_id, sort);
 CREATE INDEX IF NOT EXISTS i_assignment_songs ON assignment_songs(song_id);
 CREATE INDEX IF NOT EXISTS i_song_files ON song_files(song_id);
 CREATE INDEX IF NOT EXISTS i_song_parts ON song_parts(song_id, sort);
+-- Gelöschte Songs: Drive Songs kommen beim Abgleich wieder, darum ausblenden statt löschen (umkehrbar)
+CREATE TABLE IF NOT EXISTS song_hidden (
+  song_id TEXT PRIMARY KEY,
+  hidden_at TEXT NOT NULL
+);
 -- Gitarre pro Song: Akkorde, Capo, Schlagmuster (Gitarren Notation) und Akkordblatt als Text
 CREATE TABLE IF NOT EXISTS song_guitar (
   song_id TEXT PRIMARY KEY,
@@ -188,8 +193,10 @@ async function sundaySetlist(s) {
   const row = await s.first('SELECT date, items FROM setlists WHERE date >= ? ORDER BY date LIMIT 1', today());
   if (!row) return null;
   const items = JSON.parse(row.items);
-  const songs = await s.all('SELECT id, title FROM songs');
+  const songs = await s.all('SELECT id, title FROM songs WHERE id NOT IN (SELECT song_id FROM song_hidden)');
   const bySlug = {}; for (const x of songs) bySlug[slug(x.title)] = bySlug[slug(x.title)] || x.id;
+  // Umbenannte Songs: der ursprüngliche Titel steckt in der ID (Sprache:Titel), damit Setlists weiter passen
+  for (const x of songs) { const k = x.id.split(':').slice(1).join(':'); if (k && !bySlug[k]) bySlug[k] = x.id; }
   for (const it of items) it.song_id = bySlug[it.slug] || null;
   return { date: row.date, items };
 }
@@ -201,7 +208,7 @@ export async function songsHome(s, who) {
     s.all(`SELECT s.id, s.title, s.lang, GROUP_CONCAT(DISTINCT f.key_sig) AS keys, COALESCE(MAX(m.bpm), MAX(f.bpm)) AS bpm,
              (SELECT state FROM song_teaching WHERE song_id = s.id) AS t_state, (SELECT kind FROM song_teaching WHERE song_id = s.id) AS t_kind,
              EXISTS (SELECT 1 FROM assignment_songs x WHERE x.song_id = s.id) AS assigned
-           FROM songs s LEFT JOIN song_files f ON f.song_id = s.id LEFT JOIN song_meta m ON m.song_id = s.id GROUP BY s.id
+           FROM songs s LEFT JOIN song_files f ON f.song_id = s.id LEFT JOIN song_meta m ON m.song_id = s.id WHERE s.id NOT IN (SELECT song_id FROM song_hidden) GROUP BY s.id
            HAVING COUNT(f.drive_id) > 0 OR s.lang = 'unterricht' OR EXISTS (SELECT 1 FROM song_teaching t WHERE t.song_id = s.id AND t.state = 'on') OR EXISTS (SELECT 1 FROM song_parts p WHERE p.song_id = s.id) OR EXISTS (SELECT 1 FROM song_links k WHERE k.song_id = s.id) ORDER BY s.title COLLATE NOCASE`),
     s.all('SELECT song_id, COUNT(*) AS n FROM (SELECT song_id FROM song_parts UNION ALL SELECT song_id FROM song_links) GROUP BY song_id'),
     studentId ? s.all('SELECT song_id FROM student_songs WHERE student_id = ? ORDER BY added_at', studentId) : [],
@@ -250,7 +257,7 @@ export const songKind = (x) => x.t_kind || (x.lang === 'de' || x.lang === 'en' ?
 const normT = (t) => String(t || '').toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '').replace(/[^a-z0-9 ]+/g, ' ').replace(/\s+/g, ' ').trim();
 const SETLIST = /^(opfer|schluss|reserve|liste|set ?list|set|sonntag|samstag|montag|vorbereitung)\b/;
 export async function songSuggestions(s) {
-  const songs = await s.all(`SELECT s.id, s.title, s.lang, t.state, EXISTS (SELECT 1 FROM assignment_songs x WHERE x.song_id = s.id) AS assigned FROM songs s LEFT JOIN song_teaching t ON t.song_id = s.id`);
+  const songs = await s.all(`SELECT s.id, s.title, s.lang, t.state, EXISTS (SELECT 1 FROM assignment_songs x WHERE x.song_id = s.id) AS assigned FROM songs s LEFT JOIN song_teaching t ON t.song_id = s.id WHERE s.id NOT IN (SELECT song_id FROM song_hidden)`);
   const cand = songs.filter((x) => !(x.state === 'on' || x.state === 'hidden' || x.lang === 'unterricht' || x.assigned))
     .map((x) => ({ id: x.id, title: x.title, k: normT(x.title.replace(/\s*\(.*?\)\s*/g, ' ')) })).filter((x) => x.k.length >= 4)
     .sort((a, b) => b.k.length - a.k.length);

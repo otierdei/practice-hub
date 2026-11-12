@@ -206,8 +206,8 @@ details.card summary{cursor:pointer;font-family:var(--display);font-size:1.08rem
 </head>
 <body>
 <div id="app"><div class="wrap"><p class="muted">Lädt …</p></div></div>
-<script src="notation.js?v=76"></script>
-<script src="guitar.js?v=76"></script>
+<script src="notation.js?v=77"></script>
+<script src="guitar.js?v=77"></script>
 <script>
 'use strict';
 // ---------- Grundlagen ----------
@@ -1145,7 +1145,8 @@ function songView() {
   const teacher = S.role === 'teacher' && !S.preview;
   return `<div class="wrap" style="max-width:720px;align-items:stretch">
     <div class="row between"><button class="btn small" data-act="close">Zurück</button>${S.role === 'student' ? `<button class="btn small ${mine ? '' : 'primary'}" data-act="mySong" data-id="${esc(d.song.id)}">${mine ? 'In meiner Setlist ✓' : 'Zu meiner Setlist'}</button>` : ''}</div>
-    <div class="col" style="gap:4px"><h1>${esc(d.song.title)}</h1><span class="muted">${esc(x ? songMeta({ ...x, parts: 0 }) : '')}</span>
+    <div class="col" style="gap:4px">${teacher && S.songRename ? `<form id="songRenameForm" class="row" style="gap:8px;flex-wrap:nowrap"><input id="sr_title" maxlength="160" value="${esc(d.song.title)}" style="flex:1" aria-label="Neuer Songtitel"><button class="btn small primary" type="submit">Speichern</button><button class="btn small" type="button" data-act="songRename" data-v="0">Abbrechen</button></form>` : `<h1>${esc(d.song.title)}</h1>`}<span class="muted">${esc(x ? songMeta({ ...x, parts: 0 }) : '')}</span>
+      ${teacher && !S.songRename ? `<div class="row" style="gap:8px"><button class="btn small" data-act="songRename" data-v="1">Umbenennen</button><button class="btn small danger" data-act="songDelete">${S.songDelConfirm === d.song.id ? 'Wirklich löschen?' : 'Song löschen'}</button></div>` : ''}
       ${teacher ? `<form id="songBpmForm" class="row" style="gap:8px;flex-wrap:nowrap;align-items:center"><label for="sb_bpm" class="small">Original Tempo</label><input id="sb_bpm" inputmode="numeric" style="width:80px;min-height:40px;text-align:center" value="${d.song.bpm || ''}" placeholder="BPM"><button class="btn small" type="submit">Speichern</button>${d.song.bpm_source ? `<span class="small muted">Quelle: ${esc(d.song.bpm_source)}</span>` : ''}</form>` : d.song.bpm ? `<span class="small muted">Original Tempo ${d.song.bpm} BPM</span>` : ''}</div>
     ${teacher ? songTeachRow(x) : ''}
     ${songLinksSection(d, teacher)}
@@ -1270,7 +1271,7 @@ function partVideoView() {
     <div class="col" style="gap:2px"><span class="muted">${esc(S.song.song.title)}</span><h1>${esc(p.title)}</h1></div>${ytEmbed(p.url)}
     ${S.role === 'student' ? '<button class="btn primary block" data-act="practiceFree">Jetzt üben</button>' : ''}</div>`;
 }
-async function openSong(id) { S.song = await api('/api/song', { id }); openOverlay(songView); }
+async function openSong(id) { S.songRename = false; S.songDelConfirm = null; S.songGtEdit = false; S.song = await api('/api/song', { id }); openOverlay(songView); }
 document.addEventListener('input', (ev) => { if (ev.target.id === 'songQ') { S.songQ = ev.target.value; const l = $('#songList'); if (l) l.innerHTML = songResults(); } });
 // Wochen Streak: eine Woche zählt bei mindestens 3 Übetagen; die laufende Woche bricht die Serie nicht
 function weekStreak(sessions) {
@@ -1751,6 +1752,12 @@ document.addEventListener('click', async (ev) => {
       case 'chgStart': S.chg = { label: el.dataset.label, count: 0, end: Date.now() + 60000 }; clearInterval(S.chgTimer); S.chgTimer = setInterval(() => { if (!S.chg) return clearInterval(S.chgTimer); if (Date.now() >= S.chg.end) chgFinish(); else chgRefresh(); }, 250); chgRefresh(); break;
       case 'chgTap': if (S.chg) { S.chg.count++; chgRefresh(); } break;
       case 'chgStop': clearInterval(S.chgTimer); { const l = S.chg && S.chg.label; S.chg = null; const box = $('#chgBox'); if (box && l) box.innerHTML = chgBoxHTML(l); } break;
+      case 'songRename': S.songRename = el.dataset.v === '1'; openOverlay(songView); break;
+      case 'songDelete': {
+        const sid = S.song.song.id;
+        if (S.songDelConfirm !== sid) { S.songDelConfirm = sid; el.textContent = 'Wirklich löschen?'; break; }
+        S.songDelConfirm = null; await api('/api/t/song/delete', { id: sid }); S.songs = await api('/api/songs'); S.song = null; closeOverlay(); toast('Song gelöscht'); break;
+      }
       case 'songGtEdit': {
         S.songGtEdit = el.dataset.v === '1'; S.gt = S.gt || {}; S.gtSel = null;
         if (S.songGtEdit) { const g = S.song.guitar && Guitar.parse(S.song.guitar.notation); S.gt.sg = g || { ...Guitar.empty(), chords: [], strum: { sub: 8, bars: 1, cells: Array(8).fill('') } }; }
@@ -2189,6 +2196,9 @@ document.addEventListener('submit', async (ev) => {
     } else if (fid === 'levelAddForm') {
       const name = $('#lv_name').value.trim(); if (!name) return;
       await api('/api/t/course/level/add', { course: courseOf().course, name }); await reloadCourse(); openOverlay(courseView); toast('Level angelegt');
+    } else if (fid === 'songRenameForm') {
+      const title = $('#sr_title').value.trim(); if (!title) return;
+      await api('/api/t/song/rename', { id: S.song.song.id, title }); S.song = await api('/api/song', { id: S.song.song.id }); S.songs = await api('/api/songs'); S.songRename = false; openOverlay(songView); toast('Umbenannt');
     } else if (fid === 'songGtForm') {
       await api('/api/t/song/guitar', { song_id: S.song.song.id, notation: S.gt.sg, sheet: $('#sgt_sheet').value, key_sig: $('#sgt_key').value.trim() });
       S.song = await api('/api/song', { id: S.song.song.id }); S.songGtEdit = false; openOverlay(songView); toast('Gitarre gespeichert');
