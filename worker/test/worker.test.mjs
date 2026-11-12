@@ -822,3 +822,18 @@ test('Songs umbenennen und löschen (ausblenden), offene Hausaufgabe blockiert',
   await w.call('/api/t/song/create', { title: 'Alter Titel' }, w.t);
   assert.ok((await w.call('/api/songs', {}, w.t)).data.songs.some((x) => x.id === a), 'neu anlegen holt ihn zurück');
 });
+
+test('Song Videos getrennt nach Schlagzeug und Gitarre', async () => {
+  const w = await world();
+  const sg = (await w.call('/api/t/song/create', { title: 'Zwei Instrumente' }, w.t)).data.id;
+  await w.call('/api/t/song/links/add', { song_id: sg, lines: 'Original | https://youtu.be/aaaaaaaaaaa' }, w.t);
+  await w.call('/api/t/song/links/add', { song_id: sg, lines: 'Original | https://youtu.be/bbbbbbbbbbb', instrument: 'guitar' }, w.t);
+  let d = (await w.call('/api/song', { id: sg }, w.t)).data;
+  assert.deepEqual(d.links.map((l) => l.instrument).sort(), ['drums', 'guitar']);
+  const dl = d.links.find((l) => l.instrument === 'drums');
+  await w.call('/api/t/song/link/update', { id: dl.id, version: 'Easy', instrument: 'guitar' }, w.t);
+  d = (await w.call('/api/song', { id: sg }, w.t)).data;
+  assert.deepEqual(d.links.map((l) => l.instrument), ['guitar', 'guitar']);
+  await w.call('/api/t/song/link/delete', { id: dl.id }, w.t);
+  assert.equal((await w.call('/api/song', { id: sg }, w.t)).data.links.length, 1);
+});

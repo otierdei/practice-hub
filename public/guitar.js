@@ -21,7 +21,7 @@
   const NOTES_INT = ['C', 'C#', 'D', 'Eb', 'E', 'F', 'F#', 'G', 'Ab', 'A', 'Bb', 'B'];
   const esc = (v) => String(v == null ? '' : v).replace(/[&<>"]/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]));
 
-  function empty() { return { kind: 'guitar', v: 1, bpm: 80, capo: 0, key: '', chords: ['G', 'D', 'Em', 'C'], strum: { sub: 8, bars: 1, cells: ['D', '', 'D', 'U', '', 'U', 'D', 'U'] }, tab: { bars: 1, notes: [] } }; }
+  function empty() { return { kind: 'guitar', v: 1, bpm: 80, capo: 0, key: '', chords: ['G', 'D', 'Em', 'C'], strum: { sub: 8, bars: 1, cells: ['', '', '', '', '', '', '', ''] }, tab: { bars: 1, notes: [] } }; }
   function parse(s) {
     if (!s) return null;
     try { const o = typeof s === 'string' ? JSON.parse(s) : s; if (o.kind !== 'guitar') return null; const e = empty(); return { ...e, ...o, strum: { ...e.strum, ...(o.strum || {}) }, tab: { ...e.tab, ...(o.tab || {}) }, chords: o.chords || [] }; } catch (e) { return null; }
@@ -212,7 +212,8 @@
       <div class="gt-chords">${g.chords.map((c, i) => `<div class="gt-chordwrap">${chordSVG(c)}<button type="button" class="btn small" data-gt-act="rmChord" data-gt-id="${id}" data-i="${i}" aria-label="${esc(label(c))} entfernen">Entfernen</button></div>`).join('') || '<p class="muted small">Noch keine Akkorde.</p>'}</div>
       <div class="row" style="flex-wrap:nowrap"><label for="${id}-add" class="nt-sr">Akkord hinzufügen</label><select id="${id}-add">${chordOpts}</select><button type="button" class="btn small" data-gt-act="addChord" data-gt-id="${id}">Hinzufügen</button></div>
       ${g.capo ? `<p class="small muted">Mit Capo im ${g.capo}. Bund klingt G als ${soundingKey('G', g.capo)}, C als ${soundingKey('C', g.capo)}, D als ${soundingKey('D', g.capo)}.</p>` : ''}
-      <h4 class="gt-h">Schlagmuster</h4>
+      <h4 class="gt-h">Schlagmuster <span class="small muted">(optional)</span></h4>
+      ${!g.strum.cells.some(Boolean) && !g.strumOpen ? `<button type="button" class="btn small" data-gt-act="strumOn" data-gt-id="${id}">Schlagmuster hinzufügen</button>` : `
       <div class="row" style="gap:10px">
         <div class="field" style="flex:1;min-width:90px"><label for="${id}-sub">Raster</label><select id="${id}-sub" data-gt-ctl="sub"><option value="8" ${g.strum.sub === 8 ? 'selected' : ''}>8tel</option><option value="16" ${g.strum.sub === 16 ? 'selected' : ''}>16tel</option></select></div>
         <div class="field" style="flex:1;min-width:90px"><label for="${id}-sbars">Takte</label><select id="${id}-sbars" data-gt-ctl="sbars">${[1, 2].map((b) => `<option ${g.strum.bars === b ? 'selected' : ''}>${b}</option>`).join('')}</select></div>
@@ -220,7 +221,7 @@
       <div class="gt-strumwrap">${strumSVG(g, { cursor: true })}</div>
       <div class="gt-scells">${sCells}</div>
       <p class="small muted">Tippen wechselt: Pause, ab, auf, gedämpft.</p>
-      <button type="button" class="btn small primary" data-gt-act="playStrum" data-gt-id="${id}">Schlagmuster mit Akkorden abspielen</button>
+      <div class="row" style="gap:8px"><button type="button" class="btn small primary" data-gt-act="playStrum" data-gt-id="${id}">Schlagmuster mit Akkorden abspielen</button><button type="button" class="btn small" data-gt-act="strumOff" data-gt-id="${id}">Schlagmuster entfernen</button></div>`}
       <h4 class="gt-h">Tabs</h4>
       <div class="row" style="gap:10px"><div class="field" style="flex:1;max-width:160px"><label for="${id}-tbars">Takte</label><select id="${id}-tbars" data-gt-ctl="tbars">${[1, 2, 3, 4].map((b) => `<option ${g.tab.bars === b ? 'selected' : ''}>${b}</option>`).join('')}</select></div></div>
       <div class="gt-tabwrap">${tabSVG(g, { cursor: true })}</div>

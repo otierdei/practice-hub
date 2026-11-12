@@ -66,6 +66,11 @@ CREATE INDEX IF NOT EXISTS i_song_links ON song_links(song_id, sort);
 CREATE INDEX IF NOT EXISTS i_assignment_songs ON assignment_songs(song_id);
 CREATE INDEX IF NOT EXISTS i_song_files ON song_files(song_id);
 CREATE INDEX IF NOT EXISTS i_song_parts ON song_parts(song_id, sort);
+-- Videos pro Instrument: Schlagzeug und Gitarre haben eigene Videos zum gleichen Song (ohne Eintrag: Schlagzeug)
+CREATE TABLE IF NOT EXISTS song_link_instr (
+  link_id TEXT PRIMARY KEY,
+  instrument TEXT NOT NULL
+);
 -- Gelöschte Songs: Drive Songs kommen beim Abgleich wieder, darum ausblenden statt löschen (umkehrbar)
 CREATE TABLE IF NOT EXISTS song_hidden (
   song_id TEXT PRIMARY KEY,
@@ -228,7 +233,7 @@ export async function songDetail(s, id, teacher = false) {
   const [files, parts, links, playedBy, guitar] = await Promise.all([
     s.all('SELECT drive_id, name, key_sig, bpm, kind FROM song_files WHERE song_id = ? ORDER BY kind DESC, name', song.id),
     s.all('SELECT p.id, p.title, p.url, p.notes, p.sort, n.notation, v.version FROM song_parts p LEFT JOIN song_part_notation n ON n.part_id = p.id LEFT JOIN song_part_version v ON v.part_id = p.id WHERE p.song_id = ? ORDER BY p.sort, p.created_at', song.id),
-    s.all('SELECT id, version, title, url, sort FROM song_links WHERE song_id = ? ORDER BY sort, created_at', song.id),
+    s.all("SELECT l.id, l.version, l.title, l.url, l.sort, COALESCE(i.instrument, 'drums') AS instrument FROM song_links l LEFT JOIN song_link_instr i ON i.link_id = l.id WHERE l.song_id = ? ORDER BY l.sort, l.created_at", song.id),
     teacher ? s.all(`SELECT DISTINCT st.first_name FROM students st WHERE st.id IN (
         SELECT a.student_id FROM assignment_songs x JOIN assignments a ON a.id = x.assignment_id WHERE x.song_id = ?
         UNION SELECT student_id FROM student_songs WHERE song_id = ?) ORDER BY st.first_name`, song.id, song.id) : [],

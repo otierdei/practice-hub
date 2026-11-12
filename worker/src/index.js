@@ -757,17 +757,20 @@ async function route(env, req, path, body) {
       const items = parseLinkLines(body.lines, str(body.version, 40) || 'Original');
       if (!items.length) throw new HttpError(400, 'Kein Link gefunden. Eine Zeile pro Link, z. B. "Easy | https://youtu.be/…".');
       const n = (await s.first('SELECT COUNT(*) AS n FROM song_links WHERE song_id = ?', song.id)).n;
-      await s.batch(items.map((it, i) => ['INSERT INTO song_links (id, song_id, version, title, url, sort, created_at) VALUES (?, ?, ?, ?, ?, ?, ?)', [uid(), song.id, it.version, null, cleanUrl(it.url), n + i, now()]]).concat([logRow(who, 'create', 'song_links', song.id, items.length + ' Links')]));
+      const instr = body.instrument === 'guitar' ? 'guitar' : 'drums';
+      await s.batch(items.flatMap((it, i) => { const id = uid(); return [['INSERT INTO song_links (id, song_id, version, title, url, sort, created_at) VALUES (?, ?, ?, ?, ?, ?, ?)', [id, song.id, it.version, null, cleanUrl(it.url), n + i, now()]], ['INSERT INTO song_link_instr (link_id, instrument) VALUES (?, ?)', [id, instr]]]; }).concat([logRow(who, 'create', 'song_links', song.id, items.length + ' Links')]));
       return { added: items.length };
     }
     case '/api/t/song/link/update': {
       const l = await s.first('SELECT id FROM song_links WHERE id = ?', String(body.id || ''));
       if (!l) throw new HttpError(404, 'Video nicht gefunden.');
       const version = str(body.version, 40); if (!version) throw new HttpError(400, 'Version fehlt.');
-      await s.batch([['UPDATE song_links SET version = ?, title = ? WHERE id = ?', [version, str(body.title, 120), l.id]], logRow(who, 'update', 'song_links', l.id, version)]);
+      const upd = [['UPDATE song_links SET version = ?, title = ? WHERE id = ?', [version, str(body.title, 120), l.id]], logRow(who, 'update', 'song_links', l.id, version)];
+      if (['drums', 'guitar'].includes(body.instrument)) upd.push(['INSERT INTO song_link_instr (link_id, instrument) VALUES (?, ?) ON CONFLICT(link_id) DO UPDATE SET instrument = excluded.instrument', [l.id, body.instrument]]);
+      await s.batch(upd);
       return { ok: true };
     }
-    case '/api/t/song/link/delete': await s.run('DELETE FROM song_links WHERE id = ?', String(body.id || '')); return { ok: true };
+    case '/api/t/song/link/delete': await s.batch([['DELETE FROM song_links WHERE id = ?', [String(body.id || '')]], ['DELETE FROM song_link_instr WHERE link_id = ?', [String(body.id || '')]]]); return { ok: true };
     case '/api/t/song/candidates': {
       // Mögliche Songs aus freien Hausaufgaben Texten; Oti entscheidet selbst, was ein Song ist
       const rows = await s.all("SELECT TRIM(free_text) AS t, COUNT(*) AS n FROM assignments WHERE free_text IS NOT NULL AND TRIM(free_text) != '' GROUP BY LOWER(TRIM(free_text)) ORDER BY n DESC LIMIT 400");

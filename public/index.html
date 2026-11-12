@@ -209,8 +209,8 @@ details.card summary{cursor:pointer;font-family:var(--display);font-size:1.08rem
 </head>
 <body>
 <div id="app"><div class="wrap"><p class="muted">Lädt …</p></div></div>
-<script src="notation.js?v=81"></script>
-<script src="guitar.js?v=81"></script>
+<script src="notation.js?v=83"></script>
+<script src="guitar.js?v=83"></script>
 <script>
 'use strict';
 // ---------- Grundlagen ----------
@@ -1221,7 +1221,15 @@ document.addEventListener('change', async (ev) => {
   P.busy = false; rerenderSong();
 });
 // Versionen eines Songs (aus den Videos und Bausteinen) und die aktuell gewählte
-function songVersions(d) { return [...new Set(d.links.map((l) => l.version).concat(d.parts.map((p) => p.version).filter(Boolean)))]; }
+// Welche Videos gelten gerade: Schlagzeug oder Gitarre. Stunde und Akte nach Schüler, Schüler nach eigenem Instrument, sonst Umschalter im Song.
+function songInstr() {
+  if (S.songInstrPick) return S.songInstrPick;
+  if (S.role === 'teacher' && !S.preview && S.file && (S.overlay === lessonView || S.overlay === studentFileView)) return isGuitarOnly(S.file.student) ? 'guitar' : 'drums';
+  const st = (S.role !== 'teacher' || S.preview) && stuData() ? stuData().student : null;
+  return st && isGuitarOnly(st) ? 'guitar' : 'drums';
+}
+const linksFor = (d) => (d.links || []).filter((l) => (l.instrument || 'drums') === songInstr());
+function songVersions(d) { return [...new Set(linksFor(d).map((l) => l.version).concat(songInstr() === 'drums' ? d.parts.map((p) => p.version).filter(Boolean) : []))]; }
 function songCurVersion(d, want) { const v = songVersions(d); return v.includes(want) ? want : v.includes(S.songVersion) ? S.songVersion : v[0] || null; }
 const partsFor = (d, ver) => d.parts.filter((p) => !p.version || !ver || p.version === ver);
 // Tempo eines Bausteins: standardmäßig Original Tempo des Songs. Doppelt ausgeschriebene Bausteine (32tel als 16tel) laufen mit Faktor 2.
@@ -1237,10 +1245,11 @@ function versionField(px, cur, used = [], label = 'Version') {
 const versionValue = (px) => { const v = $('#' + px + '_ver').value; return v === '__eigen' ? ($('#' + px + '_custom').value.trim() || 'Original') : v; };
 document.addEventListener('change', (ev) => { const px = ev.target.dataset && ev.target.dataset.verSelect; if (!px) return; const b = $('#' + px + '_custom_box'); if (b) { b.classList.toggle('hidden', ev.target.value !== '__eigen'); if (ev.target.value === '__eigen') $('#' + px + '_custom').focus(); } });
 function songLinksSection(d, teacher) {
-  const versions = [...new Set(d.links.map((l) => l.version))];
+  const links = linksFor(d), versions = [...new Set(links.map((l) => l.version))];
   const cur = versions.includes(S.songVersion) ? S.songVersion : versions[0];
-  const list = d.links.filter((l) => l.version === cur);
-  return `<section class="col"><h2>Videos</h2>
+  const list = links.filter((l) => l.version === cur);
+  const st = (S.role !== 'teacher' || S.preview) && stuData() ? stuData().student : null, canPick = (S.role === 'teacher' && !S.preview) || (st && isDual(st));
+  return `<section class="col"><div class="row between"><h2>Videos</h2>${canPick ? `<div class="row" role="group" aria-label="Instrument" style="gap:6px">${[['drums', 'Schlagzeug'], ['guitar', 'Gitarre']].map(([k, l]) => `<button class="chip" data-act="songInstr" data-v="${k}" aria-pressed="${songInstr() === k}">${l} (${(d.links || []).filter((x) => (x.instrument || 'drums') === k).length})</button>`).join('')}</div>` : ''}</div>
     ${versions.length > 1 ? `<div class="row" style="gap:6px">${versions.map((v) => `<button class="chip" data-act="songVer" data-v="${esc(v)}" aria-pressed="${v === cur}">${esc(v)}</button>`).join('')}</div>` : ''}
     ${list.length ? list.map((l) => `<section class="card task"><div class="row" style="flex-wrap:nowrap;align-items:center;gap:14px">
       ${ytThumb(l.url) ? `<button class="thumb" data-act="linkVideo" data-id="${l.id}" aria-label="Video ansehen: ${esc(cur)}"><img src="${ytThumb(l.url)}" alt="" loading="lazy" onerror="this.remove()"><span class="thumb-play">${PLAY}</span></button>` : `<a class="btn small" href="${esc(l.url)}" target="_blank" rel="noopener">Link öffnen</a>`}
@@ -1250,7 +1259,7 @@ function songLinksSection(d, teacher) {
         <div class="field"><label for="le_title">Titel (optional)</label><input id="le_title" maxlength="120" value="${esc(l.title || '')}" placeholder="z. B. Drumcam Probe 12.11."></div>
         ${versionField('le', l.version, versions)}
         <div class="row"><button class="btn primary small" type="submit">Speichern</button><button class="btn small" type="button" data-act="linkEditOff">Abbrechen</button></div></form>` : ''}</section>`).join('') : `<div class="empty">${teacher ? 'Noch keine Videos. Füg unten Links ein, eine Zeile pro Link.' : 'Noch keine Videos zu diesem Song.'}</div>`}
-    ${teacher ? `<form id="linksForm" class="card col"><b>Links hinzufügen</b>
+    ${teacher ? `<form id="linksForm" class="card col"><b>${songInstr() === 'guitar' ? 'Gitarren' : 'Schlagzeug'} Videos hinzufügen</b>
       ${versionField('lk', 'Original', versions, 'Version (wenn in der Zeile keine steht)')}
       <div class="field"><label for="lk_lines">Eine Zeile pro Link, z. B. "Easy | https://youtu.be/…"</label><textarea id="lk_lines" rows="4" placeholder="Easy | https://youtu.be/…&#10;Original | https://youtu.be/…"></textarea></div>
       <button class="btn primary" type="submit">Speichern</button></form>` : ''}
@@ -1274,7 +1283,7 @@ function partVideoView() {
     <div class="col" style="gap:2px"><span class="muted">${esc(S.song.song.title)}</span><h1>${esc(p.title)}</h1></div>${ytEmbed(p.url)}
     ${S.role === 'student' ? '<button class="btn primary block" data-act="practiceFree">Jetzt üben</button>' : ''}</div>`;
 }
-async function openSong(id) { S.songRename = false; S.songDelConfirm = null; S.songGtEdit = false; S.song = await api('/api/song', { id }); openOverlay(songView); }
+async function openSong(id) { S.songInstrPick = null; S.songRename = false; S.songDelConfirm = null; S.songGtEdit = false; S.song = await api('/api/song', { id }); openOverlay(songView); }
 document.addEventListener('input', (ev) => { if (ev.target.id === 'songQ') { S.songQ = ev.target.value; const l = $('#songList'); if (l) l.innerHTML = songResults(); } });
 // Wochen Streak: eine Woche zählt bei mindestens 3 Übetagen; die laufende Woche bricht die Serie nicht
 function weekStreak(sessions) {
@@ -1333,7 +1342,7 @@ function ytId(url) { const m = /(?:youtu\.be\/|v=|shorts\/|embed\/|live\/)([A-Za
 function songBlocksHTML(a) {
   const d = S.song; if (!a || !a.song_id || !d || d.song.id !== a.song_id) return '';
   const ver = songCurVersion(d, a.song_version);
-  const vids = d.links.filter((l) => l.version === ver), first = vids.find((l) => ytId(l.url));
+  const vids = linksFor(d).filter((l) => l.version === ver), first = vids.find((l) => ytId(l.url));
   const student = S.role === 'student';
   return `${first ? `<section class="col" style="gap:8px"><h3>Video · ${esc(ver)}</h3>${ytEmbed(first.url)}${vids.filter((l) => l !== first).map((l) => `<a class="btn small" href="${esc(l.url)}" target="_blank" rel="noopener">${esc(l.title || linkLabel({ url: l.url, source_type: /youtu/.test(l.url) ? 'youtube' : 'link' }))}</a>`).join('')}</section>` : ''}
     ${d.guitar && (isGuitarOnly((stuData() || {}).student) || isDual((stuData() || {}).student)) ? `<section class="col" style="gap:10px"><h3>Gitarre</h3>${songGuitarHTML(d)}</section>` : ''}
@@ -1924,6 +1933,7 @@ document.addEventListener('click', async (ev) => {
       case 'teacherConsent': await api('/api/t/consent', { student_id: S.file.student.id, how: 'liegt Oti vor' }); S.file = Object.assign(await api('/api/t/student', { id: S.file.student.id }), { course: S.file.course }); openOverlay(studentFileView); toast('Einwilligung eingetragen'); break;
       case 'song': S.songVersion = el.dataset.v || null; await openSong(id); break;
       case 'songVer': S.songVersion = el.dataset.v; openOverlay(songView); break;
+      case 'songInstr': S.songInstrPick = el.dataset.v; S.songVersion = null; openOverlay(songView); break;
       case 'linkVideo': S.linkId = id; openOverlay(linkVideoView); break;
       case 'linkDelete': await api('/api/t/song/link/delete', { id }); S.song = await api('/api/song', { id: S.song.song.id }); openOverlay(songView); break;
       case 'songNew': S.songNew = !S.songNew; render(); break;
@@ -2092,6 +2102,8 @@ document.addEventListener('click', (ev) => {
   const a = act.dataset.gtAct;
   if (a === 'addChord') { const v = $('#' + id + '-add').value; if (g.chords.length < 16) g.chords.push(v); }
   if (a === 'rmChord') g.chords.splice(Number(act.dataset.i), 1);
+  if (a === 'strumOn') { g.strumOpen = true; g.strum.cells = Array(g.strum.sub * g.strum.bars).fill('').map((x, i) => (g.strum.sub === 8 ? ['D', '', 'D', 'U', '', 'U', 'D', 'U'][i % 8] : '')); }
+  if (a === 'strumOff') { Guitar.stop(); g.strumOpen = false; g.strum.cells = g.strum.cells.map(() => ''); }
   if (a === 'fret' && S.gtSel) { const [st, step] = S.gtSel, f = Number(act.dataset.f); g.tab.notes = g.tab.notes.filter((x) => !(x[0] === st && x[1] === step)); if (f >= 0) g.tab.notes.push([st, step, f]); S.gtSel = null; }
   if (a === 'playStrum' || a === 'playTab') {
     if (Guitar.isPlaying()) { Guitar.stop(); act.textContent = a === 'playTab' ? 'Tabs abspielen' : 'Schlagmuster mit Akkorden abspielen'; return; }
@@ -2189,7 +2201,7 @@ document.addEventListener('submit', async (ev) => {
       const title = $('#sn_title').value.trim(); if (!title) return;
       const r = await api('/api/t/song/create', { title }); S.songNew = false; S.songs = await api('/api/songs'); await openSong(r.id); toast('Song angelegt');
     } else if (fid === 'linksForm') {
-      const r = await api('/api/t/song/links/add', { song_id: S.song.song.id, lines: $('#lk_lines').value, version: versionValue('lk') });
+      const r = await api('/api/t/song/links/add', { song_id: S.song.song.id, lines: $('#lk_lines').value, version: versionValue('lk'), instrument: songInstr() });
       S.song = await api('/api/song', { id: S.song.song.id }); S.songs = await api('/api/songs'); openOverlay(songView); toast(r.added + ' Links gespeichert');
     } else if (fid === 'asgEditForm') {
       await api('/api/t/assignment/update', { id: S.asgId, title: $('#ae_title') ? $('#ae_title').value.trim() || null : null, free_text: $('#ae_text') ? $('#ae_text').value.trim() || null : null, start_bpm: Number($('#ae_from').value) || null, target_bpm: Number($('#ae_to').value) || null, minutes_per_day: Number($('#ae_min').value) || null, notation: S.nt && S.nt.ae ? S.nt.ae : null });
