@@ -253,7 +253,10 @@ let n = 0; const ok = (m) => console.log('ok ' + (++n) + ' ' + m);
   assert.equal(await s.evaluate(() => DrumNotation.loadSamples().then(() => fetch('samples/hh.mp3').then((r) => r.ok))), true);
   await s.selectOption('#met_sig', '4/4'); ok('Metronom: Taktart, Betonung, Triolen, Klang, Samples geladen');
   await s.screenshot({ path: OUT + '/s-beat-390-dark.png', fullPage: true });
-  await s.click('[data-act=minimize]');
+  await s.click('[data-act=minimize]'); await s.locator('#askEnd').waitFor(); await s.click('#askEnd [data-act=askEndClose]');
+  assert.equal(await s.locator('#askEnd').count(), 0); await s.click('[data-act=minimize]'); await s.click('#askEnd [data-act=endPractice]');
+  await s.locator('#finishForm').waitFor(); await s.click('[data-act=backToPractice]'); await s.click('[data-act=minimize]'); await s.click('#askEnd [data-force="1"]');
+  assert.equal(await s.locator('#askEnd').count(), 0); ok('Zurück fragt: Sitzung beenden? Ja führt zum Abschluss, Nein läuft weiter');
 
   // Song Chart: Teile und Wiederholungstakte
   await t.click('[data-tab=bibliothek]'); await t.click('[data-act=newExercise]'); await t.click('[data-act=addBeat]'); await t.click('[data-nt-act=stick][data-p="RL"]');
@@ -304,7 +307,7 @@ let n = 0; const ok = (m) => console.log('ok ' + (++n) + ' ' + m);
   await s.locator('.card:has-text("Worship Pattern G") [data-act=practice]').click();
   assert.ok(await s.locator('#practiceGuitar .gt-chord').count() >= 5); await s.click('[data-act=gtPlay][data-mode=strum]'); await s.waitForTimeout(400); ok('Schüler sieht Akkorde und spielt Schlagmuster');
   await s.screenshot({ path: OUT + '/s-gitarre-390-dark.png' });
-  await s.click('[data-act=minimize]'); await s.click('[data-tab=stimmen]'); await s.click('[data-act=tuner]'); await s.waitForTimeout(1500);
+  await s.click('[data-act=minimize]'); if (await s.locator('#askEnd').count()) await s.click('#askEnd [data-force="1"]'); await s.click('[data-tab=stimmen]'); await s.click('[data-act=tuner]'); await s.waitForTimeout(1500);
   await s.selectOption('#capoKey', 'A'); assert.ok((await s.textContent('body')).includes('Capo 2')); ok('Stimmgerät startet, Capo Helfer rechnet A = G mit Capo 2');
   await s.screenshot({ path: OUT + '/s-stimmen-390-dark.png', fullPage: true });
   await s.click('[data-tab=ueben]');
