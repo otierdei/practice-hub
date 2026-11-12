@@ -206,8 +206,8 @@ details.card summary{cursor:pointer;font-family:var(--display);font-size:1.08rem
 </head>
 <body>
 <div id="app"><div class="wrap"><p class="muted">Lädt …</p></div></div>
-<script src="notation.js?v=73"></script>
-<script src="guitar.js?v=73"></script>
+<script src="notation.js?v=74"></script>
+<script src="guitar.js?v=74"></script>
 <script>
 'use strict';
 // ---------- Grundlagen ----------
@@ -665,7 +665,7 @@ function suggestions(f) {
   const out = [], seen = new Set();
   const openEx = new Set(f.assignments.filter((a) => a.status === 'offen' && a.exercise_id).map((a) => a.exercise_id));
   const draftEx = new Set((S.lesson ? S.lesson.new_assignments : []).map((a) => a.exercise_id).filter(Boolean));
-  const ex = (S.exercises || []).filter((e) => !openEx.has(e.id) && !draftEx.has(e.id));
+  const ex = (S.exercises || []).filter((e) => !openEx.has(e.id) && !draftEx.has(e.id) && (isDual(f.student) || !(e.category === 'Gitarre' || (window.Guitar && Guitar.parse(e.notation)))));
   const add = (e, why) => { if (e && !seen.has(e.id) && out.length < 5) { seen.add(e.id); out.push({ e, why }); } };
   const c = f.course;
   if (c && c.lessons.length) {
@@ -838,7 +838,9 @@ function lessonView() {
   const total = mins(recent.reduce((t, s) => t + s.seconds, 0));
   const days = new Set(recent.map((s) => s.local_date)).size;
   const gOnly = isGuitarOnly(st);
-  const exOpts = (S.exercises || []).filter((e) => !gOnly || e.category === 'Gitarre' || e.category === 'Backing Tracks' || (window.Guitar && Guitar.parse(e.notation))).map((e) => `<option value="${e.id}">${esc((e.category ? e.category + ': ' : '') + e.title)}</option>`).join('');
+  const isGtEx = (e) => e.category === 'Gitarre' || !!(window.Guitar && Guitar.parse(e.notation));
+  // Gitarrenschüler nur Gitarre und Backing Tracks, Schlagzeugschüler keine Gitarren Übungen, beide Instrumente alles
+  const exOpts = (S.exercises || []).filter((e) => isDual(st) ? true : gOnly ? isGtEx(e) || e.category === 'Backing Tracks' : !isGtEx(e)).map((e) => `<option value="${e.id}">${esc((e.category ? e.category + ': ' : '') + e.title)}</option>`).join('');
   return `<div class="wrap">
     <div class="row between"><button class="btn small" data-act="closeLesson">Schließen</button><div class="row"><button class="btn small" data-act="preview">Schüleransicht</button><span class="pill">Stunde läuft · ${esc(st.lesson_time || '')}</span></div></div>
     <h1>${esc(st.first_name)}</h1>

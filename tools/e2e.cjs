@@ -366,7 +366,8 @@ let n = 0; const ok = (m) => console.log('ok ' + (++n) + ' ' + m);
   // Reiner Gitarrenschüler: Stunde ohne Schlagzeug Teile, Gitarren Übung schreiben und aufgeben
   await t.evaluate(async () => { const sid = S.data.students[0].id; S.file = await api('/api/t/student', { id: sid }); const f = S.file.student;
     await api('/api/t/student/save', { ...f, id: f.id, instrument: 'Gitarre' }); await openLesson(sid); });
-  assert.equal(await t.locator('#warmBox').count(), 0); assert.equal(await t.locator('[data-act=lessonBeat]').count(), 0); assert.equal(await t.locator('#sugBox').count(), 0);
+  assert.equal(await t.locator('#warmBox').count(), 0);
+  assert.ok(await t.evaluate(() => [...document.querySelectorAll('#a_ex option')].every((o) => !o.value || (S.exercises.find((e) => e.id === o.value) || {}).category !== 'Aufwärmen')), 'Gitarrenschüler ohne Schlagzeug Übungen'); assert.equal(await t.locator('[data-act=lessonBeat]').count(), 0); assert.equal(await t.locator('#sugBox').count(), 0);
   await t.click('[data-act=lessonGuitar]'); await t.locator('#lg').waitFor();
   await t.fill('#a_free', 'G C Wechsel E2E'); await t.click('#assignForm button[type=submit]'); await t.getByText('G C Wechsel E2E aufgegeben').waitFor();
   assert.equal(await t.locator('#lg').count(), 0);
@@ -385,7 +386,10 @@ let n = 0; const ok = (m) => console.log('ok ' + (++n) + ' ' + m);
   await t.click('#sg [data-gt-act=addChord]'); await t.click('#songGtForm button[type=submit]'); await t.getByText('Gitarre gespeichert').first().waitFor();
   assert.match(await t.textContent('body'), /Tonart A/); assert.match(await t.textContent('body'), /Vers: G D Em C/);
   await t.evaluate(() => closeOverlay());
-  await t.evaluate(async () => { const f = S.file.student; await api('/api/t/student/save', { ...f, id: f.id, instrument: 'Schlagzeug' }); S.lesson = null; closeOverlay(); });
+  await t.evaluate(async () => { const f = S.file.student; await api('/api/t/exercise/save', { title: 'Gitarre E2E Akkorde', category: 'Gitarre', source_type: 'noten', notation: { kind: 'guitar', v: 1, bpm: 60, chords: ['G', 'C'] } });
+    S.exercises = (await api('/api/t/exercises')).exercises; await api('/api/t/student/save', { ...f, id: f.id, instrument: 'Schlagzeug' }); S.lesson = null; closeOverlay(); await openLesson(f.id); });
+  assert.equal(await t.locator('#a_ex option', { hasText: 'Gitarre E2E Akkorde' }).count(), 0, 'Schlagzeugschüler ohne Gitarren Übungen');
+  await t.evaluate(() => { S.lesson = null; closeOverlay(); });
   ok('Gitarrenschüler: keine Beats, Gitarren Übung aufgeben, Akkordwechsel Trainer, Gitarre zum Song');
 
   assert.deepEqual(errors, []); ok('Keine JavaScript Fehler');
