@@ -172,6 +172,8 @@ input[type=range]{accent-color:var(--ring);width:100%;min-height:32px}
 .nt-cell[aria-pressed="true"]{background:var(--ring);border-color:var(--ring)}
 .nt-cell[data-dyn="a"]{color:var(--accent-ink);font-weight:800;font-size:.85rem;box-shadow:0 0 0 2px var(--ink)}
 .nt-cell[data-dyn="s"]{opacity:.55;font-size:.62rem;color:var(--accent-ink)}
+/* Kein Zoom bei doppeltem Tippen (iPhone), Zwei Finger Zoom bleibt erlaubt */
+html,body,button,a,input,select,textarea,label,summary,svg,.nt-cell{touch-action:manipulation}
 .ask-end{position:fixed;inset:0;z-index:200;background:rgba(0,0,0,.45);display:flex;align-items:center;justify-content:center;padding:16px}
 .nt-cell.nt-sel{outline:3px solid var(--ring2);outline-offset:1px;position:relative;z-index:1}
 .nt-cell[data-flam="1"]{color:var(--accent-ink);font-weight:800;font-size:.7rem;font-style:italic}
@@ -207,8 +209,8 @@ details.card summary{cursor:pointer;font-family:var(--display);font-size:1.08rem
 </head>
 <body>
 <div id="app"><div class="wrap"><p class="muted">Lädt …</p></div></div>
-<script src="notation.js?v=78"></script>
-<script src="guitar.js?v=78"></script>
+<script src="notation.js?v=79"></script>
+<script src="guitar.js?v=79"></script>
 <script>
 'use strict';
 // ---------- Grundlagen ----------
