@@ -353,7 +353,15 @@ let n = 0; const ok = (m) => console.log('ok ' + (++n) + ' ' + m);
   await t.evaluate(() => { const p = S.song.parts[0]; startPractice(null, { id: 'block2', title: 'Am Kreuz: Block 2', notation: p.notation, notes: '', song_id: S.song.song.id, factor: 1, bpm: 60 }); });
   assert.match(await t.textContent('.sheet h1'), /Block 2/); assert.match(await t.textContent('#clockRing'), /3:0\d/); ok('Zweiten Baustein im gleichen Song üben: springt nicht zurück, Zeit läuft weiter');
   await t.click('[data-act=endPractice]'); await t.click('#finishForm button[type=submit]'); await t.getByText('3 min gespeichert').waitFor();
-  assert.match(await t.evaluate(() => S.data.sessions[0].note), /^Bausteine: Am Kreuz: Groove Vers neu, Am Kreuz: Block 2/); await t.click('[data-act=endPreview]'); ok('Baustein üben wie eine Übung (Stoppuhr, Sitzung mit Notiz)');
+  assert.match(await t.evaluate(() => S.data.sessions[0].note), /^Bausteine: Am Kreuz: Groove Vers neu, Am Kreuz: Block 2/); 
+  { // Aufwärmen: nach der vorgegebenen Zeit stoppen Metronom und Beat, Hinweis erscheint, weiter üben möglich
+    await t.evaluate(async () => { const a = S.data.assignments.find((x) => x.status === 'offen' && x.exercise_id) || S.data.assignments[0]; a.category = 'Aufwärmen'; a.minutes_per_day = 1; store.del('run'); await startPractice(a.id); });
+    await t.evaluate(() => { const r = store.get('run'); r.runningSince -= 61000; store.set('run', r); metStart(); });
+    await t.locator('#goalDone').waitFor(); assert.equal(await t.evaluate(() => MET.playing), false, 'Metronom gestoppt');
+    await t.evaluate(() => metStart()); await t.waitForTimeout(600); assert.equal(await t.evaluate(() => MET.playing), true, 'weiter üben möglich');
+    await t.evaluate(() => { metStop(); clearInterval(tickTimer); store.del('run'); closeOverlay(); });
+    ok('Aufwärmen: Zeit erfüllt stoppt Metronom einmal, danach weiter'); }
+  await t.click('[data-act=endPreview]'); ok('Baustein üben wie eine Übung (Stoppuhr, Sitzung mit Notiz)');
   await t.click('[data-act=close]');
 
   // Horizontaler Überlauf am iPhone

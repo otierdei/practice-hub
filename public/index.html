@@ -206,8 +206,8 @@ details.card summary{cursor:pointer;font-family:var(--display);font-size:1.08rem
 </head>
 <body>
 <div id="app"><div class="wrap"><p class="muted">Lädt …</p></div></div>
-<script src="notation.js?v=74"></script>
-<script src="guitar.js?v=74"></script>
+<script src="notation.js?v=75"></script>
+<script src="guitar.js?v=75"></script>
 <script>
 'use strict';
 // ---------- Grundlagen ----------
@@ -1409,6 +1409,7 @@ function practiceView() {
   const el = runElapsed(r);
   return `<div class="wrap" style="max-width:560px;align-items:stretch">
     <div class="row between" style="flex-wrap:nowrap"><button class="btn small" data-act="minimize">Zurück</button><button class="clock-mini ${r.runningSince ? '' : 'paused'}" id="clockRing" data-act="startStop" aria-label="${r.runningSince ? 'Stoppuhr pausieren' : 'Stoppuhr starten'}">${clockRing(el, goal)}</button></div>
+    ${r.goalDone ? `<div class="card" id="goalDone" role="status" style="background:var(--accent);color:var(--accent-ink)"><b>✓ Zeit geschafft: ${goal} Minuten</b><br><span class="small">Beat und Metronom haben gestoppt. Du kannst weiter üben oder unten beenden.</span></div>` : ''}
     <div class="col" style="align-items:center;gap:8px;text-align:center"><h1>${esc(a ? (a.title || a.free_text) : 'Frei üben')}</h1>
       ${a && a.book_ref ? `<span class="muted">${esc(a.book_ref)}</span>` : ''}
       ${a && a.exercise_notes ? `<span class="muted small" style="white-space:pre-line">${esc(a.exercise_notes)}</span>` : ''}
@@ -1548,10 +1549,22 @@ function clockRing(el, goal) {
   return ring(v % 1 === 0 && v > 0 ? 1 : v % 1, 40, 5, v >= 1 ? 'var(--ring2)' : 'var(--ring)', 'Übezeit ' + clock(el)) +
     `<span class="col" style="gap:0;align-items:flex-start"><b>${clock(el)}</b><span class="small muted">${v >= 1 ? 'Ziel geschafft' : 'von ' + goal + ' min'}</span></span><span class="clock-state" aria-hidden="true">${on ? '❚❚' : '▶'}</span>`;
 }
+// Aufwärmen und Technik: nach der vorgegebenen Zeit stoppen Beat und Metronom einmal, mit Ton und Hinweis
+const TIMED_CATS = /^(Aufwärmen|Technik|Rudiments)$/;
+function goalReached(r) {
+  r.goalDone = true; store.set('run', r);
+  try { DrumNotation.stop(); } catch (e) {} try { metStop(); } catch (e) {} try { if (window.Guitar && Guitar.isPlaying()) Guitar.stop(); } catch (e) {}
+  S.prevPlaying = null;
+  try { const ctx = DrumNotation.audio(), t = ctx.currentTime + 0.05; [880, 1320].forEach((f, i) => { const o = ctx.createOscillator(), g = ctx.createGain(); o.frequency.value = f; g.gain.setValueAtTime(0.0001, t + i * 0.18); g.gain.exponentialRampToValueAtTime(0.4, t + i * 0.18 + 0.02); g.gain.exponentialRampToValueAtTime(0.0001, t + i * 0.18 + 0.5); o.connect(g).connect(ctx.destination); o.start(t + i * 0.18); o.stop(t + i * 0.18 + 0.55); }); } catch (e) {}
+  try { navigator.vibrate && navigator.vibrate([150, 80, 150]); } catch (e) {}
+  if (S.overlay === practiceView) openOverlay(practiceView);
+  toast('Zeit geschafft ✓');
+}
 function updateClock() {
   const r = store.get('run', null); const box = $('#clockRing');
   if (!r || !box) return;
   const a = runTask(r);
+  if (a && !r.goalDone && TIMED_CATS.test(a.category || '') && runElapsed(r) >= (a.minutes_per_day || 10) * 60000) { goalReached(r); return; }
   box.innerHTML = clockRing(runElapsed(r), (a && a.minutes_per_day) || 10); box.classList.toggle('paused', !r.runningSince);
   const end = document.querySelector('[data-act="endPractice"]'); if (end) end.disabled = runElapsed(r) < 1000;
 }
