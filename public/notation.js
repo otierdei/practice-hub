@@ -5,7 +5,7 @@
 (function () {
   const ROWS = [
     { k: 'cr', n: 'Crash', p: 11, x: true }, // über der Hilfslinie (Otis Schreibweise 12.11.)
-    { k: 'rd', n: 'Ride', p: 8, x: true },
+    { k: 'rd', n: 'Ride', p: 10, x: true }, // auf der Hilfslinie (Otis Schreibweise 12.11.)
     { k: 'hh', n: 'HiHat', p: 9, x: true },
     { k: 'ho', n: 'HiHat offen', p: 9, x: true, open: true },
     { k: 't1', n: 'Tom 1', p: 7 },
