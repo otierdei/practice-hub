@@ -206,8 +206,8 @@ details.card summary{cursor:pointer;font-family:var(--display);font-size:1.08rem
 </head>
 <body>
 <div id="app"><div class="wrap"><p class="muted">Lädt …</p></div></div>
-<script src="notation.js?v=75"></script>
-<script src="guitar.js?v=75"></script>
+<script src="notation.js?v=76"></script>
+<script src="guitar.js?v=76"></script>
 <script>
 'use strict';
 // ---------- Grundlagen ----------
@@ -490,7 +490,7 @@ function teacherView() {
     html = songsTab(true);
   } else if (t === 'bibliothek') {
     const ex = S.exercises || [];
-    html = `<div class="row between"><h1>Bibliothek</h1><div class="row"><button class="btn primary small" data-act="course" data-course="drums">Schlagzeug Kurs</button><button class="btn primary small" data-act="course" data-course="guitar">Gitarren Kurs</button><button class="btn small" data-act="newBeat">Beat schreiben</button><button class="btn small" data-act="newGuitar">Gitarre schreiben</button><button class="btn primary small" data-act="newExercise">Übung anlegen</button></div></div>
+    html = `<div class="row between"><h1>Bibliothek</h1><div class="row"><button class="btn primary small" data-act="course" data-course="drums">Schlagzeug Kurs</button><button class="btn primary small" data-act="course" data-course="guitar">Gitarren Kurs</button><button class="btn primary small" data-act="newExercise">Übung anlegen</button></div></div>
     ${ex.length ? `<div class="field"><label for="libQ" class="hidden">Bibliothek durchsuchen</label><input id="libQ" type="search" placeholder="Suchen: Titel, Kategorie, Hinweis" value="${esc(S.libQ || '')}" autocomplete="off"></div>
     <div class="row" style="gap:6px" id="libCats">${libCatsHTML(ex)}</div><div class="col" style="gap:12px" id="libList">${libListHTML(ex)}</div>`
       : `<div class="empty">Noch keine Übungen. Lege Grooves, Fills, Rudiments oder Worship Songs mit Link oder Buchseite an.</div>`}`;
@@ -606,20 +606,25 @@ function studentForm(st) {
     <button class="btn primary block" type="submit">Speichern</button>
   </form></div>`;
 }
+// Schlagzeug Vorlage: einfacher Rock Groove (HiHat Achtel, Snare 2 und 4, Bassdrum 1 und 3)
+function drumTemplate() { const n = DrumNotation.empty(); n.tracks.hh = [0, 2, 4, 6, 8, 10, 12, 14]; n.tracks.sn = [4, 12]; n.tracks.bd = [0, 8]; return n; }
 function exerciseForm(e) {
   e = e || {};
+  const gtTpl = S.exTpl === 'guitar' || !!(S.gt && S.gt.gx);
+  const cats = gtTpl ? ['Gitarre', 'Backing Tracks'] : ['Aufwärmen', 'Grooves', 'Fills', 'Beat + Fill', 'Rudiments', 'Technik', 'Lesen', 'Worship Songs', 'Backing Tracks'];
   return `<div class="wrap" style="max-width:640px"><div class="row between"><h2>${e.id ? 'Übung bearbeiten' : 'Übung anlegen'}</h2><button class="btn small" data-act="close">Abbrechen</button></div>
+  ${e.id ? '' : `<div class="row" role="group" aria-label="Vorlage" style="gap:8px"><span class="small muted">Vorlage:</span><button type="button" class="chip" data-act="exTpl" data-v="drums" aria-pressed="${!gtTpl}">Schlagzeug</button><button type="button" class="chip" data-act="exTpl" data-v="guitar" aria-pressed="${gtTpl}">Gitarre</button></div>`}
   <form id="exerciseForm" class="card">
     <input type="hidden" name="id" value="${esc(e.id || '')}">
     <div class="field"><label for="e_title">Titel</label><input id="e_title" name="title" required maxlength="120" value="${esc(e.title || '')}"></div>
-    <div class="field"><label for="e_cat">Kategorie</label><input id="e_cat" name="category" list="cats" maxlength="40" value="${esc(e.category || '')}"><datalist id="cats">${['Grooves', 'Fills', 'Rudiments', 'Worship Songs', 'Technik', 'Lesen'].map((c) => `<option value="${c}">`).join('')}</datalist></div>
+    <div class="field"><label for="e_cat">Kategorie</label><input id="e_cat" name="category" list="cats" maxlength="40" value="${esc(e.category || '')}"><datalist id="cats">${cats.map((c) => `<option value="${c}">`).join('')}</datalist></div>
     <div class="field"><label for="e_src">Quelle</label><select id="e_src" name="source_type">${[['youtube', 'YouTube'], ['musora', 'Musora (Song, Lektion, Playlist)'], ['instagram', 'Instagram'], ['drive', 'Google Drive (PDF, Noten)'], ['buch', 'Buch'], ['link', 'Anderer Link'], ['noten', 'Noten in der App']].map(([v, l]) => `<option value="${v}" ${e.source_type === v ? 'selected' : ''}>${l}</option>`).join('')}</select></div>
     <div class="field"><label for="e_url">Link (https://)</label><input id="e_url" name="url" type="url" inputmode="url" value="${esc(e.url || '')}"><span class="small muted">Drive Dateien auf "Jeder mit dem Link" stellen. Nur Unterrichtsmaterial, nie Schülerdaten.</span></div>
     <div class="field"><label for="e_book">Buch und Seite</label><input id="e_book" name="book_ref" maxlength="120" value="${esc(e.book_ref || '')}" placeholder="z. B. Stick Control, S. 5"></div>
     <div class="field"><label for="e_bpm">Ziel BPM</label><input id="e_bpm" name="target_bpm" inputmode="numeric" value="${esc(e.target_bpm || '')}"></div>
     <div class="field"><label for="e_notes">Hinweise</label><textarea id="e_notes" name="notes" maxlength="1000">${esc(e.notes || '')}</textarea></div>
-    ${S.gt && S.gt.gx ? `<section class="col"><h3>Gitarre</h3>${Guitar.editorHTML(S.gt.gx, 'gx', S.gtSel)}</section>`
-      : `<section class="col"><h3>Schlagzeug Noten</h3>${S.nt && S.nt.ex ? DrumNotation.editorHTML(S.nt.ex, 'ex') : '<div class="row"><button class="btn" type="button" data-act="addBeat">Beat schreiben</button><button class="btn" type="button" data-act="addGuitar">Gitarre schreiben</button></div>'}</section>`}
+    ${gtTpl ? `<section class="col"><h3>Gitarre</h3>${S.gt && S.gt.gx ? Guitar.editorHTML(S.gt.gx, 'gx', S.gtSel) : '<button class="btn" type="button" data-act="addGuitar">Akkorde, Schlagmuster oder Tabs schreiben</button><span class="small muted">Ohne Noten, z. B. nur ein Video oder Backing Track: einfach leer lassen.</span>'}</section>`
+      : `<section class="col"><h3>Schlagzeug Noten</h3>${S.nt && S.nt.ex ? DrumNotation.editorHTML(S.nt.ex, 'ex') : '<button class="btn" type="button" data-act="addBeat">Beat schreiben</button><span class="small muted">Ohne Noten, z. B. nur ein Video oder Buch: einfach leer lassen.</span>'}</section>`}
     <button class="btn primary block" type="submit">Speichern</button>
     ${e.id ? '<button class="btn danger block" type="button" data-act="archiveExercise" data-id="' + e.id + '">Aus der Bibliothek nehmen</button>' : ''}
   </form></div>`;
@@ -1003,17 +1008,28 @@ function courseView() {
   return `<div class="wrap" style="max-width:720px;align-items:stretch">
     <div class="row between"><button class="btn small" data-act="courseBack">Zurück</button>${c.level ? `<span class="pill">Level ${c.level.level} · ${esc(c.level.name)}</span>` : ''}</div>
     <h1>${teacher && S.fileCourseOpen ? esc(S.file.student.first_name) + 's Weg' : teacher ? (c.course === 'guitar' ? 'Gitarren Kurs' : 'Schlagzeug Kurs') : 'Dein Weg'}</h1>
-    ${c.lessons.length ? c.levels.map((lv) => { const ls = c.lessons.filter((l) => l.level === lv.level); return `<section class="col"><h2 class="lv-head"><span class="lv-badge small-badge">${lv.level}</span>${esc(lv.name)}</h2>
+    ${c.levels.length ? c.levels.map((lv) => { const ls = c.lessons.filter((l) => l.level === lv.level); return `<section class="col"><h2 class="lv-head"><span class="lv-badge small-badge">${lv.level}</span>${esc(lv.name)}</h2>
       <section class="card"><div class="list">${ls.map((l) => `<div class="item"><span class="lesson-dot ${st(l) || ''}" aria-label="${st(l) === 'fertig' ? 'geschafft' : st(l) === 'offen' ? 'aufgegeben' : 'noch nicht dran'}">${st(l) === 'fertig' ? '✓' : l.num}</span><button class="t song-open" data-act="courseLesson" data-id="${l.id}"><b>${esc(l.title)}</b><span class="small muted">${lessonSummary(l)}${st(l) === 'offen' ? ' · Hausaufgabe' : ''}</span></button>
-        ${teacher && S.fileCourseOpen ? `<button class="btn small" data-act="lessonState" data-id="${l.id}">${st(l) === 'fertig' ? 'Zurücksetzen' : st(l) === 'offen' ? 'Geschafft' : 'Aufgeben'}</button>` : ''}</div>`).join('')}</div></section></section>`; }).join('') : '<div class="empty">Der Kurs ist noch leer.</div>'}
+        ${teacher && S.fileCourseOpen ? `<button class="btn small" data-act="lessonState" data-id="${l.id}">${st(l) === 'fertig' ? 'Zurücksetzen' : st(l) === 'offen' ? 'Geschafft' : 'Aufgeben'}</button>` : ''}</div>`).join('')}${!ls.length ? '<div class="item"><span class="small muted">Noch keine Lektion</span></div>' : ''}</div>${teacher && !S.fileCourseOpen ? `<button class="btn small" data-act="clAdd" data-level="${lv.level}" style="margin-top:10px">Lektion hinzufügen</button>` : ''}</section></section>`; }).join('') : '<div class="empty">Der Kurs ist noch leer.</div>'}
+    ${teacher && !S.fileCourseOpen ? `<form id="levelAddForm" class="card row" style="gap:8px;align-items:flex-end"><div class="field" style="flex:1;min-width:180px"><label for="lv_name">Neues Level</label><input id="lv_name" maxlength="80" placeholder="z. B. Fortgeschritten"></div><button class="btn small" type="submit">Level anlegen</button></form>` : ''}
   </div>`;
+}
+// Lektion anlegen oder bearbeiten (Titel, Level, Text). Inhalte wie Videos und Übungen danach in der Lektion.
+function courseLessonForm() {
+  const c = courseOf(), l = S.clEdit || {};
+  return `<div class="wrap" style="max-width:720px;align-items:stretch"><div class="row between"><h2>${l.id ? 'Lektion bearbeiten' : 'Neue Lektion'}</h2><button class="btn small" data-act="clCancel">Abbrechen</button></div>
+    <form id="clForm" class="card col" style="gap:12px">
+      <div class="field"><label for="cl_title">Titel</label><input id="cl_title" required maxlength="120" value="${esc(l.title || '')}"></div>
+      <div class="field"><label for="cl_level">Level</label><select id="cl_level">${c.levels.map((lv) => `<option value="${lv.level}" ${lv.level === l.level ? 'selected' : ''}>${lv.level} · ${esc(lv.name)}</option>`).join('')}</select></div>
+      <div class="field"><label for="cl_body">Text (Ziel, Inhalt, Übung, Check)</label><textarea id="cl_body" rows="8" maxlength="2000">${esc(l.body || '')}</textarea></div>
+      <button class="btn primary block" type="submit">Speichern</button></form></div>`;
 }
 function courseLessonView() {
   const c = courseOf(); const l = c && c.lessons.find((x) => x.id === S.lessonId); if (!l) return '';
   const teacher = S.role === 'teacher' && !S.preview;
   return `<div class="wrap" style="max-width:720px;align-items:stretch">
     <div class="row between"><button class="btn small" data-act="backToCourse">Zurück</button><span class="pill">Level ${l.level} · Lektion ${l.num}</span></div>
-    <h1>${esc(l.title)}</h1>
+    <h1>${esc(l.title)}</h1>${teacher && !S.fileCourseOpen ? `<button class="btn small" data-act="clEdit" data-id="${l.id}" style="align-self:flex-start">Lektion bearbeiten</button>` : ''}
     ${l.body ? `<p style="white-space:pre-line">${esc(l.body)}</p>` : ''}
     ${teacher && l.items.some((it) => it.kind === 'material') ? `<section class="card material"><b>Deine Unterlagen (nur du siehst das)</b><div class="list">${l.items.filter((it) => it.kind === 'material').map((it) => `<div class="item"><span class="t col" style="gap:0"><span>${esc(it.title)}</span>${it.notes ? `<span class="small muted">${esc(it.notes)}</span>` : ''}</span><button class="btn small danger" data-act="itemDelete" data-id="${it.id}">Entfernen</button></div>`).join('')}</div></section>` : ''}
     ${l.items.filter((it) => it.kind !== 'material').map((it) => it.kind === 'exercise' ? exerciseItem(it, teacher)
@@ -1722,9 +1738,16 @@ document.addEventListener('click', async (ev) => {
       }
       case 'copyLink': try { await navigator.clipboard.writeText(S.newLink); toast('Link kopiert'); } catch (e) { const r = document.createRange(); r.selectNodeContents($('#newLink')); getSelection().removeAllRanges(); getSelection().addRange(r); toast('Link markiert, jetzt kopieren'); } break;
       case 'revoke': await api('/api/t/access/revoke', { id }); S.file = await api('/api/t/student', { id: S.file.student.id }); render(); toast('Gesperrt'); break;
-      case 'newExercise': S.nt = {}; S.gt = {}; openOverlay(() => exerciseForm()); break;
-      case 'newGuitar': S.nt = {}; S.gt = { gx: Guitar.empty() }; S.gtSel = null; S.exDraft = { source_type: 'noten', category: 'Gitarre' }; openOverlay(() => exerciseForm(S.exDraft)); break;
-      case 'addGuitar': { const f = $('#exerciseForm'); S.exDraft = Object.fromEntries(new FormData(f)); S.exDraft.source_type = 'noten'; S.nt = {}; S.gt = { gx: Guitar.empty() }; S.gtSel = null; openOverlay(() => exerciseForm(S.exDraft)); break; }
+      case 'newExercise': S.nt = {}; S.gt = {}; S.exTpl = 'drums'; S.exDraft = null; openOverlay(() => exerciseForm(S.exDraft)); break;
+      case 'exTpl': {
+        // Vorlage wechseln, eingegebene Felder bleiben
+        const f = $('#exerciseForm'), d = f ? Object.fromEntries(new FormData(f)) : {}, gt = el.dataset.v === 'guitar';
+        const drumCats = ['', 'Grooves', 'Fills', 'Rudiments', 'Technik', 'Aufwärmen'];
+        S.exDraft = { ...d, source_type: d.source_type || 'noten', category: gt ? (drumCats.includes(d.category) ? 'Gitarre' : d.category) : (['Gitarre', ''].includes(d.category) ? 'Grooves' : d.category) };
+        S.exTpl = gt ? 'guitar' : 'drums'; S.nt = {}; S.gt = {}; S.gtSel = null; openOverlay(() => exerciseForm(S.exDraft)); break;
+      }
+      case 'newGuitar': S.exTpl = 'guitar'; S.nt = {}; S.gt = { gx: Guitar.empty() }; S.gtSel = null; S.exDraft = { source_type: 'noten', category: 'Gitarre' }; openOverlay(() => exerciseForm(S.exDraft)); break;
+      case 'addGuitar': { const f = $('#exerciseForm'); S.exDraft = Object.fromEntries(new FormData(f)); S.exDraft.source_type = 'noten'; if (!S.exDraft.category) S.exDraft.category = 'Gitarre'; S.exTpl = 'guitar'; S.nt = {}; S.gt = { gx: Guitar.empty() }; S.gtSel = null; openOverlay(() => exerciseForm(S.exDraft)); break; }
       case 'chgStart': S.chg = { label: el.dataset.label, count: 0, end: Date.now() + 60000 }; clearInterval(S.chgTimer); S.chgTimer = setInterval(() => { if (!S.chg) return clearInterval(S.chgTimer); if (Date.now() >= S.chg.end) chgFinish(); else chgRefresh(); }, 250); chgRefresh(); break;
       case 'chgTap': if (S.chg) { S.chg.count++; chgRefresh(); } break;
       case 'chgStop': clearInterval(S.chgTimer); { const l = S.chg && S.chg.label; S.chg = null; const box = $('#chgBox'); if (box && l) box.innerHTML = chgBoxHTML(l); } break;
@@ -1762,9 +1785,9 @@ document.addEventListener('click', async (ev) => {
         } catch (e) { toast('Kein Zugriff aufs Mikrofon. Bitte in den Einstellungen erlauben.'); }
         break;
       }
-      case 'newBeat': S.nt = { ex: DrumNotation.empty() }; S.nt.ex.tracks.hh = [0, 2, 4, 6, 8, 10, 12, 14]; S.nt.ex.tracks.sn = [4, 12]; S.nt.ex.tracks.bd = [0, 8]; S.exDraft = { source_type: 'noten', category: 'Grooves' }; openOverlay(() => exerciseForm(S.exDraft)); break;
-      case 'editExercise': { const e = S.exercises.find((x) => x.id === id); S.nt = { ex: DrumNotation.parse(e.notation) }; S.gt = { gx: Guitar.parse(e.notation) }; S.gtSel = null; openOverlay(() => exerciseForm(e)); break; }
-      case 'addBeat': { const f = $('#exerciseForm'); S.exDraft = Object.fromEntries(new FormData(f)); S.exDraft.source_type = 'noten'; S.nt = { ex: DrumNotation.empty() }; openOverlay(() => exerciseForm(S.exDraft)); break; }
+      case 'newBeat': S.exTpl = 'drums'; S.nt = { ex: drumTemplate() }; S.exDraft = { source_type: 'noten', category: 'Grooves' }; openOverlay(() => exerciseForm(S.exDraft)); break;
+      case 'editExercise': { const e = S.exercises.find((x) => x.id === id); S.exTpl = e.category === 'Gitarre' || Guitar.parse(e.notation) ? 'guitar' : 'drums'; S.nt = { ex: DrumNotation.parse(e.notation) }; S.gt = { gx: Guitar.parse(e.notation) }; S.gtSel = null; openOverlay(() => exerciseForm(e)); break; }
+      case 'addBeat': { const f = $('#exerciseForm'); S.exDraft = Object.fromEntries(new FormData(f)); S.exDraft.source_type = 'noten'; if (!S.exDraft.category) S.exDraft.category = 'Grooves'; S.nt = { ex: drumTemplate() }; openOverlay(() => exerciseForm(S.exDraft)); break; }
       case 'beatPlay': {
         if (DrumNotation.isPlaying()) { DrumNotation.stop(); el.textContent = 'Beat abspielen'; break; }
         const r = store.get('run'); const a = runTask(r);
@@ -1875,6 +1898,9 @@ document.addEventListener('click', async (ev) => {
       case 'courseBack': DrumNotation.stop(); S.exPlaying = null; if (S.fileCourseOpen) { S.fileCourseOpen = false; openOverlay(studentFileView); } else closeOverlay(); break;
       case 'fileCourse': S.fileCourseOpen = true; openOverlay(courseView); break;
       case 'courseLesson': S.lessonId = id; S.lessonFrom = S.overlay; openOverlay(courseLessonView); break;
+      case 'clAdd': S.clEdit = { level: Number(el.dataset.level) }; S.clBack = courseView; openOverlay(courseLessonForm); break;
+      case 'clEdit': { const l = courseOf().lessons.find((x) => x.id === id); S.clEdit = { id: l.id, title: l.title, body: l.body, level: l.level, num: l.num }; S.clBack = courseLessonView; openOverlay(courseLessonForm); break; }
+      case 'clCancel': openOverlay(S.clBack || courseView); break;
       case 'backToCourse': DrumNotation.stop(); S.exPlaying = null; if (S.lessonFrom === courseView) openOverlay(courseView); else closeOverlay(); break;
       case 'itemKind': S.itemKind = el.dataset.v; openOverlay(courseLessonView); break;
       case 'itemDelete': await api('/api/t/course/item/delete', { id }); await reloadCourse(); openOverlay(courseLessonView); break;
@@ -2155,6 +2181,14 @@ document.addEventListener('submit', async (ev) => {
       await api('/api/t/song/part/save', { song_id: S.song.song.id, title, url: $('#pt_url').value.trim() || null, notes: $('#pt_notes').value.trim() || null, notation: S.nt && S.nt.pt ? S.nt.pt : null, version: songCurVersion(S.song) });
       DrumNotation.stop(); if (S.nt) delete S.nt.pt; S.pt = null;
       S.song = await api('/api/song', { id: S.song.song.id }); S.songs = await api('/api/songs'); openOverlay(songView); toast('Baustein gespeichert');
+    } else if (fid === 'clForm') {
+      const l = S.clEdit, title = $('#cl_title').value.trim(), body = $('#cl_body').value, level = Number($('#cl_level').value);
+      if (l.id) { await api('/api/t/course/lesson/save', { id: l.id, title, body, level: level === l.level ? undefined : level }); S.lessonId = l.id; }
+      else { const r = await api('/api/t/course/lesson/add', { course: courseOf().course, level, title, body }); S.lessonId = r.id; }
+      await reloadCourse(); S.clEdit = null; openOverlay(courseLessonView); toast('Lektion gespeichert');
+    } else if (fid === 'levelAddForm') {
+      const name = $('#lv_name').value.trim(); if (!name) return;
+      await api('/api/t/course/level/add', { course: courseOf().course, name }); await reloadCourse(); openOverlay(courseView); toast('Level angelegt');
     } else if (fid === 'songGtForm') {
       await api('/api/t/song/guitar', { song_id: S.song.song.id, notation: S.gt.sg, sheet: $('#sgt_sheet').value, key_sig: $('#sgt_key').value.trim() });
       S.song = await api('/api/song', { id: S.song.song.id }); S.songGtEdit = false; openOverlay(songView); toast('Gitarre gespeichert');

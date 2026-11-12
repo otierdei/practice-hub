@@ -206,7 +206,7 @@ let n = 0; const ok = (m) => console.log('ok ' + (++n) + ' ' + m);
   await tp.screenshot({ path: OUT + '/t-heute-390-light.png', fullPage: true });
 
   // Noten Editor: Lehrer schreibt einen Beat, gibt ihn als Hausaufgabe, Schüler sieht und spielt ihn
-  await t.click('[data-tab=bibliothek]'); await t.click('[data-act=newBeat]');
+  await t.click('[data-tab=bibliothek]'); await t.click('[data-act=newExercise]'); await t.click('[data-act=addBeat]');
   await t.fill('#e_title', 'Rock Beat 1');
   await t.click('.nt-cell[data-k=bd][data-i="10"]');
   assert.equal(await t.getAttribute('.nt-cell[data-k=bd][data-i="10"]', 'aria-pressed'), 'true');
@@ -256,7 +256,7 @@ let n = 0; const ok = (m) => console.log('ok ' + (++n) + ' ' + m);
   await s.click('[data-act=minimize]');
 
   // Song Chart: Teile und Wiederholungstakte
-  await t.click('[data-tab=bibliothek]'); await t.click('[data-act=newBeat]'); await t.click('[data-nt-act=stick][data-p="RL"]');
+  await t.click('[data-tab=bibliothek]'); await t.click('[data-act=newExercise]'); await t.click('[data-act=addBeat]'); await t.click('[data-nt-act=stick][data-p="RL"]');
   assert.deepEqual(await t.evaluate(() => Object.values(S.nt.ex.stick).join('')), 'RLRLRLRL'); assert.equal(await t.locator('.nt-stickrow .nt-stick').first().textContent(), 'R');
   await t.click('[data-nt-act=stick][data-p="RRLL"]'); assert.equal(await t.evaluate(() => Object.values(S.nt.ex.stick).join('')), 'RRLLRRLL');
   assert.ok(await t.locator('#ex .nt-staff text:text-is("L")').count() >= 4, 'Sticking unter den Noten');
@@ -280,14 +280,14 @@ let n = 0; const ok = (m) => console.log('ok ' + (++n) + ' ' + m);
   assert.equal(await t.locator('#libList details[open] .item').count(), 1); assert.ok(await t.locator('#libList').textContent().then((x) => x.includes('Rock Beat 1')));
   await t.fill('#libQ', ''); await t.click('[data-act=libCat][data-v="Grooves"]'); assert.ok(await t.locator('#libList details').count() === 1);
   await t.click('[data-act=libCat][data-v=""]'); ok('Bibliothek: Suche und Kategorien');
-  await t.click('[data-tab=bibliothek]'); await t.click('[data-act=newBeat]'); await t.fill('#e_title', 'Song Chart Test');
+  await t.click('[data-tab=bibliothek]'); await t.click('[data-act=newExercise]'); await t.click('[data-act=addBeat]'); await t.fill('#e_title', 'Song Chart Test');
   await t.selectOption('#ex-bars', '8'); await t.click('[data-nt-bar="4"]'); await t.fill('#ex-mark', 'Refrain'); await t.press('#ex-mark', 'Tab');
   await t.click('[data-nt-bar="4"]'); await t.uncheck('[data-nt-ctl=repeat]'); await t.click('.nt-cell[data-k=cr][data-i="64"]');
   assert.equal(await t.locator('#ex .nt-svg:visible').count(), 4, 'Laptop: 2 Takte pro Zeile, 8 Takte = 4 Zeilen');
   await t.click('#exerciseForm button[type=submit]'); await t.getByText('Song Chart Test').waitFor(); ok('Song Chart mit Teil und Wiederholungen gespeichert');
 
   // Gitarre: Akkorde, Schlagmuster, Tab
-  await t.click('[data-act=newGuitar]'); await t.fill('#e_title', 'Worship Pattern G');
+  await t.click('[data-act=newExercise]'); await t.click('[data-act=exTpl][data-v=guitar]'); await t.click('[data-act=addGuitar]'); await t.fill('#e_title', 'Worship Pattern G');
   await t.selectOption('#gx-add', 'Bm'); await t.click('[data-gt-act=addChord]');
   assert.ok((await t.textContent('#gx')).includes('Bm (Hm)'));
   await t.click('.gt-scell[data-gt-s="1"]'); await t.click('.gt-tcell[data-gt-t="5,0"]'); await t.click('[data-gt-act=fret][data-f="3"]');
@@ -399,6 +399,16 @@ let n = 0; const ok = (m) => console.log('ok ' + (++n) + ' ' + m);
   assert.equal(await t.locator('#a_ex option', { hasText: 'Gitarre E2E Akkorde' }).count(), 0, 'Schlagzeugschüler ohne Gitarren Übungen');
   await t.evaluate(() => { S.lesson = null; closeOverlay(); });
   ok('Gitarrenschüler: keine Beats, Gitarren Übung aufgeben, Akkordwechsel Trainer, Gitarre zum Song');
+
+  // Kurs: Lektion hinzufügen und bearbeiten, Level anlegen
+  await t.evaluate(() => closeOverlay()); await t.click('[data-tab=bibliothek]'); await t.click('[data-act=course][data-course=drums]');
+  if (await t.locator('[data-act=clAdd]').count() === 0) { await t.fill('#lv_name', 'E2E Level'); await t.click('#levelAddForm button[type=submit]'); await t.getByText('Level angelegt').first().waitFor(); }
+  await t.locator('[data-act=clAdd]').first().click(); await t.fill('#cl_title', 'E2E Lektion Neu'); await t.fill('#cl_body', 'Ziel: Testen');
+  await t.click('#clForm button[type=submit]'); await t.getByText('Lektion gespeichert').first().waitFor(); assert.match(await t.textContent('.sheet h1'), /E2E Lektion Neu/);
+  await t.click('[data-act=clEdit]'); await t.fill('#cl_title', 'E2E Lektion Geändert'); await t.click('#clForm button[type=submit]');
+  await t.locator('.sheet h1', { hasText: 'E2E Lektion Geändert' }).waitFor();
+  assert.ok(await t.evaluate(() => { const ls = courseOf().lessons; return ls.map((l) => l.num).every((n, i) => n === i + 1); }), 'Nummern lückenlos');
+  await t.evaluate(() => closeOverlay()); ok('Kurs: Lektion hinzufügen, bearbeiten, Nummern lückenlos');
 
   assert.deepEqual(errors, []); ok('Keine JavaScript Fehler');
   await b.close();

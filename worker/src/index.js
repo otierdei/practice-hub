@@ -777,6 +777,25 @@ async function route(env, req, path, body) {
       await s.run('UPDATE course_lessons SET title = ?, body = ?, level = COALESCE(?, level), num = COALESCE(?, num) WHERE id = ?', title, str(body.body, 2000), int(body.level, 1, 20), int(body.num, 1, 500), l.id);
       return { ok: true };
     }
+    case '/api/t/course/lesson/add': {
+      // Neue Lektion ans Ende eines Levels, spätere Lektionen rücken eine Nummer weiter
+      const course = body.course === 'guitar' ? 'guitar' : 'drums', level = int(body.level, 1, 20), title = str(body.title, 120);
+      if (!level || !title) throw new HttpError(400, 'Level und Titel fehlen.');
+      if (!(await s.first('SELECT level FROM course_levels WHERE course = ? AND level = ?', course, level))) throw new HttpError(404, 'Level nicht gefunden.');
+      const last = await s.first('SELECT MAX(num) AS n FROM course_lessons WHERE course = ? AND level <= ?', course, level);
+      const num = ((last && last.n) || 0) + 1, id = uid();
+      await s.batch([['UPDATE course_lessons SET num = num + 1 WHERE course = ? AND num >= ?', [course, num]],
+        ['INSERT INTO course_lessons (id, course, level, num, title, body, created_at) VALUES (?, ?, ?, ?, ?, ?, ?)', [id, course, level, num, title, str(body.body, 2000), now()]]]);
+      return { id, num };
+    }
+    case '/api/t/course/level/add': {
+      const course = body.course === 'guitar' ? 'guitar' : 'drums', name = str(body.name, 80);
+      if (!name) throw new HttpError(400, 'Name fehlt.');
+      const m = await s.first('SELECT MAX(level) AS n FROM course_levels WHERE course = ?', course), level = ((m && m.n) || 0) + 1;
+      if (level > 20) throw new HttpError(400, 'Höchstens 20 Level.');
+      await s.batch([['INSERT INTO course_levels (course, level, name) VALUES (?, ?, ?)', [course, level, name]]]);
+      return { level };
+    }
     case '/api/t/course/item/save': {
       const l = await s.first('SELECT id FROM course_lessons WHERE id = ?', String(body.lesson_id || ''));
       if (!l) throw new HttpError(404, 'Lektion nicht gefunden.');
