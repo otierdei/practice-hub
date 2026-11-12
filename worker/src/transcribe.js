@@ -5,7 +5,7 @@ const PROMPT = `Du liest Schlagzeugnoten von einem Bild und überträgst sie in 
 Raster: Jeder Takt hat Schritte von 16teln. 4/4 = 16 Schritte pro Takt (1 e & a 2 e & a ...), 3/4 = 12, 6/8 = 12 (Achtel = 2 Schritte), 12/8 = 24.
 Schritte werden über alle Takte durchgezählt: Takt 2 beginnt im 4/4 bei Schritt 16.
 Instrumente (Schlüssel in "tracks"): cr Crash, rd Ride, hh HiHat geschlossen, ho HiHat offen, t1 Tom 1, t2 Tom 2, sn Snare, gh Ghost Note (Snare in Klammern), ft Standtom, bd Bassdrum, hf HiHat mit dem Fuß.
-Übliche Lage im Notensystem: Kreuz über der obersten Linie = HiHat, Kreuz mit Kreis oder "o" = HiHat offen, Kreuz auf der obersten Linie = Ride, Kreuz über dem System mit Hilfslinie = Crash, dritter Zwischenraum von unten = Snare, Kopf im untersten Zwischenraum = Bassdrum, oberste Zwischenräume = Toms, zweiter Zwischenraum von unten = Standtom, Kreuz unter dem System = HiHat Fuß.
+Übliche Lage im Notensystem: Kreuz über der obersten Linie = HiHat, Kreuz mit Kreis oder "o" = HiHat offen, Kreuz auf der obersten Linie = Ride, Kreuz über der Hilfslinie über dem System = Crash, dritter Zwischenraum von unten = Snare, Kopf im untersten Zwischenraum = Bassdrum, oberste Zwischenräume = Toms, zweiter Zwischenraum von unten = Standtom, Kreuz unter dem System = HiHat Fuß.
 Stehen Handsätze (R, L) unter den Noten, trage sie in "stick" ein: {"Schritt": "R"|"L"}.
 Sind auf dem Bild mehrere nummerierte Beispiele, gib jedes als eigenen Beat zurück, in der Reihenfolge des Bildes.
 Ein Beispiel mit mehreren Takten wird ein Beat mit "bars" > 1 (höchstens 16).

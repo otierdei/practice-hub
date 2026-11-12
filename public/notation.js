@@ -4,7 +4,7 @@
 'use strict';
 (function () {
   const ROWS = [
-    { k: 'cr', n: 'Crash', p: 10, x: true },
+    { k: 'cr', n: 'Crash', p: 11, x: true }, // über der Hilfslinie (Otis Schreibweise 12.11.)
     { k: 'rd', n: 'Ride', p: 8, x: true },
     { k: 'hh', n: 'HiHat', p: 9, x: true },
     { k: 'ho', n: 'HiHat offen', p: 9, x: true, open: true },
