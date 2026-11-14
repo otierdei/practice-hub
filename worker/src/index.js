@@ -78,7 +78,10 @@ async function login(env, s, body, ip) {
   if (code.length < 8) throw new HttpError(400, 'Der Code ist zu kurz.');
   const hash = await sha256(code);
   let accessId = null, role = null, name = null;
-  const teacherHash = env.TEACHER_CODE_HASH || (env.TEACHER_CODE ? await sha256(String(env.TEACHER_CODE).toUpperCase()) : null);
+  // Lehrer Code: nur als Cloudflare Secret TEACHER_CODE (nie im Repo). Gleiche Bereinigung wie bei der Eingabe.
+  // TEACHER_CODE_HASH bleibt nur als Rückfall für alte Einrichtungen, falls kein Secret gesetzt ist.
+  const teacherCode = String(env.TEACHER_CODE || '').toUpperCase().replace(/[^A-Z0-9]/g, '');
+  const teacherHash = teacherCode.length >= 8 ? await sha256(teacherCode) : (env.TEACHER_CODE_HASH || null);
   if (teacherHash && hash === teacherHash) {
     accessId = 'teacher'; role = 'teacher'; name = 'Oti';
   } else {
@@ -106,7 +109,11 @@ async function authenticate(env, s, req) {
   if (Date.parse(d.last_seen) < Date.now() - DAY) {
     await s.run('UPDATE devices SET last_seen = ?, expires_at = ? WHERE id = ?', now(), new Date(Date.now() + TOKEN_DAYS * DAY).toISOString(), d.id);
   }
-  if (d.access_id === 'teacher') return { role: 'teacher', deviceId: d.id, accessId: 'teacher' };
+  if (d.access_id === 'teacher') {
+    // Nach einem Wechsel des Lehrer Codes: TEACHER_SESSIONS_AFTER (ISO Datum) sperrt alle älteren Lehrer Anmeldungen
+    if (env.TEACHER_SESSIONS_AFTER && d.created_at < String(env.TEACHER_SESSIONS_AFTER)) throw new HttpError(401, 'Bitte neu anmelden.');
+    return { role: 'teacher', deviceId: d.id, accessId: 'teacher' };
+  }
   const a = await s.first(
     `SELECT a.id, a.role, a.student_id, a.label FROM access a JOIN students st ON st.id = a.student_id
      WHERE a.id = ? AND a.revoked_at IS NULL AND st.status != 'archiviert'`, d.access_id);

@@ -896,3 +896,35 @@ test('Noten: Viertel und 16tel Triolen werden gespeichert und geprüft', async (
   const r2 = await w.call('/api/t/exercise/save', { title: 'Tuplet Taktgrenze', notation: { v: 2, sig: '4/4', bars: 2, tracks: {}, tup: [{ g: 3, t: 'q' }] } }, w.t);
   assert.equal(JSON.parse((await w.call('/api/t/exercises', {}, w.t)).data.exercises.find((x) => x.id === r2.data.id).notation).tup, undefined, 'Viertel Triole nicht über die Taktgrenze');
 });
+
+test('Lehrer Code als Secret: Trennzeichen egal, Secret geht vor altem Hash, zu kurzes Secret zählt nicht', async () => {
+  const w = setup();
+  w.env.TEACHER_CODE = 'lehrer-2345 xy';
+  w.env.TEACHER_CODE_HASH = 'ff'.repeat(32); // alter Hash darf nicht mehr gewinnen
+  assert.equal((await w.call('/api/login', { code: 'LEHRER2345XY' })).status, 200);
+  assert.equal((await w.call('/api/login', { code: 'LEHRER-2345-XY' })).status, 200);
+  const k = setup();
+  k.env.TEACHER_CODE = 'ABC';
+  assert.equal((await k.call('/api/login', { code: 'ABCABCABC' }, null, '2.2.2.2')).status, 401);
+  const o = setup();
+  delete o.env.TEACHER_CODE;
+  assert.equal((await o.call('/api/login', { code: 'LEHRER2345XY' }, null, '3.3.3.3')).status, 401); // ohne Secret und ohne Hash kein Lehrer Zugang
+});
+
+test('TEACHER_SESSIONS_AFTER sperrt ältere Lehrer Anmeldungen, Schüler bleiben angemeldet', async () => {
+  const w = await world();
+  assert.equal((await w.call('/api/home', {}, w.t)).status, 200);
+  w.env.TEACHER_SESSIONS_AFTER = new Date(Date.now() + 60000).toISOString();
+  assert.equal((await w.call('/api/home', {}, w.t)).status, 401);
+  assert.equal((await w.call('/api/home', {}, w.ta)).status, 200);
+  w.env.TEACHER_SESSIONS_AFTER = new Date(Date.now() - 60000).toISOString();
+  const t2 = (await w.call('/api/login', { code: 'LEHRER2345XY' })).data.token;
+  assert.equal((await w.call('/api/home', {}, t2)).status, 200);
+});
+
+test('Kein Lehrer Code und kein Hash in wrangler.toml', async () => {
+  const { readFileSync } = await import('node:fs');
+  const toml = readFileSync(fileURLToPath(new URL('../../wrangler.toml', import.meta.url)), 'utf8').replace(/^\s*#.*$/gm, '');
+  assert.ok(!/TEACHER_CODE/.test(toml), 'TEACHER_CODE oder TEACHER_CODE_HASH gehört nicht ins Repo');
+  assert.ok(!/\b[0-9a-f]{64}\b/.test(toml), 'kein Hash im Repo');
+});

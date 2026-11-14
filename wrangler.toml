@@ -11,8 +11,9 @@ binding = "ASSETS"
 
 [vars]
 ALLOWED_ORIGINS = "https://practice-hub.othniel-erdei.workers.dev"
-# SHA-256 des Lehrer Codes. Der Code selbst steht nirgends im Repo.
-TEACHER_CODE_HASH = "83e0530d670b9fbfecf0dd5a0ef0071b4229271b5068a57a3def9c143bff0d8d"
+# Der Lehrer Code steht nirgends im Repo, auch nicht als Hash: Cloudflare Secret TEACHER_CODE (Dashboard, Variablen und Secrets).
+# Lehrer Anmeldungen, die vor diesem Zeitpunkt entstanden sind, gelten nicht mehr (nach einem Code Wechsel hochsetzen).
+TEACHER_SESSIONS_AFTER = "2026-11-16T20:33:35.000Z"
 
 [triggers]
 crons = ["17 3 * * *"]
