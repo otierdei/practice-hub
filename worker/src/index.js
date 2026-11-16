@@ -634,7 +634,7 @@ async function route(env, req, path, body) {
     if (who.role !== 'student') return { ok: false };
     const game = ['noten', 'werte'].includes(body.game) ? body.game : null; if (!game) throw new HttpError(400, 'Unbekanntes Spiel.');
     const total = int(body.total, 1, 20) || 7;
-    const done = [...new Set((Array.isArray(body.done) ? body.done : []).map((x) => int(x, 1, total)).filter(Boolean))].sort((a, b) => a - b);
+    const done = [...new Set((Array.isArray(body.done) ? body.done : []).map(Number).filter((x) => Number.isInteger(x) && x >= 1 && x <= total))].sort((a, b) => a - b);
     const cert = isDate(body.cert) ? body.cert : null;
     await s.run('INSERT INTO game_progress (student_id, game, data, updated_at) VALUES (?, ?, ?, ?) ON CONFLICT(student_id, game) DO UPDATE SET data = excluded.data, updated_at = excluded.updated_at', who.studentId, game, JSON.stringify({ done, total, cert }), now());
     return { ok: true };

@@ -855,3 +855,15 @@ test('Gitarre: Fingersatz der Tonleiter bleibt erhalten', async () => {
   const e = (await w.call('/api/t/exercises', {}, w.t)).data.exercises.find((x) => x.id === r.data.id);
   assert.equal(JSON.parse(e.notation).scale.sys, 'a');
 });
+
+test('Lernspiele melden Fortschritt an die Schülerakte', async () => {
+  const w = await world();
+  assert.equal((await w.call('/api/my/game', { game: 'noten', done: [1, 2, 99], total: 7 }, w.ta)).data.ok, true);
+  await w.call('/api/my/game', { game: 'werte', done: [1, 2, 3, 4, 5, 6, 7, 8], total: 8, cert: '2026-11-16' }, w.ta);
+  assert.equal((await w.call('/api/my/game', { game: 'quatsch' }, w.ta)).status, 400);
+  assert.equal((await w.call('/api/my/game', { game: 'noten', done: [1] }, w.t)).data.ok, false, 'Lehrer meldet nichts');
+  const f = (await w.call('/api/t/student', { id: w.a }, w.t)).data;
+  const n = f.games.find((g) => g.game === 'noten'), v = f.games.find((g) => g.game === 'werte');
+  assert.deepEqual(n.done, [1, 2], 'ungültige Stufen fallen weg'); assert.equal(n.cert, null); assert.equal(v.cert, '2026-11-16');
+  assert.equal((await w.call('/api/t/student', { id: w.b }, w.t)).data.games.length, 0, 'andere Schüler unberührt');
+});

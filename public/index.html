@@ -52,6 +52,8 @@ a{color:var(--accent)}
 .play-btn,.met-btn{display:inline-grid;place-items:center;flex:none;width:52px;height:52px;padding:0;border-radius:50%;border:1px solid var(--line);background:var(--surface);color:var(--ink);cursor:pointer;touch-action:manipulation}
 .play-btn{background:var(--accent);color:var(--accent-ink);border-color:transparent}
 .play-btn.sm,.met-btn.sm{width:44px;height:44px}
+.play-btn.lg,.met-btn.lg{width:76px;height:76px}.play-btn.lg svg,.met-btn.lg svg{width:36px;height:36px}
+.ctl-row{display:flex;justify-content:center;align-items:center;gap:24px;padding:6px 0}
 .play-btn svg,.met-btn svg{width:24px;height:24px;display:block}
 .met-btn[aria-pressed="true"]{border-color:var(--accent);color:var(--accent);box-shadow:inset 0 0 0 1px var(--accent)}
 .met-btn .met-off{opacity:0}.met-btn[aria-pressed="false"] .met-off{opacity:1}.met-btn[aria-pressed="false"] svg{color:var(--muted)}
@@ -221,8 +223,8 @@ details.card summary{cursor:pointer;font-family:var(--display);font-size:1.08rem
 </head>
 <body>
 <div id="app"><div class="wrap"><p class="muted">Lädt …</p></div></div>
-<script src="notation.js?v=87"></script>
-<script src="guitar.js?v=87"></script>
+<script src="notation.js?v=88"></script>
+<script src="guitar.js?v=88"></script>
 <script>
 'use strict';
 // ---------- Grundlagen ----------
@@ -535,7 +537,7 @@ function studentRow(s, withTime) {
     ${withTime ? (cancelledToday(s.id) ? `<span class="col" style="gap:4px;align-items:flex-end"><span class="pill">${CANCEL[cancelledToday(s.id)]}</span><button class="btn small" data-act="cancelUndo" data-id="${s.id}">Zurücknehmen</button></span>` : `<button class="btn small" data-act="lesson" data-id="${s.id}">Starten</button>`) : consentPill(s)}</div>`;
 }
 // Notenspiel (eigene Seite der App) öffnet im selben Fenster, damit der Fortschritt in der App bleibt
-const isGame = (u) => /\/notenspiel\.html/.test(String(u || ''));
+const isGame = (u) => /\/(notenspiel|notenwerte)\.html/.test(String(u || ''));
 const linkTarget = (u) => (isGame(u) ? '' : 'target="_blank" rel="noopener"');
 function linkLabel(a) { if (isGame(a.url)) return 'Spiel öffnen'; return a.source_type === 'drive' ? 'Noten öffnen' : a.source_type === 'musora' ? 'In Musora öffnen' : a.source_type === 'youtube' || a.source_type === 'instagram' ? 'Video öffnen' : 'Link öffnen'; }
 function notationPreview(raw, title) {
@@ -1070,6 +1072,7 @@ function exerciseItem(it, teacher) {
   const e = it.exercise, n = DrumNotation.parse(e.notation);
   return `<section class="card col ex-item"><div class="row between" style="flex-wrap:nowrap"><b>${esc(e.title)}</b>${n ? `<span class="pill">${n.bpm} BPM</span>` : ''}</div>
     ${e.notes ? `<span class="small muted" style="white-space:pre-line">${esc(e.notes)}</span>` : ''}
+    ${e.url && !ytId(e.url) ? `<a class="btn ${isGame(e.url) ? 'primary' : 'small'}" href="${esc(e.url)}" ${linkTarget(e.url)}>${linkLabel(e)}</a>` : ''}
     ${n ? `<div class="nt-staff" id="exs_${it.id}">${DrumNotation.render(n, { cursor: true, label: 'Noten: ' + e.title, barsPerLine: 1, stepWidth: Math.max(12, Math.min(22, Math.floor(270 / DrumNotation.perBar(n.sig)))) })}</div><div class="row">${playBtn('exPlay', `data-id="${it.id}"`, S.exPlaying === it.id, true)}${e.url ? `<a class="btn small" href="${esc(e.url)}" target="_blank" rel="noopener">Video</a>` : ''}</div>` : notationPreview(e.notation, e.title)}
     ${teacher ? `<button class="btn small danger" data-act="itemDelete" data-id="${it.id}">Entfernen</button>` : ''}</section>`;
 }
@@ -1186,7 +1189,7 @@ function songView() {
           ${S.nt && S.nt.pe ? DrumNotation.editorHTML(S.nt.pe, 'pe') : '<button type="button" class="btn small" data-act="peNew">Noten schreiben</button>'}
           <p class="small muted">Änderungen gelten überall: im Song und bei allen Schülern, die diesen Baustein als Hausaufgabe haben.</p>
           <div class="row"><button class="btn primary" type="submit">Speichern</button><button class="btn" type="button" data-act="partEditOff">Abbrechen</button></div></form>` : ''}
-        ${S.partEdit === p.id ? '' : p.notation ? `<div id="pn_${p.id}">${notationPreview(p.notation, p.title)}</div><div class="row" style="gap:8px">${playBtn('partPlay', `data-id="${p.id}"`, false, true)}${beatClickChip()}${S.role === 'student' ? `<button class="btn small primary" data-act="partPractice" data-id="${p.id}">Üben</button>` : ''}</div>` : ''}
+        ${S.partEdit === p.id ? '' : p.notation ? `<div id="pn_${p.id}">${notationPreview(p.notation, p.title)}</div><div class="ctl-row">${playBtn('partPlay', `data-id="${p.id}"`, false, false, true)}${beatClickChip(false, true)}${S.role === 'student' ? `<button class="btn small primary" data-act="partPractice" data-id="${p.id}">Üben</button>` : ''}</div>` : ''}
         ${p.url && !ytId(p.url) ? `<a class="btn small" href="${esc(p.url)}" target="_blank" rel="noopener">Link öffnen</a>` : ''}</section>`).join('') : `<div class="empty">${teacher ? 'Noch keine Bausteine. Leg unten den ersten an, z. B. Groove Vers.' : 'Oti hat für diesen Song noch keine Videos.'}</div>`}
       ${!teacher && (S.role === 'student' || S.preview) && stuData() ? myBeatsSection(stuData(), d.song.id) : ''}
       ${teacher ? `<form id="partForm" class="card col"><b>Baustein hinzufügen</b>
@@ -1364,7 +1367,7 @@ function songBlocksHTML(a) {
     ${d.guitar && (isGuitarOnly((stuData() || {}).student) || isDual((stuData() || {}).student)) ? `<section class="col" style="gap:10px"><h3>Gitarre</h3>${songGuitarHTML(d)}</section>` : ''}
     ${!isGuitarOnly((stuData() || {}).student) && partsFor(d, ver).length ? `<section class="col" style="gap:10px"><h3>Bausteine${ver ? ' · ' + esc(ver) : ''}</h3>${partsFor(d, ver).map((p) => `<section class="card col" style="gap:8px"><b>${esc(p.title)}</b>${p.notes ? `<span class="small muted">${esc(p.notes)}</span>` : ''}
       ${ytId(p.url) ? ytEmbed(p.url) : ''}
-      ${p.notation ? `<div id="pn_${p.id}">${notationPreview(p.notation, p.title)}</div><div class="row" style="gap:8px">${playBtn('partPlay', `data-id="${p.id}"`, false, true)}${beatClickChip()}${student ? `<button class="btn small primary" data-act="partPractice" data-id="${p.id}">Üben</button>` : ''}</div>` : ''}</section>`).join('')}</section>` : ''}`;
+      ${p.notation ? `<div id="pn_${p.id}">${notationPreview(p.notation, p.title)}</div><div class="ctl-row">${playBtn('partPlay', `data-id="${p.id}"`, false, false, true)}${beatClickChip(false, true)}${student ? `<button class="btn small primary" data-act="partPractice" data-id="${p.id}">Üben</button>` : ''}</div>` : ''}</section>`).join('')}</section>` : ''}`;
 }
 async function loadSongFor(a) { if (a && a.song_id) { // immer frisch, damit geänderte Bausteine und Videos sofort da sind
   try { S.song = await api('/api/song', { id: a.song_id }); } catch (e) { /* ohne Song weiter */ } } }
@@ -1467,7 +1470,7 @@ function practiceView() {
       ${Guitar.parse(a.notation).chords.length >= 2 ? `<div id="chgBox">${chgBoxHTML(Guitar.parse(a.notation).chords.join(' '))}</div>` : ''}
       <div class="row">${Guitar.parse(a.notation).strum.cells.some(Boolean) ? `<button class="btn" data-act="gtPlay" data-mode="strum" style="flex:1">${Guitar.isPlaying() ? 'Stopp' : 'Schlagmuster abspielen'}</button>` : ''}${Guitar.parse(a.notation).scale ? `<button class="btn" data-act="gtPlay" data-mode="scale" style="flex:1">Tonleiter abspielen</button>` : ''}${Guitar.parse(a.notation).tab.notes.length ? `<button class="btn" data-act="gtPlay" data-mode="tab" style="flex:1">Tabs abspielen</button>` : ''}</div>` : ''}
     ${a && DrumNotation.parse(a.notation) ? `<div class="nt-staff" id="practiceStaff">${DrumNotation.render(DrumNotation.parse(a.notation), { cursor: true, label: 'Noten: ' + (a.title || '') })}</div>
-      <div class="row" style="flex-wrap:nowrap;gap:12px;align-items:center">${playBtn('beatPlay', '', DrumNotation.isPlaying())}${beatClickChip()}</div>
+      <div class="ctl-row">${playBtn('beatPlay', '', DrumNotation.isPlaying(), false, true)}${beatClickChip(false, true)}</div>
       ${metronomeCard(a)}
       <div class="col" style="gap:8px"><span class="small muted">Stumm schalten und selbst spielen:</span>
         <div class="row" style="gap:6px">${DrumNotation.usedKeys(DrumNotation.parse(a.notation)).map((k) => `<button type="button" class="chip" data-act="beatMute" data-k="${k}" aria-pressed="${(S.beatMute || []).includes(k)}">${DrumNotation.ROWS.find((r) => r.k === k).n}</button>`).join('')}</div>
@@ -1558,7 +1561,7 @@ function metronomeCard(a) {
       <label class="col small" style="gap:4px">Lautstärke<input id="met_vol" type="range" min="0.1" max="1" step="0.05" value="${s.vol}"></label>
       ${metAutoHTML(a)}
       <div class="row between small"><span>Tracker: <b id="trk">${trkText()}</b></span><button class="btn small" data-act="trkReset">Zurücksetzen</button></div>
-      <div class="row" style="justify-content:center;gap:12px;align-items:center"><button type="button" class="met-btn${MET.playing ? ' swing' : ''}" data-act="metronome" aria-pressed="${MET.playing}" aria-label="${MET.playing ? 'Metronom stoppen' : 'Metronom starten'}" style="width:64px;height:64px">${ICON_MET}</button><span class="small muted" id="metState">${MET.playing ? 'Läuft, tippen zum Stoppen' : 'Tippen zum Starten'}</span></div>
+      <div class="row" style="justify-content:center;gap:12px;align-items:center"><button type="button" class="met-btn lg${MET.playing ? ' swing' : ''}" data-act="metronome" aria-pressed="${MET.playing}" aria-label="${MET.playing ? 'Metronom stoppen' : 'Metronom starten'}">${ICON_MET}</button><span class="small muted" id="metState">${MET.playing ? 'Läuft, tippen zum Stoppen' : 'Tippen zum Starten'}</span></div>
       <span class="small muted" style="text-align:center">Am iPhone muss der Stummschalter aus sein, damit du den Klick hörst.</span>
     </section>`;
 }
@@ -1566,7 +1569,7 @@ function metronomeCard(a) {
 const ICON_PLAY = '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M8 5.5v13l11-6.5z" fill="currentColor"/></svg>';
 const ICON_STOP = '<svg viewBox="0 0 24 24" aria-hidden="true"><rect x="6.5" y="6.5" width="11" height="11" rx="2" fill="currentColor"/></svg>';
 const ICON_MET = '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M9 3h6l4.5 18h-15z" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linejoin="round"/><path d="M6.2 16h11.6" stroke="currentColor" stroke-width="1.8"/><g class="met-arm"><path d="M12 19V6.5" stroke="currentColor" stroke-width="2" stroke-linecap="round"/><circle cx="12" cy="10" r="1.8" fill="currentColor"/></g><path class="met-off" d="M4 4l16 16" stroke="currentColor" stroke-width="2" stroke-linecap="round"/></svg>';
-function playBtn(act, attrs, playing, small) { return `<button type="button" class="play-btn${small ? ' sm' : ''}" data-act="${act}" ${attrs || ''} aria-label="${playing ? 'Stoppen' : 'Abspielen'}" aria-pressed="${!!playing}">${playing ? ICON_STOP : ICON_PLAY}</button>`; }
+function playBtn(act, attrs, playing, small, large) { return `<button type="button" class="play-btn${small ? ' sm' : ''}${large ? ' lg' : ''}" data-act="${act}" ${attrs || ''} aria-label="${playing ? 'Stoppen' : 'Abspielen'}" aria-pressed="${!!playing}">${playing ? ICON_STOP : ICON_PLAY}</button>`; }
 function setPlay(el, on) { if (!el) return; if (!el.classList.contains('play-btn')) { el.textContent = on ? 'Stopp' : 'Abspielen'; return; } el.innerHTML = on ? ICON_STOP : ICON_PLAY; el.setAttribute('aria-pressed', String(on)); el.setAttribute('aria-label', on ? 'Stoppen' : 'Abspielen'); }
 function resetPlays(sel) { document.querySelectorAll(sel).forEach((b) => setPlay(b, false)); }
 // Pendel schwingt, solange das Metronom wirklich klickt: freies Metronom, oder Klick im laufenden Beat
@@ -1578,7 +1581,7 @@ function syncMetIcons() {
 }
 setInterval(syncMetIcons, 250);
 // Klick beim Abspielen eines Beats ein und aus
-function beatClickChip(small) { const on = metSet().beatClick; return `<button type="button" class="met-btn${small ? ' sm' : ''}" data-act="beatClick" aria-pressed="${on}" aria-label="Metronom im Beat ${on ? 'an' : 'aus'}" title="Metronom im Beat ${on ? 'an' : 'aus'}">${ICON_MET}</button>`; }
+function beatClickChip(small, large) { const on = metSet().beatClick; return `<button type="button" class="met-btn${small ? ' sm' : ''}${large ? ' lg' : ''}" data-act="beatClick" aria-pressed="${on}" aria-label="Metronom im Beat ${on ? 'an' : 'aus'}" title="Metronom im Beat ${on ? 'an' : 'aus'}">${ICON_MET}</button>`; }
 // Automatik des Metronoms gilt auch für Beats: alle X Takte (bei mehrtaktigen Beats umgerechnet in Durchläufe) schneller
 function metTrainer(n, f = 1) { const m = metAuto(); return m.on && n ? { every: Math.max(1, Math.round(m.bars / n.bars)), add: m.add * f, max: m.max * f } : null; }
 function playBeat(n, root, bpm, opts = {}) {

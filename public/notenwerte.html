@@ -1,0 +1,393 @@
+<!doctype html>
+<html lang="de">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="theme-color" content="#e5e5e0" media="(prefers-color-scheme: light)">
+<meta name="theme-color" content="#171814" media="(prefers-color-scheme: dark)">
+<meta name="robots" content="noindex">
+<title>Notenwerte Spiel · Practice Hub</title>
+<link rel="icon" href="icon.svg" type="image/svg+xml">
+<style>
+@font-face{font-family:"Young Serif";src:url("fonts/young-serif.woff2") format("woff2");font-weight:400;font-display:swap}
+@font-face{font-family:"Figtree";src:url("fonts/figtree.woff2") format("woff2");font-weight:300 900;font-display:swap}
+:root{
+  --bg:#e5e5e0; --surface:#f6f6f3; --sunk:#ededE8; --ink:#23241f; --muted:#5c5d55; --line:#d3d0c6;
+  --accent:#4f5a2c; --accent-ink:#f6f6f3; --ring2:#8a6236; --track:#dcd9d0; --danger:#9b3a24; --good:#3d6b2f;
+  --display:"Young Serif", Georgia, serif; --body:"Figtree", -apple-system, "Segoe UI", system-ui, sans-serif; color-scheme:light;
+}
+@media (prefers-color-scheme: dark){:root{
+  --bg:#171814; --surface:#22231e; --sunk:#1c1d19; --ink:#ecebe4; --muted:#a6a798; --line:#393a31;
+  --accent:#b3c083; --accent-ink:#1b1c16; --ring2:#d1a46f; --track:#34352d; --danger:#e58f72; --good:#a9c98a; color-scheme:dark }}
+*{box-sizing:border-box}
+html,body{margin:0;background:var(--bg);color:var(--ink);font-family:var(--body);font-size:17px;line-height:1.45;-webkit-text-size-adjust:100%}
+body{padding:calc(env(safe-area-inset-top,0px) + 14px) 16px calc(env(safe-area-inset-bottom,0px) + 24px)}
+h1,h2{font-family:var(--display);font-weight:400;margin:0;line-height:1.15;text-wrap:balance}
+h1{font-size:clamp(1.8rem,7vw,2.4rem)} h2{font-size:1.35rem}
+p{margin:0;text-wrap:pretty}
+button{font:inherit;color:inherit;cursor:pointer;touch-action:manipulation}
+.wrap{max-width:560px;margin:0 auto;display:flex;flex-direction:column;gap:14px}
+.card{background:var(--surface);border:1px solid var(--line);border-radius:22px;padding:16px;display:flex;flex-direction:column;gap:12px}
+.row{display:flex;gap:10px;align-items:center;flex-wrap:wrap}.between{justify-content:space-between}
+.muted{color:var(--muted)}.small{font-size:.88rem}
+.btn{min-height:52px;padding:0 20px;border-radius:999px;border:1px solid var(--line);background:var(--surface);font-weight:600}
+.btn.primary{background:var(--accent);color:var(--accent-ink);border-color:transparent}
+.btn.block{width:100%}
+.btn:disabled{opacity:.45;cursor:default}
+.top{display:flex;justify-content:space-between;align-items:center;gap:10px}
+.top a{color:var(--muted);font-size:.9rem}
+.bar{height:10px;border-radius:99px;background:var(--track);overflow:hidden}.bar i{display:block;height:100%;background:var(--accent);transition:width .3s}
+.level{display:flex;align-items:center;gap:14px;width:100%;text-align:left;padding:14px;border-radius:18px;border:1px solid var(--line);background:var(--surface)}
+.level .n{width:42px;height:42px;border-radius:50%;display:grid;place-items:center;background:var(--sunk);font-weight:800;flex:none}
+.level.done .n{background:var(--accent);color:var(--accent-ink)}
+.level:disabled{opacity:.5}
+.level b{display:block}
+.kit{width:100%;height:auto;display:block;background:var(--sunk);border-radius:18px}
+.kit .p{fill:var(--surface);stroke:var(--ink);stroke-width:1.6;transition:fill .15s}
+.kit .stand{stroke:var(--muted);stroke-width:2;fill:none}
+.kit g[data-k].on .p{fill:var(--accent)}
+.kit g[data-k].on{filter:drop-shadow(0 0 6px var(--accent))}
+.kit g[data-k].bad .p{fill:var(--danger)}
+.kit.tap g[data-k]{cursor:pointer}
+.kit.tap g[data-k]:focus-visible .p{stroke:var(--ring2);stroke-width:3}
+.kit .hh-top{transition:transform .2s}
+.kit.open .hh-top{transform:translateY(-9px)}
+.kit .lbl{font:600 12px var(--body);fill:var(--ink);paint-order:stroke;stroke:var(--sunk);stroke-width:4px}
+.staff{color:var(--ink);background:var(--sunk);border-radius:14px;padding:6px 8px}
+.staff svg{display:block;width:100%;height:auto}
+.opts{display:grid;grid-template-columns:1fr 1fr;gap:10px}.opts.one{grid-template-columns:1fr}
+.opt{border:2px solid var(--line);background:var(--surface);border-radius:16px;padding:8px;min-height:56px;font-weight:600}
+.opt .staff{padding:2px 4px}
+.opt.right{border-color:var(--good);box-shadow:0 0 0 2px var(--good)}
+.opt.wrong{border-color:var(--danger);opacity:.7}
+.fb{border-radius:18px;padding:14px;display:flex;flex-direction:column;gap:10px}
+.fb.good{background:color-mix(in srgb,var(--good) 18%,var(--surface))}
+.fb.bad{background:color-mix(in srgb,var(--danger) 14%,var(--surface))}
+.big{font-family:var(--display);font-size:1.7rem;line-height:1.1}
+.tip{background:var(--sunk);border-radius:14px;padding:10px 12px}
+.seq{display:flex;gap:8px;justify-content:center}
+.seq span{width:34px;height:34px;border-radius:50%;display:grid;place-items:center;background:var(--sunk);font-weight:800}
+.seq span.ok{background:var(--accent);color:var(--accent-ink)}
+.seq span.now{outline:3px solid var(--ring2)}
+.cert{text-align:center;border:3px double var(--accent);align-items:center}
+.stars{font-size:1.6rem;letter-spacing:4px}
+input[type=text]{width:100%;min-height:52px;border-radius:14px;border:1px solid var(--line);background:var(--surface);padding:0 14px;font:inherit;color:inherit}
+@media (prefers-reduced-motion:reduce){*{transition:none!important}}
+.staff svg .hl{color:var(--ring2)}
+</style>
+</head>
+<body>
+<main class="wrap" id="app" aria-live="polite"></main>
+<script src="notation.js?v=88"></script>
+<script>
+'use strict';
+// Notenwerte Spiel: Ganze, Halbe, Viertel, Achtel, Sechzehntel, Triolen, Pausen und Flams lernen, zählen und hören.
+// Fertig ist man erst, wenn jeder Wert mehrmals hintereinander richtig war und die Prüfung bestanden ist.
+const VALS = [
+  { k: 'q', name: 'Viertel Note', len: 4, beats: '1 Schlag', count: '1 2 3 4', tip: 'Ausgefüllter Kopf mit Hals. Vier Viertel füllen einen 4/4 Takt.' },
+  { k: 'h', name: 'Halbe Note', len: 8, beats: '2 Schläge', count: '1 (2) 3 (4)', tip: 'Leerer Kopf mit Hals. Sie klingt so lang wie zwei Viertel.' },
+  { k: 'w', name: 'Ganze Note', len: 16, beats: '4 Schläge', count: '1 (2 3 4)', tip: 'Leerer Kopf ohne Hals. Sie füllt den ganzen Takt.' },
+  { k: 'e', name: 'Achtel Note', len: 2, beats: '½ Schlag', count: '1 + 2 + 3 + 4 +', tip: 'Ein Fähnchen. Zwei Achtel passen in einen Schlag, man verbindet sie mit einem Balken.' },
+  { k: 's', name: 'Sechzehntel Note', len: 1, beats: '¼ Schlag', count: '1 e + a 2 e + a', tip: 'Zwei Fähnchen oder zwei Balken. Vier Sechzehntel passen in einen Schlag.' },
+  { k: 't', name: 'Achtel Triole', len: 4, beats: '3 Noten auf 1 Schlag', count: '1 ta te 2 ta te', tip: 'Drei Achtel mit einer 3 darüber. Sie teilen einen Schlag in drei gleiche Teile.' },
+  { k: 'rq', name: 'Viertel Pause', len: 4, beats: '1 Schlag Pause', count: '1 (2) 3 4', tip: 'Ein Zickzack Zeichen. Hier spielst du einen Schlag lang nichts, zählst aber weiter.' },
+  { k: 'rh', name: 'Halbe Pause', len: 8, beats: '2 Schläge Pause', count: '1 2 (3 4)', tip: 'Ein kleiner Balken, der auf der Mittellinie sitzt, wie ein Hut.' },
+  { k: 'rw', name: 'Ganze Pause', len: 16, beats: '4 Schläge Pause', count: '(1 2 3 4)', tip: 'Ein kleiner Balken, der unter der 4. Linie hängt. Ein ganzer Takt Pause.' },
+  { k: 're', name: 'Achtel Pause', len: 2, beats: '½ Schlag Pause', count: '(1) + 2 +', tip: 'Sieht aus wie eine kleine 7. Ein halber Schlag Pause.' },
+  { k: 'f', name: 'Flam', len: 4, beats: 'kleine Vorschlagsnote + Hauptschlag', count: '1 2 3 4 (auf dem Schlag)', tip: 'Eine kleine Note mit Schrägstrich direkt vor der Hauptnote. Beide Hände schlagen fast gleichzeitig, die kleine Note leise und ganz kurz davor.' },
+];
+const BY = Object.fromEntries(VALS.map((v) => [v.k, v]));
+const GROUPS = [['q', 'h', 'w'], ['e', 's', 't'], ['rq', 'rh', 'rw', 're'], ['f']];
+const LEN_LABELS = ['4 Schläge', '2 Schläge', '1 Schlag', '½ Schlag', '¼ Schlag', '3 Noten auf 1 Schlag', '4 Schläge Pause', '2 Schläge Pause', '1 Schlag Pause', '½ Schlag Pause', 'kleine Vorschlagsnote + Hauptschlag'];
+const LEVELS = [
+  { id: 1, title: 'Entdecken', text: 'Lerne jeden Notenwert kennen: Zeichen, Länge, Zählen und Klang.' },
+  { id: 2, title: 'Wie lang ist das?', text: 'Du siehst ein Zeichen und wählst die Länge.', type: 'len', need: 2 },
+  { id: 3, title: 'Finde das Zeichen', text: 'Du liest den Namen und wählst das richtige Zeichen.', type: 'sym', need: 2 },
+  { id: 4, title: 'Takt rechnen', text: 'Was fehlt im Takt? Wie viele passen hinein?', type: 'math', rounds: 8 },
+  { id: 5, title: 'Zählen', text: 'Wähle, wie man den Takt zählt.', type: 'count', rounds: 6 },
+  { id: 6, title: 'Hör genau', text: 'Hör dir einen Takt an und finde die passenden Noten.', type: 'hear', rounds: 6 },
+  { id: 7, title: 'Flams', text: 'Flams hören, lesen und mit den richtigen Händen spielen.', type: 'flam' },
+  { id: 8, title: 'Abschlussprüfung', text: '12 Fragen gemischt. Mit 11 richtigen bist du Rhythmusprofi.', type: 'exam' },
+];
+const KEY = 'ph_notenwerte';
+let P = load(), G = null;
+function load() { try { return Object.assign({ name: '', done: {}, cert: null }, JSON.parse(localStorage.getItem(KEY) || '{}')); } catch (e) { return { name: '', done: {}, cert: null }; } }
+function appLogin() { try { const t = JSON.parse(localStorage.getItem('ph_token') || 'null'), r = JSON.parse(localStorage.getItem('ph_role') || 'null'); return t && r === 'student' ? t : null; } catch (e) { return null; } }
+function save() {
+  try { localStorage.setItem(KEY, JSON.stringify(P)); } catch (e) {}
+  const t = appLogin(); if (!t) return;
+  fetch('/api/my/game', { method: 'POST', headers: { 'Content-Type': 'application/json', Authorization: 'Bearer ' + t }, body: JSON.stringify({ game: 'werte', done: Object.keys(P.done).map(Number), total: LEVELS.length, cert: P.cert }) }).catch(() => {});
+}
+if (!P.name) { try { const n = JSON.parse(localStorage.getItem('ph_name') || 'null'); if (n) P.name = String(n).split(' ')[0]; } catch (e) {} }
+const $ = (s) => document.querySelector(s);
+const esc = (t) => String(t).replace(/[&<>"]/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' })[c]);
+const shuffle = (a) => { a = a.slice(); for (let i = a.length - 1; i > 0; i--) { const j = Math.floor(Math.random() * (i + 1)); [a[i], a[j]] = [a[j], a[i]]; } return a; };
+const pick = (a) => a[Math.floor(Math.random() * a.length)];
+
+// ---------- Noten zeichnen (Snare im 3. Zwischenraum, wie in der App) ----------
+// Ein Takt ist eine Liste von Ereignissen: { k: Wertschlüssel } in der Reihenfolge, Länge aus VALS. 'gap' = Lücke zum Ausfüllen.
+const Y = 42, TOP = 14, LINES = [30, 38, 46, 54, 62];
+function head(x, open, small) { const sc = small ? 0.62 : 1; return open ? `<ellipse cx="${x}" cy="${Y}" rx="${5.4 * sc}" ry="${3.9 * sc}" transform="rotate(-20 ${x} ${Y})" fill="none" stroke="currentColor" stroke-width="1.8"/>` : `<ellipse cx="${x}" cy="${Y}" rx="${5.4 * sc}" ry="${3.9 * sc}" transform="rotate(-20 ${x} ${Y})" fill="currentColor"/>`; }
+const stem = (x, top = TOP) => `<line x1="${x + 5}" x2="${x + 5}" y1="${Y}" y2="${top}" stroke="currentColor" stroke-width="1.4"/>`;
+const flag = (x, i) => `<path d="M${x + 5} ${TOP + i * 7} q 8 6 7 15" fill="none" stroke="currentColor" stroke-width="2"/>`;
+function rest(k, x) {
+  if (k === 'rw') return `<rect x="${x - 6}" y="38" width="12" height="4.5" fill="currentColor"/>`;
+  if (k === 'rh') return `<rect x="${x - 6}" y="41.5" width="12" height="4.5" fill="currentColor"/>`;
+  if (k === 'rq') return `<path d="M${x - 2} 31 l5 6 l-5 6 l5 6 q-7 -2 -4 6" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linejoin="round" stroke-linecap="round"/>`;
+  return `<circle cx="${x - 2}" cy="40" r="2.4" fill="currentColor"/><path d="M${x - 2} 41 q4 2 7 -2 l-5 14" fill="none" stroke="currentColor" stroke-width="1.8"/>`;
+}
+function grace(x) { const gx = x - 13; return `<g>${head(gx, false, true)}<line x1="${gx + 3.2}" x2="${gx + 3.2}" y1="${Y}" y2="${Y - 20}" stroke="currentColor" stroke-width="1"/><path d="M${gx + 3.2} ${Y - 20} q5 3 4 9" fill="none" stroke="currentColor" stroke-width="1.3"/><line x1="${gx - 1}" y1="${Y - 8}" x2="${gx + 8}" y2="${Y - 16}" stroke="currentColor" stroke-width="1.1"/></g>`; }
+function barSVG(evs, opt = {}) {
+  const W = opt.w || 340, x0 = 52, span = W - x0 - 14, out = [];
+  LINES.forEach((y) => out.push(`<line x1="8" x2="${W - 4}" y1="${y}" y2="${y}" stroke="currentColor" stroke-width="1" opacity=".55"/>`));
+  out.push(`<rect x="12" y="38" width="3" height="16" fill="currentColor"/><rect x="18" y="38" width="3" height="16" fill="currentColor"/>`);
+  out.push(`<text x="34" y="45" font-size="17" font-weight="800" text-anchor="middle" fill="currentColor" font-family="Georgia,serif">4</text><text x="34" y="61" font-size="17" font-weight="800" text-anchor="middle" fill="currentColor" font-family="Georgia,serif">4</text>`);
+  out.push(`<line x1="${W - 4}" x2="${W - 4}" y1="30" y2="62" stroke="currentColor" stroke-width="2.5"/>`);
+  // Zeitpositionen
+  let t = 0; const items = evs.map((e) => { const len = e.k === 'gap' ? e.len : BY[e.k].len; const it = { ...e, t, len }; t += len; return it; });
+  const X = (tt) => x0 + (tt / 16) * span + 6;
+  // Balkengruppen: Achtel und Sechzehntel innerhalb eines Schlags
+  const beam = [];
+  items.forEach((it) => { if (it.k === 'e' || it.k === 's') { const b = Math.floor(it.t / 4); const last = beam[beam.length - 1]; if (last && last.b === b && last.end === it.t) { last.n.push(it); last.end = it.t + it.len; } else beam.push({ b, n: [it], end: it.t + it.len }); } });
+  const beamed = new Set(); beam.filter((g) => g.n.length > 1).forEach((g) => {
+    g.n.forEach((it) => beamed.add(it));
+    const xa = X(g.n[0].t) + 5, xb = X(g.n[g.n.length - 1].t) + 5;
+    out.push(`<rect x="${xa - 0.7}" y="${TOP}" width="${xb - xa + 1.4}" height="4.5" fill="currentColor"/>`);
+    g.n.forEach((it, i) => { if (it.k !== 's') return; const nx = g.n[i + 1], pv = g.n[i - 1]; const xi = X(it.t) + 5;
+      if (nx && nx.k === 's') out.push(`<rect x="${xi - 0.7}" y="${TOP + 7}" width="${X(nx.t) + 5 - xi + 1.4}" height="4.5" fill="currentColor"/>`);
+      else if (!(pv && pv.k === 's')) out.push(`<rect x="${nx ? xi : xi - 8}" y="${TOP + 7}" width="8" height="4.5" fill="currentColor"/>`); });
+  });
+  items.forEach((it, idx) => {
+    const x = X(it.t), hi = opt.hl === idx ? ' class="hl"' : '';
+    if (it.k === 'gap') { out.push(`<rect x="${x - 8}" y="20" width="${Math.max(24, (it.len / 16) * span - 6)}" height="44" rx="6" fill="none" stroke="var(--ring2)" stroke-width="2" stroke-dasharray="5 4"/><text x="${x + Math.max(24, (it.len / 16) * span - 6) / 2 - 8}" y="47" text-anchor="middle" font-size="18" font-weight="800" fill="var(--ring2)">?</text>`); return; }
+    if (it.k[0] === 'r') { out.push(`<g${hi}>${rest(it.k, x)}</g>`); return; }
+    if (it.k === 't') { const xs = [0, 1, 2].map((i) => x + i * ((span / 4) / 3)); out.push(`<g${hi}>${xs.map((xx) => head(xx) + stem(xx)).join('')}<rect x="${xs[0] + 4.3}" y="${TOP}" width="${xs[2] - xs[0] + 1.4}" height="4.5" fill="currentColor"/><text x="${xs[1] + 5}" y="${TOP - 3}" font-size="11" font-weight="700" text-anchor="middle" fill="currentColor" font-style="italic">3</text></g>`); return; }
+    const open = it.k === 'w' || it.k === 'h';
+    let g = head(x, open);
+    if (it.k !== 'w') g += stem(x);
+    if (!beamed.has(it)) { if (it.k === 'e') g += flag(x, 0); if (it.k === 's') g += flag(x, 0) + flag(x, 1); }
+    if (it.k === 'f') g = grace(x) + g;
+    out.push(`<g${hi}>${g}</g>`);
+  });
+  return `<svg viewBox="0 0 ${W} 74" role="img" aria-label="${esc(opt.label || 'Takt')}">${out.join('')}</svg>`;
+}
+// Einzelnes Zeichen groß zeigen
+function symSVG(k) {
+  const W = 120, out = [];
+  LINES.forEach((y) => out.push(`<line x1="6" x2="${W - 6}" y1="${y}" y2="${y}" stroke="currentColor" stroke-width="1" opacity=".45"/>`));
+  const x = 56;
+  if (k[0] === 'r') out.push(rest(k, x));
+  else if (k === 't') { const xs = [x - 22, x, x + 22]; out.push(xs.map((xx) => head(xx) + stem(xx)).join('') + `<rect x="${xs[0] + 4.3}" y="${TOP}" width="${xs[2] - xs[0] + 1.4}" height="4.5" fill="currentColor"/><text x="${xs[1] + 5}" y="${TOP - 3}" font-size="11" font-weight="700" text-anchor="middle" fill="currentColor" font-style="italic">3</text>`); }
+  else { let g = head(x, k === 'w' || k === 'h'); if (k !== 'w') g += stem(x); if (k === 'e') g += flag(x, 0); if (k === 's') g += flag(x, 0) + flag(x, 1); if (k === 'f') g = grace(x) + g; out.push(g); }
+  return `<svg viewBox="0 0 ${W} 74" role="img" aria-label="Notenzeichen">${out.join('')}</svg>`;
+}
+const staff = (svg) => `<div class="staff">${svg}</div>`;
+
+// ---------- Takte erzeugen, zählen, abspielen ----------
+const BEATS = { basic: [['q'], ['e', 'e'], ['rq']], mid: [['q'], ['e', 'e'], ['s', 's', 's', 's'], ['e', 's', 's'], ['s', 's', 'e'], ['rq'], ['re', 'e'], ['t']], flam: [['q'], ['f'], ['e', 'e'], ['rq']] };
+function makeBar(level = 'mid') {
+  const out = []; let b = 0;
+  while (b < 4) {
+    if ((b === 0 || b === 2) && Math.random() < 0.18) { out.push({ k: pick(['h', 'h', 'rh']) }); b += 2; continue; }
+    pick(BEATS[level]).forEach((k) => out.push({ k })); b++;
+  }
+  return out;
+}
+const SYL = ['', 'e', '+', 'a'];
+function countText(evs) {
+  // Angeschlagene Silben normal, gehaltene oder pausierte in Klammern
+  let t = 0; const parts = [];
+  for (const e of evs) {
+    const v = BY[e.k], beat = Math.floor(t / 4) + 1, sub = t % 4;
+    if (e.k === 't') parts.push(`${beat} ta te`);
+    else { const syl = sub === 0 ? String(beat) : SYL[sub]; parts.push(e.k[0] === 'r' ? `(${syl})` : syl);
+      for (let x = t + 4 - sub; x < t + v.len; x += 4) parts.push(`(${Math.floor(x / 4) + 1})`); }
+    t += v.len;
+  }
+  return parts.join(' ').replace(/\) \(/g, ' ');
+}
+const sameBar = (a, b) => a.map((e) => e.k).join() === b.map((e) => e.k).join();
+let audioCtx = null;
+function playBar(evs, bpm = 72, countIn = true) {
+  try { DrumNotation.loadSamples(); } catch (e) {}
+  audioCtx = DrumNotation.audio(); const spb = 60 / bpm / 4; let t0 = audioCtx.currentTime + 0.15;
+  if (countIn) { for (let i = 0; i < 4; i++) DrumNotation.click(t0 + i * spb * 4, i === 0 ? 2 : 1, 'klick', 0.5); t0 += 16 * spb; }
+  for (let i = 0; i < 4; i++) DrumNotation.click(t0 + i * spb * 4, 1, 'klick', 0.25);
+  let t = 0;
+  for (const e of evs) {
+    const v = BY[e.k], at = t0 + t * spb;
+    if (e.k === 't') for (let i = 0; i < 3; i++) DrumNotation.hit('sn', at + i * (4 * spb) / 3);
+    else if (e.k === 'f') { DrumNotation.hit('sn', at - 0.035, 's'); DrumNotation.hit('sn', at); }
+    else if (e.k[0] !== 'r') DrumNotation.hit('sn', at);
+    t += v.len;
+  }
+  return (countIn ? 32 : 16) * spb * 1000;
+}
+function playVal(k) { const evs = k === 'w' || k === 'rw' ? [{ k }] : k === 'h' || k === 'rh' ? [{ k }, { k }] : k === 'e' || k === 're' ? Array(8).fill({ k: 'e' }).map((x, i) => (k === 're' && i % 2 === 0 ? { k: 're' } : x)) : k === 's' ? Array(16).fill({ k: 's' }) : Array(4).fill({ k: k === 'rq' ? 'q' : k }).map((x, i) => (k === 'rq' && i === 1 ? { k: 'rq' } : x)); playBar(evs, 72, false); return evs; }
+const exampleBar = (k) => (k === 'w' || k === 'rw' ? [{ k }] : k === 'h' || k === 'rh' ? (k === 'rh' ? [{ k: 'h' }, { k: 'rh' }] : [{ k }, { k }]) : k === 'e' ? Array(8).fill(0).map(() => ({ k: 'e' })) : k === 're' ? Array(4).fill(0).flatMap(() => [{ k: 're' }, { k: 'e' }]) : k === 's' ? Array(16).fill(0).map(() => ({ k: 's' })) : k === 'rq' ? [{ k: 'q' }, { k: 'rq' }, { k: 'q' }, { k: 'q' }] : Array(4).fill(0).map(() => ({ k })));
+
+// ---------- Bildschirme ----------
+function topBar(title, back = true) { return `<div class="top">${back ? '<button class="btn" data-act="home" style="min-height:44px;padding:0 16px">Übersicht</button>' : '<a href="./">Zur Practice Hub App</a>'}<span class="small muted">${esc(title)}</span></div>`; }
+function render() { $('#app').innerHTML = G ? G.view() : homeView(); }
+function homeView() {
+  const next = LEVELS.find((l) => !P.done[l.id]);
+  return `${topBar('Notenwerte Spiel', false)}<h1>Notenwerte lernen</h1>
+    <p class="muted">Wie lang ist eine Note? Wie zählt man sie? Wie klingt ein Flam? Spiel die Stufen der Reihe nach, am Ende kannst du jeden Rhythmus lesen.</p>
+    <p class="small muted">${appLogin() ? 'Dein Lehrer sieht deinen Fortschritt in der App.' : 'Öffne das Spiel aus der Practice Hub App, dann sieht dein Lehrer deinen Fortschritt.'}</p>
+    <div class="card"><label for="nm" class="small muted">Dein Vorname (für die Urkunde)</label><input type="text" id="nm" maxlength="30" value="${esc(P.name)}" autocomplete="given-name"></div>
+    ${staff(barSVG([{ k: 'q' }, { k: 'e' }, { k: 'e' }, { k: 'f' }, { k: 's' }, { k: 's' }, { k: 's' }, { k: 's' }], { label: 'Beispieltakt' }))}
+    <div style="display:flex;flex-direction:column;gap:10px">${LEVELS.map((l, i) => { const open = i === 0 || P.done[LEVELS[i - 1].id];
+      return `<button class="level ${P.done[l.id] ? 'done' : ''}" data-act="level" data-id="${l.id}" ${open ? '' : 'disabled'}><span class="n">${P.done[l.id] ? '✓' : l.id}</span><span><b>${esc(l.title)}</b><span class="small muted">${esc(l.text)}</span></span></button>`; }).join('')}</div>
+    ${P.cert ? '<button class="btn primary block" data-act="cert">Meine Urkunde ansehen</button>' : next ? `<button class="btn primary block" data-act="level" data-id="${next.id}">${next.id === 1 ? 'Los geht’s' : 'Weiter mit Stufe ' + next.id}</button>` : ''}
+    ${Object.keys(P.done).length ? '<button class="btn block" data-act="reset">Von vorne anfangen</button>' : ''}`;
+}
+function fb(ok, html) { return `<div class="fb ${ok ? 'good' : 'bad'}"><p class="big">${ok ? 'Richtig!' : 'Fast.'}</p>${html}</div>`; }
+function explain(k) { const v = BY[k]; return `<div class="row" style="flex-wrap:nowrap;align-items:center"><div class="staff" style="width:110px;flex:none">${symSVG(k)}</div><p><b>${esc(v.name)}</b>: ${esc(v.beats)}. ${esc(v.tip)}</p></div>`; }
+
+// Stufe 1: Entdecken mit Kurztest nach jeder Gruppe
+function learnRun() {
+  const steps = [{ t: 'rule' }]; GROUPS.forEach((g, gi) => { g.forEach((k) => steps.push({ t: 'card', k })); if (gi === 3) steps.push({ t: 'sticking' }); steps.push({ t: 'check', ks: g, gi }); });
+  let i = 0; const run = { id: 1 };
+  run.view = () => {
+    const s = steps[i], head = `${topBar('Stufe 1: Entdecken')}<div class="bar"><i style="width:${Math.round((i / steps.length) * 100)}%"></i></div>`;
+    if (s.t === 'rule') return `${head}<div class="card"><h2>Der 4/4 Takt</h2><p>Die <b>4/4</b> am Anfang heißt: Jeder Takt hat <b>4 Schläge</b>. Du zählst <b>1 2 3 4</b>, immer gleich schnell, wie das Metronom.</p><p>Jeder Notenwert sagt dir, <b>wie lange</b> ein Ton dauert. Zusammen müssen sie genau 4 Schläge ergeben.</p><p>Pausen sind genauso wichtig: Da spielst du nichts, zählst aber weiter.</p></div><button class="btn primary block" data-act="next">Verstanden</button>`;
+    if (s.t === 'sticking') return `${head}<div class="card"><h2>Flam mit den richtigen Händen</h2><p><b>Flam rechts:</b> Die kleine Note spielt die <b>linke</b> Hand leise und knapp vorher, die Hauptnote die <b>rechte</b> Hand laut. Man schreibt <b>lR</b>.</p><p><b>Flam links:</b> genau andersrum, <b>rL</b>.</p><p class="tip">Beide Sticks starten aus unterschiedlicher Höhe: der leise Stick tief, der laute hoch. Dann fallen sie fast gleichzeitig, es klingt wie „fläm“ statt „klack klack“.</p><button class="btn block" data-act="hearFlam">Flam anhören</button><button class="btn block" data-act="hearPlain">Zum Vergleich: zwei Schläge gleichzeitig</button></div><button class="btn primary block" data-act="next">Weiter</button>`;
+    if (s.t === 'card') { const v = BY[s.k]; return `${head}<div class="card"><p class="small muted">Neuer Notenwert</p><p class="big">${esc(v.name)}</p>
+      <div class="staff" style="max-width:220px;margin:0 auto;width:100%">${symSVG(s.k)}</div>
+      <p><b>Länge:</b> ${esc(v.beats)}</p><p class="tip">${esc(v.tip)}</p>
+      <p class="small muted">So sieht ein Takt damit aus. Gezählt: <b>${esc(countText(exampleBar(s.k)))}</b></p>${staff(barSVG(exampleBar(s.k), { label: 'Beispieltakt ' + v.name }))}
+      <button class="btn block" data-act="hearVal" data-k="${s.k}">Anhören</button></div><button class="btn primary block" data-act="next">Weiter</button>`; }
+    run.c = run.c || { left: shuffle(s.ks), ans: null }; const c = run.c; if (!c.ans) c.cur = c.left[0]; const cur = c.cur;
+    run.opts = run.opts || shuffle(LEN_LABELS.filter((l) => l !== BY[cur].beats)).slice(0, 2).concat(BY[cur].beats).sort(() => Math.random() - 0.5);
+    return `${head}<div class="card"><p class="small muted">Kurztest ${s.gi + 1} von 4: noch ${c.left.length}</p><h2>Wie lang ist dieses Zeichen?</h2><div class="staff" style="max-width:220px;margin:0 auto;width:100%">${symSVG(cur)}</div>
+      ${c.ans ? fb(c.ans.ok, explain(cur)) : `<div class="opts one">${run.opts.map((o) => `<button class="opt" data-act="ans" data-v="${esc(o)}">${esc(o)}</button>`).join('')}</div>`}</div>${c.ans ? '<button class="btn primary block" data-act="next">Weiter</button>' : ''}`;
+  };
+  run.act = (act, el) => {
+    const s = steps[i];
+    if (act === 'ans') { const c = run.c, cur = c.cur, ok = el.dataset.v === BY[cur].beats; c.ans = { ok }; if (ok) c.left.shift(); else c.left.push(c.left.shift()); return render(); }
+    if (act === 'next') { if (s.t === 'check') { if (run.c.ans) { run.c.ans = null; run.opts = null; if (run.c.left.length) return render(); } run.c = null; } i++; if (i >= steps.length) return finishLevel(1); window.scrollTo(0, 0); return render(); }
+  };
+  return run;
+}
+
+// Fragen für Stufen 2 bis 8
+function qLen(k) { return { kind: 'len', k, opts: shuffle(shuffle(LEN_LABELS.filter((l) => l !== BY[k].beats)).slice(0, 3).concat(BY[k].beats)), right: BY[k].beats }; }
+function qSym(k) { const near = VALS.map((v) => v.k).filter((x) => x !== k && (x[0] === 'r') === (k[0] === 'r')); return { kind: 'sym', k, opts: shuffle(shuffle(near).slice(0, 3).concat(k)), right: k }; }
+function qMath() {
+  if (Math.random() < 0.35) {
+    const pairs = [['h', 'q', 2], ['w', 'q', 4], ['q', 'e', 2], ['h', 'e', 4], ['q', 's', 4], ['e', 's', 2], ['w', 'h', 2], ['h', 's', 8]]; const [a, b, n] = pick(pairs);
+    return { kind: 'calc', text: `Wie viele ${BY[b].name}n passen in eine ${BY[a].name}?`, opts: shuffle([...new Set([n, n * 2, Math.max(1, n / 2), n + 1])].slice(0, 4)).map(String), right: String(n), why: `${BY[a].name}: ${BY[a].beats}, ${BY[b].name}: ${BY[b].beats}.` };
+  }
+  const bar = makeBar('mid'), idx = Math.floor(Math.random() * bar.length), miss = bar[idx];
+  const len = BY[miss.k].len, right = miss.k, sameLen = VALS.filter((v) => v.len !== len && v.k !== 't' && v.k !== 'f').map((v) => v.k);
+  const opts = shuffle(shuffle(sameLen).slice(0, 3).concat(right));
+  return { kind: 'fill', bar: bar.map((e, i) => (i === idx ? { k: 'gap', len } : e)), full: bar, opts, right, why: `Es fehlt genau ${BY[right].beats}.` };
+}
+function qCount() { const bar = makeBar(Math.random() < 0.3 ? 'basic' : 'mid'); const right = countText(bar); const wrongs = new Set(); let g = 0; while (wrongs.size < 2 && g++ < 50) { const o = countText(makeBar('mid')); if (o !== right) wrongs.add(o); } return { kind: 'count', bar, opts: shuffle([right, ...wrongs]), right }; }
+function qHear() { const bar = makeBar(Math.random() < 0.3 ? 'flam' : 'mid'); const others = []; let g = 0; while (others.length < 2 && g++ < 80) { const b = makeBar('mid'); if (!sameBar(b, bar) && !others.some((o) => sameBar(o, b))) others.push(b); } const opts = shuffle([bar, ...others]); return { kind: 'hear', bar, opts, right: opts.indexOf(bar) }; }
+const FLAMQ = [
+  () => { const flam = Math.random() < 0.5; return { kind: 'fhear', flam, opts: ['Flam', 'Ein normaler Schlag'], right: flam ? 'Flam' : 'Ein normaler Schlag', why: 'Ein Flam klingt etwas breiter, wie „fläm“: die leise Note kommt ganz kurz vor der lauten.' }; },
+  () => ({ kind: 'text', text: 'Flam rechts: Welche Hand spielt die kleine Vorschlagsnote?', opts: ['Links', 'Rechts', 'Beide gleich laut'], right: 'Links', why: 'Flam rechts heißt: Hauptnote rechts, kleine Note links. Geschrieben lR.' }),
+  () => { const beat = 1 + Math.floor(Math.random() * 4); const bar = [1, 2, 3, 4].map((b) => ({ k: b === beat ? 'f' : 'q' })); return { kind: 'fwhere', bar, opts: ['1', '2', '3', '4'], right: String(beat), why: `Der Flam ist die Note mit der kleinen Vorschlagsnote davor, hier auf Schlag ${beat}.` }; },
+  () => ({ kind: 'text', text: 'Wie spielt man einen Flam richtig?', opts: ['Leise Note ganz kurz vor der lauten', 'Beide Noten genau gleichzeitig', 'Zwei laute Schläge nacheinander'], right: 'Leise Note ganz kurz vor der lauten', why: 'Der leise Stick startet tief, der laute hoch. So kommt die leise Note minimal früher.' }),
+];
+function questionHTML(q, ans) {
+  const done = !!ans;
+  const optBtns = (labels, oneCol) => `<div class="opts${oneCol ? ' one' : ''}">${labels.map((o, i) => `<button class="opt${done && String(i) === String(ans.pick) ? (ans.ok ? ' right' : ' wrong') : ''}" data-act="ans" data-i="${i}" ${done ? 'disabled' : ''}>${o}</button>`).join('')}</div>`;
+  if (q.kind === 'len') return `<h2>Wie lang ist dieses Zeichen?</h2><div class="staff" style="max-width:220px;margin:0 auto;width:100%">${symSVG(q.k)}</div>${optBtns(q.opts.map(esc), true)}`;
+  if (q.kind === 'sym') return `<h2>Welches Zeichen ist die ${esc(BY[q.k].name)}?</h2>${optBtns(q.opts.map((k) => `<div class="staff">${symSVG(k)}</div>`))}`;
+  if (q.kind === 'calc') return `<h2>${esc(q.text)}</h2>${optBtns(q.opts.map(esc))}`;
+  if (q.kind === 'fill') return `<h2>Was fehlt im Takt?</h2><p class="small muted">Zusammen müssen es genau 4 Schläge sein.</p>${staff(barSVG(done ? q.full : q.bar, { label: 'Takt mit Lücke' }))}${optBtns(q.opts.map((k) => `<div class="staff">${symSVG(k)}</div>`))}`;
+  if (q.kind === 'count') return `<h2>Wie zählt man diesen Takt?</h2><p class="small muted">In Klammern: nicht spielen, nur weiterzählen.</p>${staff(barSVG(q.bar, { label: 'Takt zum Zählen' }))}<button class="btn block" data-act="playQ">Anhören</button>${optBtns(q.opts.map(esc), true)}`;
+  if (q.kind === 'hear') return `<h2>Welcher Takt klingt so?</h2><button class="btn primary block" data-act="playQ">Anhören</button><p class="small muted">Erst 4 Klicks zum Einzählen, dann der Takt.</p>${optBtns(q.opts.map((b) => `<div class="staff">${barSVG(b, { label: 'Antwort' })}</div>`), true)}`;
+  if (q.kind === 'fhear') return `<h2>Flam oder normaler Schlag?</h2><button class="btn primary block" data-act="playQ">Anhören</button>${optBtns(q.opts.map(esc))}`;
+  if (q.kind === 'fwhere') return `<h2>Auf welchem Schlag ist der Flam?</h2>${staff(barSVG(q.bar, { label: 'Takt mit Flam' }))}${optBtns(q.opts.map(esc))}`;
+  return `<h2>${esc(q.text)}</h2>${optBtns(q.opts.map(esc), true)}`;
+}
+function rightIndex(q) { return q.kind === 'hear' ? q.right : q.opts.indexOf(q.right); }
+function whyHTML(q) {
+  if (q.kind === 'len' || q.kind === 'sym') return explain(q.k);
+  if (q.kind === 'count') return `<p>Richtig gezählt: <b>${esc(q.right)}</b></p>`;
+  if (q.kind === 'hear') return `<p>Das war dieser Takt:</p>${staff(barSVG(q.bar))}<p class="small muted">Gezählt: ${esc(countText(q.bar))}</p><button class="btn block" data-act="playQ">Nochmal anhören</button>`;
+  if (q.kind === 'fill') return `<p>${esc(q.why)}</p>${explain(q.right)}`;
+  return `<p>${esc(q.why || '')}</p>`;
+}
+function playQ(q) { if (!q) return; if (q.kind === 'count' || q.kind === 'hear') playBar(q.bar); if (q.kind === 'fhear') playBar(Array(4).fill(0).map(() => ({ k: q.flam ? 'f' : 'q' })), 66, false); }
+function quizRun(lv, gen, opt) {
+  // opt.need: pro Schlüssel x mal hintereinander richtig; opt.rounds: so viele richtige Antworten
+  const run = { id: lv.id, wrongs: 0, ans: null, correct: 0 };
+  const keys = opt.keys || null, count = keys ? Object.fromEntries(keys.map((k) => [k, 0])) : null;
+  const left = () => (keys ? keys.filter((k) => count[k] < opt.need) : run.correct < opt.rounds ? [1] : []);
+  const next = () => { const l = left(); if (keys) { let c = l.filter((k) => k !== run.lastK); if (!c.length) c = l; run.lastK = pick(c); run.q = gen(run.lastK); } else run.q = gen(); if (run.q.kind === 'hear' || run.q.kind === 'fhear') { const nq = run.q; setTimeout(() => { if (G === run && run.q === nq) playQ(nq); }, 300); } };
+  next();
+  run.view = () => { const total = keys ? keys.length * opt.need : opt.rounds, now = keys ? keys.reduce((t, k) => t + Math.min(opt.need, count[k]), 0) : run.correct;
+    return `${topBar(opt.title || 'Stufe ' + lv.id + ': ' + lv.title)}<div class="bar"><i style="width:${Math.round((now / total) * 100)}%"></i></div>
+      <div class="card">${questionHTML(run.q, run.ans)}${run.ans ? fb(run.ans.ok, whyHTML(run.q)) : ''}</div>${run.ans ? '<button class="btn primary block" data-act="next">Weiter</button>' : ''}
+      <p class="small muted" style="text-align:center">${keys ? `Jeder Wert ${opt.need === 1 ? 'einmal' : opt.need + ' mal hintereinander'} richtig.` : `${opt.rounds} richtige Antworten.`}</p>`; };
+  run.act = (act, el) => {
+    if (act === 'playQ') return playQ(run.q);
+    if (act === 'ans' && !run.ans) { const i = Number(el.dataset.i), ok = i === rightIndex(run.q); run.ans = { ok, pick: i }; if (keys) count[run.lastK] = ok ? count[run.lastK] + 1 : 0; if (ok) run.correct++; else run.wrongs++; return render(); }
+    if (act === 'next') { run.ans = null; if (!left().length) return opt.onDone ? opt.onDone() : finishLevel(lv.id, run.wrongs); next(); window.scrollTo(0, 0); return render(); }
+  };
+  return run;
+}
+function examRun(lv) {
+  const gens = [() => qLen(pick(VALS).k), () => qSym(pick(VALS).k), qMath, qCount, qHear, () => pick(FLAMQ)()];
+  const qs = shuffle([0, 1, 2, 3, 4, 5, 0, 1, 2, 3, 4, 5]).map((g) => gens[g]());
+  const run = { id: lv.id, i: 0, right: 0, missed: [], ans: null, qs };
+  run.view = () => {
+    if (run.i >= qs.length) { const pass = run.right >= 11;
+      return `${topBar('Abschlussprüfung')}<div class="card" style="text-align:center;align-items:center"><p class="big">${run.right} von ${qs.length} richtig</p><p>${pass ? 'Bestanden! Du kannst Notenwerte lesen, zählen und hören.' : 'Noch nicht ganz. Übe die Fehler nochmal, dann versuchst du es neu.'}</p></div>
+      <button class="btn primary block" data-act="${pass ? 'certNow' : 'again'}">${pass ? 'Zur Urkunde' : 'Fehler üben'}</button>`; }
+    const q = qs[run.i];
+    return `${topBar('Abschlussprüfung')}<div class="bar"><i style="width:${Math.round((run.i / qs.length) * 100)}%"></i></div><div class="card"><p class="small muted">Frage ${run.i + 1} von ${qs.length}</p>${questionHTML(q, run.ans)}${run.ans ? fb(run.ans.ok, whyHTML(q)) : ''}</div>${run.ans ? '<button class="btn primary block" data-act="next">Weiter</button>' : ''}`;
+  };
+  run.act = (act, el) => {
+    const q = qs[run.i];
+    if (act === 'playQ') return playQ(q);
+    if (act === 'ans' && !run.ans) { const i = Number(el.dataset.i), ok = i === rightIndex(q); run.ans = { ok, pick: i }; if (ok) run.right++; else run.missed.push(q.kind); return render(); }
+    if (act === 'next') { run.ans = null; run.i++; { const nq = qs[run.i]; if (nq && (nq.kind === 'hear' || nq.kind === 'fhear')) setTimeout(() => { if (G === run && qs[run.i] === nq) playQ(nq); }, 300); } window.scrollTo(0, 0); return render(); }
+    if (act === 'certNow') { P.done[8] = true; P.cert = new Date().toISOString().slice(0, 10); save(); return showCert(); }
+    if (act === 'again') { const kinds = [...new Set(run.missed)]; const gen = () => { const k = pick(kinds); return k === 'len' ? qLen(pick(VALS).k) : k === 'sym' ? qSym(pick(VALS).k) : k === 'count' ? qCount() : k === 'hear' ? qHear() : k === 'fill' || k === 'calc' ? qMath() : pick(FLAMQ)(); };
+      G = quizRun({ id: 8, title: 'Fehler üben' }, gen, { rounds: Math.max(4, run.missed.length * 2), title: 'Fehler üben', onDone: () => { G = examRun(lv); window.scrollTo(0, 0); render(); } }); return render(); }
+  };
+  return run;
+}
+function finishLevel(id, wrongs = 0) {
+  P.done[id] = true; save(); const stars = wrongs === 0 ? 3 : wrongs <= 3 ? 2 : 1, next = LEVELS.find((l) => l.id === id + 1);
+  G = { view: () => `${topBar('Geschafft')}<div class="card" style="text-align:center;align-items:center"><p class="stars" aria-label="${stars} von 3 Sternen">${'★'.repeat(stars)}${'☆'.repeat(3 - stars)}</p><p class="big">Stufe ${id} geschafft!</p><p class="muted">${wrongs ? wrongs + ' Fehler, und trotzdem alles gelernt.' : 'Ohne einen Fehler. Stark!'}</p></div>${next ? `<button class="btn primary block" data-act="level" data-id="${next.id}">Weiter mit Stufe ${next.id}: ${esc(next.title)}</button>` : ''}<button class="btn block" data-act="home">Zur Übersicht</button>`, act: () => {} };
+  window.scrollTo(0, 0); render();
+}
+function showCert() {
+  G = { view: () => `${topBar('Urkunde')}<div class="card cert"><p class="small muted">Urkunde</p><h1>Rhythmusprofi</h1><p class="big">${esc(P.name || 'Du')}</p><p>kann Ganze, Halbe, Viertel, Achtel, Sechzehntel, Triolen, Pausen und Flams lesen, zählen und hören.</p>${staff(barSVG([{ k: 'f' }, { k: 'e' }, { k: 'e' }, { k: 't' }, { k: 's' }, { k: 's' }, { k: 'e' }]))}<p class="small muted">Bestanden am ${esc(new Date(P.cert || Date.now()).toLocaleDateString('de-DE'))} · Practice Hub</p></div><p class="small muted" style="text-align:center">Mach ein Bildschirmfoto und zeig es deinem Lehrer.</p><button class="btn block" data-act="home">Zur Übersicht</button>`, act: () => {} };
+  window.scrollTo(0, 0); render();
+}
+function startLevel(id) {
+  const lv = LEVELS.find((l) => l.id === id);
+  G = id === 1 ? learnRun()
+    : lv.type === 'len' ? quizRun(lv, qLen, { keys: VALS.map((v) => v.k), need: 2 })
+    : lv.type === 'sym' ? quizRun(lv, qSym, { keys: VALS.map((v) => v.k), need: 2 })
+    : lv.type === 'math' ? quizRun(lv, qMath, { rounds: lv.rounds })
+    : lv.type === 'count' ? quizRun(lv, qCount, { rounds: lv.rounds })
+    : lv.type === 'hear' ? quizRun(lv, qHear, { rounds: lv.rounds })
+    : lv.type === 'flam' ? quizRun(lv, (k) => FLAMQ[k](), { keys: [0, 1, 2, 3], need: 1 })
+    : examRun(lv);
+  window.scrollTo(0, 0); render();
+}
+document.addEventListener('click', (ev) => {
+  const el = ev.target.closest('[data-act]'); if (!el) return;
+  const act = el.dataset.act; try { DrumNotation.loadSamples(); } catch (e) {}
+  if (act === 'home') { G = null; return render(); }
+  if (act === 'level') { const nm = $('#nm'); if (nm) { P.name = nm.value.trim(); save(); } return startLevel(Number(el.dataset.id)); }
+  if (act === 'cert') return showCert();
+  if (act === 'hearVal') return playBar(exampleBar(el.dataset.k), 72, false);
+  if (act === 'hearFlam') return playBar(Array(4).fill(0).map(() => ({ k: 'f' })), 66, false);
+  if (act === 'hearPlain') { const ctx = DrumNotation.audio(); for (let i = 0; i < 4; i++) { const t = ctx.currentTime + 0.15 + i * 0.9; DrumNotation.hit('sn', t); DrumNotation.hit('sn', t); } return; }
+  if (act === 'reset') { if (confirm('Wirklich von vorne anfangen? Dein Fortschritt wird gelöscht.')) { P = { name: P.name, done: {}, cert: null }; save(); render(); } return; }
+  if (G && G.act) G.act(act, el);
+});
+document.addEventListener('change', (ev) => { if (ev.target.id === 'nm') { P.name = ev.target.value.trim(); save(); } });
+render();
+</script>
+</body>
+</html>
