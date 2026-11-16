@@ -2,6 +2,13 @@
 import { slug } from './songs.js';
 
 export const COURSE_SCHEMA = `
+CREATE TABLE IF NOT EXISTS game_progress (
+  student_id TEXT NOT NULL,
+  game TEXT NOT NULL,          -- 'noten' (Notenspiel) oder 'werte' (Notenwerte Spiel)
+  data TEXT NOT NULL,          -- { done: [Stufen], total, cert }
+  updated_at TEXT NOT NULL,
+  PRIMARY KEY (student_id, game)
+);
 CREATE TABLE IF NOT EXISTS lesson_windows (
   id TEXT PRIMARY KEY,
   student_id TEXT NOT NULL,

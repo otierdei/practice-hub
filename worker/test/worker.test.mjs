@@ -848,3 +848,10 @@ test('Gitarre: Tonleiter wird gespeichert und geprüft', async () => {
   const e2 = (await w.call('/api/t/exercises', {}, w.t)).data.exercises.find((x) => x.id === bad.data.id);
   assert.equal(JSON.parse(e2.notation).scale, undefined, 'unbekannte Tonleiter fällt weg');
 });
+
+test('Gitarre: Fingersatz der Tonleiter bleibt erhalten', async () => {
+  const w = await world();
+  const r = await w.call('/api/t/exercise/save', { title: 'D Dorisch Box A', notation: { kind: 'guitar', scale: { root: 2, type: 'dorisch', pos: 1, sys: 'a' } } }, w.t);
+  const e = (await w.call('/api/t/exercises', {}, w.t)).data.exercises.find((x) => x.id === r.data.id);
+  assert.equal(JSON.parse(e.notation).scale.sys, 'a');
+});

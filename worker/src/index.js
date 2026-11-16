@@ -240,7 +240,8 @@ async function teacherStudent(s, id) {
   const beats = await myBeats(s, st.id);
   const changes = await s.all('SELECT chords, count, created_at FROM chord_changes WHERE student_id = ? ORDER BY created_at DESC LIMIT 60', id);
   const app = await s.first('SELECT app_name, color FROM student_app WHERE student_id = ?', id);
-  return { student: st, lessons, assignments, sessions, goals, access, consents, worship, cancellations, beats, changes, app: app || null };
+  const games = (await s.all('SELECT game, data, updated_at FROM game_progress WHERE student_id = ?', id)).map((r) => ({ game: r.game, updated_at: r.updated_at, ...JSON.parse(r.data) }));
+  return { student: st, lessons, assignments, sessions, goals, access, consents, worship, cancellations, beats, changes, games, app: app || null };
 }
 
 async function saveStudent(s, who, b) {
@@ -287,6 +288,7 @@ function deleteStudentStatements(id) {
     ['DELETE FROM assignment_order WHERE assignment_id IN (SELECT id FROM assignments WHERE student_id = ?)', [id]],
     ['DELETE FROM student_beat_official WHERE beat_id IN (SELECT id FROM student_beats WHERE student_id = ?)', [id]],
     ['DELETE FROM student_beats WHERE student_id = ?', [id]],
+    ['DELETE FROM game_progress WHERE student_id = ?', [id]],
     ['DELETE FROM student_app WHERE student_id = ?', [id]],
     ['DELETE FROM chord_changes WHERE student_id = ?', [id]],
     ['DELETE FROM devices WHERE access_id IN (SELECT id FROM access WHERE student_id = ?)', [id]],
@@ -438,7 +440,7 @@ function cleanGuitar(o) {
     .filter(([st, step, fret]) => st >= 0 && st <= 5 && step >= 0 && step < tbars * 16 && fret >= 0 && fret <= 24 && !seen.has(st + ':' + step) && seen.add(st + ':' + step));
   // Tonleiter: Grundton 0 bis 11 (C bis H), Art aus der festen Liste in guitar.js, Lage 1 bis 12
   const SCALE_TYPES = ['pent_moll', 'pent_dur', 'blues', 'dur', 'moll', 'harm_moll', 'dorisch', 'mixo', 'phryg', 'lyd', 'chrom'];
-  const scale = o.scale && SCALE_TYPES.includes(o.scale.type) ? { root: int(o.scale.root, 0, 11) || 0, type: o.scale.type, pos: int(o.scale.pos, 1, 12) || 1 } : null;
+  const scale = o.scale && SCALE_TYPES.includes(o.scale.type) ? { root: int(o.scale.root, 0, 11) || 0, type: o.scale.type, pos: int(o.scale.pos, 1, 12) || 1, ...(['e', 'a', '3nps'].includes(o.scale.sys) ? { sys: o.scale.sys } : {}) } : null;
   return JSON.stringify({ kind: 'guitar', v: 1, bpm: int(o.bpm, 30, 300) || 80, capo: int(o.capo, 0, 12) || 0, key: str(o.key, 6), chords,
     strum: { sub, bars: sbars, cells }, tab: { bars: tbars, notes }, ...(scale ? { scale } : {}) });
 }
@@ -625,6 +627,16 @@ async function route(env, req, path, body) {
     const chords = str(body.chords, 40), count = int(body.count, 0, 300);
     if (!chords || count == null) throw new HttpError(400, 'Akkorde und Anzahl fehlen.');
     await s.batch([['INSERT INTO chord_changes (id, student_id, chords, count, created_at) VALUES (?, ?, ?, ?, ?)', [uid(), who.studentId, chords, count, now()]]]);
+    return { ok: true };
+  }
+  if (path === '/api/my/game') {
+    // Lernspiele melden den Fortschritt, damit Oti ihn in der Schülerakte sieht
+    if (who.role !== 'student') return { ok: false };
+    const game = ['noten', 'werte'].includes(body.game) ? body.game : null; if (!game) throw new HttpError(400, 'Unbekanntes Spiel.');
+    const total = int(body.total, 1, 20) || 7;
+    const done = [...new Set((Array.isArray(body.done) ? body.done : []).map((x) => int(x, 1, total)).filter(Boolean))].sort((a, b) => a - b);
+    const cert = isDate(body.cert) ? body.cert : null;
+    await s.run('INSERT INTO game_progress (student_id, game, data, updated_at) VALUES (?, ?, ?, ?) ON CONFLICT(student_id, game) DO UPDATE SET data = excluded.data, updated_at = excluded.updated_at', who.studentId, game, JSON.stringify({ done, total, cert }), now());
     return { ok: true };
   }
   if (path === '/api/my/beat/save' || path === '/api/my/beat/delete') {
