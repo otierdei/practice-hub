@@ -837,3 +837,14 @@ test('Song Videos getrennt nach Schlagzeug und Gitarre', async () => {
   await w.call('/api/t/song/link/delete', { id: dl.id }, w.t);
   assert.equal((await w.call('/api/song', { id: sg }, w.t)).data.links.length, 1);
 });
+
+test('Gitarre: Tonleiter wird gespeichert und geprüft', async () => {
+  const w = await world();
+  const g = { kind: 'guitar', bpm: 70, chords: [], scale: { root: 9, type: 'pent_moll', pos: 2 } };
+  const r = await w.call('/api/t/exercise/save', { title: 'A Moll Pentatonik Lage 2', notation: g }, w.t);
+  const e = (await w.call('/api/t/exercises', {}, w.t)).data.exercises.find((x) => x.id === r.data.id);
+  assert.deepEqual(JSON.parse(e.notation).scale, { root: 9, type: 'pent_moll', pos: 2 });
+  const bad = await w.call('/api/t/exercise/save', { title: 'Kaputt', notation: { kind: 'guitar', scale: { root: 99, type: 'xx', pos: 50 } } }, w.t);
+  const e2 = (await w.call('/api/t/exercises', {}, w.t)).data.exercises.find((x) => x.id === bad.data.id);
+  assert.equal(JSON.parse(e2.notation).scale, undefined, 'unbekannte Tonleiter fällt weg');
+});

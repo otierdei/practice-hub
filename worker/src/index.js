@@ -436,8 +436,11 @@ function cleanGuitar(o) {
   const seen = new Set();
   const notes = (o.tab && Array.isArray(o.tab.notes) ? o.tab.notes : []).slice(0, 2000).map((x) => (Array.isArray(x) ? x.map((y) => Math.round(Number(y))) : []))
     .filter(([st, step, fret]) => st >= 0 && st <= 5 && step >= 0 && step < tbars * 16 && fret >= 0 && fret <= 24 && !seen.has(st + ':' + step) && seen.add(st + ':' + step));
+  // Tonleiter: Grundton 0 bis 11 (C bis H), Art aus der festen Liste in guitar.js, Lage 1 bis 12
+  const SCALE_TYPES = ['pent_moll', 'pent_dur', 'blues', 'dur', 'moll', 'harm_moll', 'dorisch', 'mixo', 'phryg', 'lyd', 'chrom'];
+  const scale = o.scale && SCALE_TYPES.includes(o.scale.type) ? { root: int(o.scale.root, 0, 11) || 0, type: o.scale.type, pos: int(o.scale.pos, 1, 12) || 1 } : null;
   return JSON.stringify({ kind: 'guitar', v: 1, bpm: int(o.bpm, 30, 300) || 80, capo: int(o.capo, 0, 12) || 0, key: str(o.key, 6), chords,
-    strum: { sub, bars: sbars, cells }, tab: { bars: tbars, notes } });
+    strum: { sub, bars: sbars, cells }, tab: { bars: tbars, notes }, ...(scale ? { scale } : {}) });
 }
 
 // Import alter Stunden aus Otis Notizen: viele Stunden auf einmal, ohne Protokollflut

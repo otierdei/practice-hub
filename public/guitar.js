@@ -24,9 +24,86 @@
   function empty() { return { kind: 'guitar', v: 1, bpm: 80, capo: 0, key: '', chords: ['G', 'D', 'Em', 'C'], strum: { sub: 8, bars: 1, cells: ['', '', '', '', '', '', '', ''] }, tab: { bars: 1, notes: [] } }; }
   function parse(s) {
     if (!s) return null;
-    try { const o = typeof s === 'string' ? JSON.parse(s) : s; if (o.kind !== 'guitar') return null; const e = empty(); return { ...e, ...o, strum: { ...e.strum, ...(o.strum || {}) }, tab: { ...e.tab, ...(o.tab || {}) }, chords: o.chords || [] }; } catch (e) { return null; }
+    try { const o = typeof s === 'string' ? JSON.parse(s) : s; if (o.kind !== 'guitar') return null; const e = empty(); const sc = o.scale && SC[o.scale.type] ? { root: ((Number(o.scale.root) || 0) % 12 + 12) % 12, type: o.scale.type, pos: Math.max(1, Number(o.scale.pos) || 1) } : null; return { ...e, ...o, scale: sc, strum: { ...e.strum, ...(o.strum || {}) }, tab: { ...e.tab, ...(o.tab || {}) }, chords: o.chords || [] }; } catch (e) { return null; }
   }
   const strumLen = (g) => g.strum.sub * g.strum.bars;
+
+  // ---------- Tonleitern ----------
+  // Lage 1 beginnt auf dem Grundton der tiefen E Saite. Pentatoniken 2 Töne pro Saite (die 5 Boxen),
+  // 7 tönige Tonleitern 3 Töne pro Saite, Blues = Moll Pentatonik Box plus blue note, Chromatisch = Fingerübung 1234.
+  const SCALES = [
+    ['pent_moll', 'Moll Pentatonik', [0, 3, 5, 7, 10]],
+    ['pent_dur', 'Dur Pentatonik', [0, 2, 4, 7, 9]],
+    ['blues', 'Blues Tonleiter', [0, 3, 5, 6, 7, 10]],
+    ['dur', 'Dur (Ionisch)', [0, 2, 4, 5, 7, 9, 11]],
+    ['moll', 'Moll (Äolisch)', [0, 2, 3, 5, 7, 8, 10]],
+    ['harm_moll', 'Harmonisch Moll', [0, 2, 3, 5, 7, 8, 11]],
+    ['dorisch', 'Dorisch', [0, 2, 3, 5, 7, 9, 10]],
+    ['mixo', 'Mixolydisch', [0, 2, 4, 5, 7, 9, 10]],
+    ['phryg', 'Phrygisch', [0, 1, 3, 5, 7, 8, 10]],
+    ['lyd', 'Lydisch', [0, 2, 4, 6, 7, 9, 11]],
+    ['chrom', 'Chromatisch (Fingerübung 1234)', [0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11]],
+  ];
+  const SC = Object.fromEntries(SCALES.map(([k, n, iv]) => [k, { k, n, iv }]));
+  const OPEN_MIDI = [40, 45, 50, 55, 59, 64];
+  const ROOTS = ['C', 'C#', 'D', 'Eb', 'E', 'F', 'F#', 'G', 'Ab', 'A', 'B', 'H']; // deutsch: B = Bb, H = B
+  const pcName = (pc) => ROOTS[((pc % 12) + 12) % 12];
+  function scalePositions(sc) { const t = SC[sc && sc.type]; return !t ? 0 : t.k === 'chrom' ? 12 : t.k === 'blues' ? 5 : t.iv.length; }
+  function scalePattern(sc) {
+    const t = SC[sc && sc.type]; if (!t) return [];
+    const root = ((Number(sc.root) || 0) % 12 + 12) % 12, pos = Math.max(1, Math.min(scalePositions(sc), Number(sc.pos) || 1));
+    let notes = [];
+    if (t.k === 'chrom') { for (let s = 0; s < 6; s++) for (let f = pos; f < pos + 4; f++) notes.push({ s, f }); }
+    else {
+      const path = t.k === 'blues' ? SC.pent_moll.iv : t.iv, nps = path.length === 5 ? 2 : 3;
+      let start = (root - 4 + 12) % 12 + path[(pos - 1) % path.length]; if (start > 12) start -= 12;
+      const inPath = (m) => path.includes(((m - root) % 12 + 12) % 12);
+      let s = 0, n = 0, m = OPEN_MIDI[0] + start;
+      while (s < 6) { if (inPath(m)) { if (n === nps) { s++; n = 0; if (s > 5) break; } notes.push({ s, f: m - OPEN_MIDI[s] }); n++; } m++; }
+      if (t.k === 'blues') {
+        for (let st = 0; st < 6; st++) { const fs = notes.filter((x) => x.s === st).map((x) => x.f); const lo = Math.min(...fs) - 1, hi = Math.max(...fs) + 1;
+          for (let f = Math.max(0, lo); f <= hi; f++) if (((OPEN_MIDI[st] + f - root) % 12 + 12) % 12 === 6) notes.push({ s: st, f }); }
+      }
+      if (notes.some((x) => x.f < 0)) notes = notes.map((x) => ({ s: x.s, f: x.f + 12 }));
+      if (notes.every((x) => x.f >= 12)) notes = notes.map((x) => ({ s: x.s, f: x.f - 12 }));
+    }
+    return notes.map((x) => { const pc = ((OPEN_MIDI[x.s] + x.f - root) % 12 + 12) % 12; return { ...x, m: OPEN_MIDI[x.s] + x.f, pc: (OPEN_MIDI[x.s] + x.f) % 12, root: pc === 0 && t.k !== 'chrom', blue: t.k === 'blues' && pc === 6 }; })
+      .sort((a, b) => a.m - b.m || a.s - b.s);
+  }
+  // Reihenfolge zum Üben: hoch und wieder runter
+  function scaleOrder(sc) { const n = scalePattern(sc).length; const up = Array.from({ length: n }, (_, i) => i); return n < 2 ? up : up.concat(up.slice(1, -1).reverse()); }
+  function scaleName(sc) { const t = SC[sc && sc.type]; if (!t) return ''; return t.k === 'chrom' ? `${t.n}, ab Bund ${sc.pos || 1}` : `${pcName(sc.root)} ${t.n}, Lage ${sc.pos || 1}`; }
+  function scaleTones(sc) { const t = SC[sc && sc.type]; if (!t || t.k === 'chrom') return ''; return t.iv.map((i) => pcName((Number(sc.root) || 0) + i)).join(' '); }
+  function scaleSVG(sc, opt = {}) {
+    const notes = scalePattern(sc); if (!notes.length) return '';
+    const fs = notes.map((x) => x.f), minF = Math.min(...fs), maxF = Math.max(...fs);
+    const lo = minF === 0 ? 1 : minF, hi = Math.max(lo + 3, maxF), fw = 46, x0 = 44, W = x0 + (hi - lo + 1) * fw + 12, H = 150, ink = 'currentColor', out = [];
+    const yS = (s) => 18 + (5 - s) * 20; // hohe e Saite oben, wie in den Tabs
+    const xF = (f) => (f === 0 ? x0 - 16 : x0 + (f - lo + 0.5) * fw);
+    for (let s = 0; s < 6; s++) out.push(`<line x1="${x0}" x2="${W - 12}" y1="${yS(s)}" y2="${yS(s)}" stroke="${ink}" opacity=".55" stroke-width="${1 + (5 - s) * 0.0 + (s < 3 ? 0.6 : 0)}"/><text x="6" y="${yS(s) + 4}" font-size="11" fill="${ink}" opacity=".7">${STRING_NAMES[s]}</text>`);
+    for (let f = lo - 1; f <= hi; f++) { const x = x0 + (f - lo + 1) * fw; out.push(`<line x1="${x}" x2="${x}" y1="${yS(5)}" y2="${yS(0)}" stroke="${ink}" stroke-width="${f === 0 ? 4 : 1.2}" opacity="${f === 0 ? 1 : 0.6}"/>`); }
+    for (let f = lo; f <= hi; f++) { out.push(`<text x="${xF(f)}" y="${H - 14}" text-anchor="middle" font-size="11" fill="${ink}" opacity=".75">${f}</text>`); if ([3, 5, 7, 9, 15, 17].includes(f)) out.push(`<circle cx="${xF(f)}" cy="${H - 30}" r="3" fill="${ink}" opacity=".35"/>`); if (f === 12) out.push(`<circle cx="${xF(f) - 6}" cy="${H - 30}" r="3" fill="${ink}" opacity=".35"/><circle cx="${xF(f) + 6}" cy="${H - 30}" r="3" fill="${ink}" opacity=".35"/>`); }
+    notes.forEach((x, i) => {
+      const cx = xF(x.f), cy = yS(x.s), fill = x.root ? 'var(--accent, #4f5a2c)' : x.blue ? 'var(--ring2, #8a6236)' : ink, txt = x.root || x.blue ? 'var(--accent-ink, #fff)' : 'var(--sunk, #fff)';
+      const label = SC[sc.type].k === 'chrom' ? String(x.f - (Number(sc.pos) || 1) + 1) : pcName(x.pc);
+      out.push(`<g class="gt-sdot" data-n="${i}"><circle cx="${cx}" cy="${cy}" r="9.5" fill="${fill}"/><text x="${cx}" y="${cy + 4}" text-anchor="middle" font-size="${label.length > 1 ? 8.5 : 10}" font-weight="700" fill="${txt}">${esc(label)}</text></g>`);
+    });
+    return `<svg class="gt-scale" viewBox="0 0 ${W} ${H}" width="${W}" height="${H}" role="img" aria-label="Griffbrett: ${esc(scaleName(sc))}">${out.join('')}</svg>`;
+  }
+  function scaleCursor(svg, sc) { const ord = scaleOrder(sc); return (i) => { if (!svg) return; svg.querySelectorAll('.gt-sdot.on').forEach((e) => e.classList.remove('on')); if (i < 0) return; const el = svg.querySelector(`[data-n="${ord[i % ord.length]}"]`); if (el) el.classList.add('on'); }; }
+  // Tonleiter als Tabs (Achtel, hoch und runter)
+  function scaleToTab(g) {
+    const notes = scalePattern(g.scale), ord = scaleOrder(g.scale); if (!notes.length) return;
+    const steps = Math.min(ord.length, 64), bars = Math.min(8, Math.ceil((steps * 2) / 16));
+    g.tab = { bars, notes: ord.slice(0, bars * 8).map((n, k) => [notes[n].s, k * 2, notes[n].f]) };
+  }
+  function scaleBlock(g, id, edit) {
+    const sc = g.scale; if (!sc) return '';
+    return `<div class="gt-scalebox"><p><b>${esc(scaleName(sc))}</b>${scaleTones(sc) ? `<br><span class="small muted">Töne: ${esc(scaleTones(sc))}</span>` : ''}</p>
+      <div class="gt-scalewrap">${scaleSVG(sc)}</div>
+      <p class="small muted">${SC[sc.type].k === 'chrom' ? 'Zahl im Kreis = Finger. Pro Saite 1 2 3 4, dann die nächste Saite.' : 'Grün = Grundton' + (SC[sc.type].k === 'blues' ? ', braun = blue note' : '') + '. Hoch und wieder runter spielen, Wechselschlag.'}</p>
+      ${edit ? '' : ''}</div>`;
+  }
 
   // ---------- Akkordbild ----------
   function chordSVG(name, size = 1) {
@@ -103,6 +180,7 @@
   function play(g, mode, bpm, onStep, onChord) {
     stop(); audio();
     Object.assign(P, { g, mode, bpm: bpm || g.bpm, onStep, onChord, playing: true, step: 0, queue: [] });
+    if (mode === 'scale') { P.sNotes = scalePattern(g.scale); P.sOrd = scaleOrder(g.scale); if (!P.sNotes.length) { P.playing = false; return; } }
     P.next = ctx.currentTime + 0.08; P.timer = setInterval(schedule, 25); requestAnimationFrame(draw);
   }
   function stop() { P.playing = false; clearInterval(P.timer); P.timer = null; if (P.onStep) P.onStep(-1); }
@@ -117,6 +195,9 @@
         chord = chords[Math.floor(P.step / n) % chords.length];
         const c = g.strum.cells[i]; if (c) strum(chord, c, P.next, g.capo || 0);
         dur = 60 / P.bpm / (g.strum.sub / 4);
+      } else if (P.mode === 'scale') {
+        i = P.step % P.sOrd.length; const x = P.sNotes[P.sOrd[i]];
+        pluck(fretFreq(x.s, x.f, 0), P.next, 0.8, 0.2); dur = 60 / P.bpm / 2;
       } else {
         const n = g.tab.bars * 16; i = P.step % n;
         for (const [s, step, fret] of g.tab.notes) if (step === i) pluck(fretFreq(s, fret, g.capo || 0), P.next, 0.9, 0.2);
@@ -222,8 +303,17 @@
       <div class="gt-scells">${sCells}</div>
       <p class="small muted">Tippen wechselt: Pause, ab, auf, gedämpft.</p>
       <div class="row" style="gap:8px"><button type="button" class="btn small primary" data-gt-act="playStrum" data-gt-id="${id}">Schlagmuster mit Akkorden abspielen</button><button type="button" class="btn small" data-gt-act="strumOff" data-gt-id="${id}">Schlagmuster entfernen</button></div>`}
+      <h4 class="gt-h">Tonleiter <span class="small muted">(optional)</span></h4>
+      ${!g.scale ? `<button type="button" class="btn small" data-gt-act="scaleOn" data-gt-id="${id}">Tonleiter hinzufügen</button>` : `
+      <div class="row" style="gap:10px">
+        <div class="field" style="flex:1;min-width:110px"><label for="${id}-stype">Tonleiter</label><select id="${id}-stype" data-gt-ctl="stype">${SCALES.map(([k, n]) => `<option value="${k}" ${g.scale.type === k ? 'selected' : ''}>${esc(n)}</option>`).join('')}</select></div>
+        ${g.scale.type === 'chrom' ? '' : `<div class="field" style="flex:1;min-width:80px"><label for="${id}-sroot">Grundton</label><select id="${id}-sroot" data-gt-ctl="sroot">${ROOTS.map((r, i) => `<option value="${i}" ${Number(g.scale.root) === i ? 'selected' : ''}>${r}</option>`).join('')}</select></div>`}
+        <div class="field" style="flex:1;min-width:80px"><label for="${id}-spos">${g.scale.type === 'chrom' ? 'Ab Bund' : 'Lage'}</label><select id="${id}-spos" data-gt-ctl="spos">${Array.from({ length: scalePositions(g.scale) }, (_, i) => `<option value="${i + 1}" ${Number(g.scale.pos) === i + 1 ? 'selected' : ''}>${i + 1}</option>`).join('')}</select></div>
+      </div>
+      ${scaleBlock(g, id, true)}
+      <div class="row" style="gap:8px"><button type="button" class="btn small primary" data-gt-act="playScale" data-gt-id="${id}">Tonleiter abspielen</button><button type="button" class="btn small" data-gt-act="scaleTab" data-gt-id="${id}">Als Tabs übernehmen</button><button type="button" class="btn small" data-gt-act="scaleOff" data-gt-id="${id}">Tonleiter entfernen</button></div>`}
       <h4 class="gt-h">Tabs</h4>
-      <div class="row" style="gap:10px"><div class="field" style="flex:1;max-width:160px"><label for="${id}-tbars">Takte</label><select id="${id}-tbars" data-gt-ctl="tbars">${[1, 2, 3, 4].map((b) => `<option ${g.tab.bars === b ? 'selected' : ''}>${b}</option>`).join('')}</select></div></div>
+      <div class="row" style="gap:10px"><div class="field" style="flex:1;max-width:160px"><label for="${id}-tbars">Takte</label><select id="${id}-tbars" data-gt-ctl="tbars">${[1, 2, 3, 4, 5, 6, 7, 8].map((b) => `<option ${g.tab.bars === b ? 'selected' : ''}>${b}</option>`).join('')}</select></div></div>
       <div class="gt-tabwrap">${tabSVG(g, { cursor: true })}</div>
       <div class="nt-grid-wrap"><table class="nt-grid gt-tgrid">${tRows}</table></div>
       ${sel ? `<div class="gt-pad" role="group" aria-label="Bund wählen für Saite ${STRING_NAMES[sel[0]]}">${Array.from({ length: 16 }, (_, f) => `<button type="button" class="chip" data-gt-act="fret" data-gt-id="${id}" data-f="${f}">${f}</button>`).join('')}<button type="button" class="chip" data-gt-act="fret" data-gt-id="${id}" data-f="-1">Löschen</button></div>` : '<p class="small muted">Feld antippen, dann Bund wählen.</p>'}
@@ -236,11 +326,12 @@
     return `<div class="gt-view" id="${id}">
       ${g.capo ? `<span class="pill">Capo ${g.capo}. Bund</span>` : ''}
       ${g.chords.length ? `<div class="gt-chords">${g.chords.map((c) => chordSVG(c)).join('')}</div>` : ''}
+      ${g.scale ? scaleBlock(g, id) : ''}
       ${g.strum.cells.some(Boolean) ? `<div class="gt-strumwrap">${strumSVG(g, { cursor: true })}</div>` : ''}
       ${g.tab.notes.length ? `<div class="gt-tabwrap">${tabSVG(g, { cursor: true })}</div>` : ''}
     </div>`;
   }
   const cycle = (c) => ({ '': 'D', D: 'U', U: 'X', X: '' }[c || '']);
 
-  window.Guitar = { CHORDS, empty, parse, chordSVG, strumSVG, tabSVG, editorHTML, viewHTML, tunerHTML, tunerStart, tunerStop, play, stop, setTempo, cursorFor, capoTable, soundingKey, cycle, isPlaying: () => P.playing, NOTES_INT, label, strum: (n, d) => { audio(); strum(n, d, ctx.currentTime + 0.01, 0); } };
+  window.Guitar = { SCALES, scalePattern, scaleOrder, scaleSVG, scaleName, scaleToTab, scaleCursor, scalePositions, CHORDS, empty, parse, chordSVG, strumSVG, tabSVG, editorHTML, viewHTML, tunerHTML, tunerStart, tunerStop, play, stop, setTempo, cursorFor, capoTable, soundingKey, cycle, isPlaying: () => P.playing, NOTES_INT, label, strum: (n, d) => { audio(); strum(n, d, ctx.currentTime + 0.01, 0); } };
 })();

@@ -201,6 +201,7 @@ html,body,button,a,input,select,textarea,label,summary,svg,.nt-cell{touch-action
 .gt-chordwrap{display:flex;flex-direction:column;align-items:center;gap:4px}
 .gt-chord{margin:0;display:flex;flex-direction:column;align-items:center;color:var(--ink);background:var(--sunk);border-radius:14px;padding:6px 8px}
 .gt-chord figcaption{font-weight:700;font-size:.9rem}
+.gt-scalewrap{overflow-x:auto;color:var(--ink);background:var(--sunk);border-radius:14px;padding:4px 6px}.gt-scalewrap svg{display:block;max-width:none}.gt-sdot.on circle{fill:var(--ring2)!important;transform-box:fill-box;transform-origin:center;transform:scale(1.25)}.gt-scalebox{display:flex;flex-direction:column;gap:8px}
 .gt-strumwrap,.gt-tabwrap{overflow-x:auto;color:var(--ink);background:var(--sunk);border-radius:14px;padding:4px 6px}
 .gt-strumwrap svg,.gt-tabwrap svg{display:block}
 .gt-scells{display:flex;gap:4px;flex-wrap:wrap}
@@ -220,8 +221,8 @@ details.card summary{cursor:pointer;font-family:var(--display);font-size:1.08rem
 </head>
 <body>
 <div id="app"><div class="wrap"><p class="muted">Lädt …</p></div></div>
-<script src="notation.js?v=85"></script>
-<script src="guitar.js?v=85"></script>
+<script src="notation.js?v=86"></script>
+<script src="guitar.js?v=86"></script>
 <script>
 'use strict';
 // ---------- Grundlagen ----------
@@ -1463,7 +1464,7 @@ function practiceView() {
       ${gtTempoSteps(a)}
       ${metronomeCard(a)}
       ${Guitar.parse(a.notation).chords.length >= 2 ? `<div id="chgBox">${chgBoxHTML(Guitar.parse(a.notation).chords.join(' '))}</div>` : ''}
-      <div class="row">${Guitar.parse(a.notation).strum.cells.some(Boolean) ? `<button class="btn" data-act="gtPlay" data-mode="strum" style="flex:1">${Guitar.isPlaying() ? 'Stopp' : 'Schlagmuster abspielen'}</button>` : ''}${Guitar.parse(a.notation).tab.notes.length ? `<button class="btn" data-act="gtPlay" data-mode="tab" style="flex:1">Tabs abspielen</button>` : ''}</div>` : ''}
+      <div class="row">${Guitar.parse(a.notation).strum.cells.some(Boolean) ? `<button class="btn" data-act="gtPlay" data-mode="strum" style="flex:1">${Guitar.isPlaying() ? 'Stopp' : 'Schlagmuster abspielen'}</button>` : ''}${Guitar.parse(a.notation).scale ? `<button class="btn" data-act="gtPlay" data-mode="scale" style="flex:1">Tonleiter abspielen</button>` : ''}${Guitar.parse(a.notation).tab.notes.length ? `<button class="btn" data-act="gtPlay" data-mode="tab" style="flex:1">Tabs abspielen</button>` : ''}</div>` : ''}
     ${a && DrumNotation.parse(a.notation) ? `<div class="nt-staff" id="practiceStaff">${DrumNotation.render(DrumNotation.parse(a.notation), { cursor: true, label: 'Noten: ' + (a.title || '') })}</div>
       <div class="row" style="flex-wrap:nowrap;gap:12px;align-items:center">${playBtn('beatPlay', '', DrumNotation.isPlaying())}${beatClickChip()}</div>
       ${metronomeCard(a)}
@@ -1816,7 +1817,7 @@ document.addEventListener('click', async (ev) => {
         const r = store.get('run'); const a = runTask(r); const g = Guitar.parse(a.notation);
         metStop(); const root = $('#practiceGuitar');
         // Metronom Automatik gilt auch hier: nach X Durchläufen schneller
-        const cur = Guitar.cursorFor(root && root.querySelector(el.dataset.mode === 'tab' ? '.gt-tab' : '.gt-strum')); let last = -1, loops = 0;
+        const cur = el.dataset.mode === 'scale' ? Guitar.scaleCursor(root && root.querySelector('.gt-scale'), g.scale) : Guitar.cursorFor(root && root.querySelector(el.dataset.mode === 'tab' ? '.gt-tab' : '.gt-strum')); let last = -1, loops = 0;
         const onStep = (i) => { cur(i); if (i >= 0 && i < last) { loops++; const m = metAuto(); if (m.on && loops % Math.max(1, m.bars) === 0) setBpm(Math.min(m.max, MET.bpm + m.add)); } if (i >= 0) last = i; };
         Guitar.play(g, el.dataset.mode, MET.bpm, onStep);
         setPlay(el, true); break;
@@ -2133,6 +2134,13 @@ document.addEventListener('click', (ev) => {
   if (a === 'rmChord') g.chords.splice(Number(act.dataset.i), 1);
   if (a === 'strumOn') { g.strumOpen = true; g.strum.cells = Array(g.strum.sub * g.strum.bars).fill('').map((x, i) => (g.strum.sub === 8 ? ['D', '', 'D', 'U', '', 'U', 'D', 'U'][i % 8] : '')); }
   if (a === 'strumOff') { Guitar.stop(); g.strumOpen = false; g.strum.cells = g.strum.cells.map(() => ''); }
+  if (a === 'scaleOn') g.scale = { root: 9, type: 'pent_moll', pos: 1 };
+  if (a === 'scaleOff') { Guitar.stop(); g.scale = null; }
+  if (a === 'scaleTab') { Guitar.stop(); Guitar.scaleToTab(g); toast('Tonleiter als Tabs übernommen'); }
+  if (a === 'playScale') {
+    if (Guitar.isPlaying()) { Guitar.stop(); act.textContent = 'Tonleiter abspielen'; return; }
+    const root = document.getElementById(id); Guitar.play(g, 'scale', g.bpm, Guitar.scaleCursor(root.querySelector('.gt-scale'), g.scale)); act.textContent = 'Stopp'; return;
+  }
   if (a === 'fret' && S.gtSel) { const [st, step] = S.gtSel, f = Number(act.dataset.f); g.tab.notes = g.tab.notes.filter((x) => !(x[0] === st && x[1] === step)); if (f >= 0) g.tab.notes.push([st, step, f]); S.gtSel = null; }
   if (a === 'playStrum' || a === 'playTab') {
     if (Guitar.isPlaying()) { Guitar.stop(); act.textContent = a === 'playTab' ? 'Tabs abspielen' : 'Schlagmuster mit Akkorden abspielen'; return; }
@@ -2152,6 +2160,12 @@ document.addEventListener('change', (ev) => {
     else { const c = g.strum.cells, sub = g.strum.sub; g.strum.bars = v; g.strum.cells = Array.from({ length: sub * v }, (_, i) => (i < c.length ? c[i] : c[i % sub]) || ''); }
   }
   if (ctl === 'tbars') { g.tab.bars = v; g.tab.notes = g.tab.notes.filter((x) => x[1] < v * 16); }
+  if (ctl === 'stype' || ctl === 'sroot' || ctl === 'spos') {
+    Guitar.stop();
+    if (ctl === 'stype') { g.scale.type = ev.target.value; g.scale.pos = 1; }
+    if (ctl === 'sroot') g.scale.root = v;
+    if (ctl === 'spos') g.scale.pos = v;
+  }
   refreshGuitar(ed.id);
 });
 function refreshGuitar(id) {
