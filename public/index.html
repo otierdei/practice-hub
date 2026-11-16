@@ -182,7 +182,7 @@ input[type=range]{accent-color:var(--ring);width:100%;min-height:32px}
 .nt-grid td.nt-alt{background:var(--sunk)}
 .nt-grid .nt-bar{border-left:2px solid var(--line)}
 .nt-cell{width:30px;height:30px;border-radius:50%;border:1.5px solid var(--line);background:transparent;padding:0;display:block}
-.nt-cell[aria-pressed="true"]{background:var(--ring);border-color:var(--ring)}.nt-cell:disabled{opacity:.25;cursor:default}
+.nt-cell[aria-pressed="true"]{background:var(--ring);border-color:var(--ring)}.nt-cell:disabled{opacity:.25;cursor:default}.nt-tuprow{display:flex;justify-content:space-around;gap:2px}.nt-tupcell{background:color-mix(in srgb,var(--ring2) 10%,transparent)}
 .nt-cell[data-dyn="a"]{color:var(--accent-ink);font-weight:800;font-size:.85rem;box-shadow:0 0 0 2px var(--ink)}
 .nt-cell[data-dyn="s"]{opacity:.55;font-size:.62rem;color:var(--accent-ink)}
 /* Kein Zoom bei doppeltem Tippen (iPhone), Zwei Finger Zoom bleibt erlaubt */
@@ -223,8 +223,8 @@ details.card summary{cursor:pointer;font-family:var(--display);font-size:1.08rem
 </head>
 <body>
 <div id="app"><div class="wrap"><p class="muted">Lädt …</p></div></div>
-<script src="notation.js?v=89"></script>
-<script src="guitar.js?v=89"></script>
+<script src="notation.js?v=90"></script>
+<script src="guitar.js?v=90"></script>
 <script>
 'use strict';
 // ---------- Grundlagen ----------
@@ -2091,6 +2091,7 @@ document.addEventListener('click', (ev) => {
   const id = (cell && cell.dataset.nt) || (actBtn && actBtn.dataset.ntId) || barBtn.dataset.ntId; const n = S.nt && S.nt[id]; if (!n) return;
   if (barBtn) { refreshEditor(id, true, Number(barBtn.dataset.ntBar)); return; }
   if (cell) {
+    if (cell.dataset.tup) { const [tg, sl] = cell.dataset.tup.split(':').map(Number); DrumNotation.tupToggle(n, cell.dataset.k, tg, sl); if (DrumNotation.tupHas(n, cell.dataset.k, tg, sl)) { try { DrumNotation.hit(cell.dataset.k); } catch (e) {} } refreshEditor(id, true, ntBar(id)); return; }
     const k = cell.dataset.k, i = Number(cell.dataset.i), mode = k === 'stick' || !DrumNotation.editMode ? '' : DrumNotation.editMode(id);
     if (mode) DrumNotation.setDyn(n, k, i, mode); else DrumNotation.toggle(n, k, i);
     if (k !== 'stick' && DrumNotation.has(n, k, i)) { try { DrumNotation.hit(k, 0, DrumNotation.dynOf(n, k, i)); } catch (e) {} }
@@ -2103,8 +2104,6 @@ document.addEventListener('click', (ev) => {
     DrumNotation.editMode(id, actBtn.dataset.m || ''); refreshEditor(id, true, ntBar(id));
   } else if (actBtn.dataset.ntAct === 'stick') {
     DrumNotation.autoStick(n, actBtn.dataset.p || ''); refreshEditor(id, true, ntBar(id));
-  } else if (actBtn.dataset.ntAct === 'trip') {
-    const g = Number(actBtn.dataset.g), on = !(n.trip || []).includes(g); DrumNotation.setTrip(n, g, on); refreshEditor(id, true, ntBar(id)); toast(on ? 'Schlag ' + ((g % (DrumNotation.perBar(n.sig) / 4)) + 1) + ' als 8tel Triole' : 'Triole entfernt');
     } else if (actBtn.dataset.ntAct === 'clear') {
     const pb = DrumNotation.perBar(n.sig), bar = ntBar(id);
     for (const k in n.tracks) n.tracks[k] = n.tracks[k].filter((i) => i < bar * pb || i >= (bar + 1) * pb);
@@ -2116,10 +2115,11 @@ document.addEventListener('change', (ev) => {
   const ed = ev.target.closest('.nt-editor'); const id = ed && ed.id; const n = S.nt && S.nt[id]; if (!n) return;
   const bar = ntBar(id);
   if (ctl === 'bpm') { n.bpm = Math.max(30, Math.min(300, Number(ev.target.value) || 80)); DrumNotation.setTempo(n.bpm); return; }
+  if (ctl === 'tup') { const g = Number(ev.target.dataset.g), v = ev.target.value; if (DrumNotation.setTuplet(n, g, v) === false) toast('Viertel Triole braucht den nächsten Schlag im selben Takt'); refreshEditor(id, true, bar); toast(v ? ({ 8: '8tel', 16: '16tel', q: 'Viertel' })[v] + ' Triole auf Schlag ' + ((g % (DrumNotation.perBar(n.sig) / 4)) + 1) : 'Schlag wieder normal'); return; }
   if (ctl === 'mark') { const v = ev.target.value.trim(); if (v) n.marks[bar] = v.slice(0, 30); else delete n.marks[bar]; refreshEditor(id, true, bar); return; }
   if (ctl === 'repeat') { n.repeat = ev.target.checked ? [...new Set(n.repeat.concat(bar))] : n.repeat.filter((b) => b !== bar); refreshEditor(id, true, bar); return; }
   const wasPlaying = DrumNotation.isPlaying(); DrumNotation.stop();
-  if (ctl === 'sig' && ev.target.value !== n.sig) { const e = DrumNotation.empty(ev.target.value, n.bars, n.bpm); n.sig = e.sig; n.tracks = e.tracks; n.stick = {}; n.repeat = []; n.trip = []; }
+  if (ctl === 'sig' && ev.target.value !== n.sig) { const e = DrumNotation.empty(ev.target.value, n.bars, n.bpm); n.sig = e.sig; n.tracks = e.tracks; n.stick = {}; n.repeat = []; n.trip = []; n.tup = []; n.tupn = {}; }
   if (ctl === 'bars') {
     const oldBars = n.bars, newBars = Number(ev.target.value);
     DrumNotation.setBars(n, newBars);

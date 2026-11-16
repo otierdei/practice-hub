@@ -877,3 +877,17 @@ test('Noten: 8tel Triolen bleiben gespeichert, 4. Platz der Gruppe wird geleert'
   const r2 = await w.call('/api/t/exercise/save', { title: 'Triolen 68', notation: { v: 2, sig: '6/8', bars: 1, tracks: { sn: [0] }, trip: [0] } }, w.t);
   assert.equal(JSON.parse((await w.call('/api/t/exercises', {}, w.t)).data.exercises.find((x) => x.id === r2.data.id).notation).trip, undefined, 'keine Triolen in 6/8');
 });
+
+test('Noten: Viertel und 16tel Triolen werden gespeichert und geprüft', async () => {
+  const w = await world();
+  const nt = { v: 2, sig: '4/4', bars: 1, bpm: 70, tracks: { sn: [0, 4, 9, 12], hh: [8] }, trip: [0],
+    tup: [{ g: 1, t: '16' }, { g: 2, t: 'q' }, { g: 3, t: '16' }, { g: 0, t: '16' }],
+    tupn: { sn: ['1:0', '1:5', '1:9', '2:2', '7:1'], bd: ['2:0'] } };
+  const r = await w.call('/api/t/exercise/save', { title: 'Tuplet Test', notation: nt }, w.t);
+  const n = JSON.parse((await w.call('/api/t/exercises', {}, w.t)).data.exercises.find((x) => x.id === r.data.id).notation);
+  assert.deepEqual(n.tup, [{ g: 1, t: '16' }, { g: 2, t: 'q' }], 'überlappende und belegte Schläge fallen weg');
+  assert.deepEqual(n.tupn, { sn: ['1:0', '1:5', '2:2'], bd: ['2:0'] });
+  assert.deepEqual(n.tracks.sn, [0], 'normale Noten in Triolen Schlägen werden geleert'); assert.deepEqual(n.tracks.hh, []);
+  const r2 = await w.call('/api/t/exercise/save', { title: 'Tuplet Taktgrenze', notation: { v: 2, sig: '4/4', bars: 2, tracks: {}, tup: [{ g: 3, t: 'q' }] } }, w.t);
+  assert.equal(JSON.parse((await w.call('/api/t/exercises', {}, w.t)).data.exercises.find((x) => x.id === r2.data.id).notation).tup, undefined, 'Viertel Triole nicht über die Taktgrenze');
+});

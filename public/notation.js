@@ -30,7 +30,7 @@
 
   function empty(sig = '4/4', bars = 1, bpm = 80) {
     const tracks = {}; ROWS.forEach((r) => { tracks[r.k] = []; });
-    return { v: 2, sig, bars, bpm, tracks, stick: {}, dyn: {}, flam: {}, marks: {}, repeat: [], trip: [] };
+    return { v: 2, sig, bars, bpm, tracks, stick: {}, dyn: {}, flam: {}, marks: {}, repeat: [], trip: [], tup: [], tupn: {} };
   }
   function parse(s) {
     if (!s) return null;
@@ -44,6 +44,14 @@
       n.repeat = (o.repeat || []).map(Number).filter((b) => b > 0 && b < n.bars);
       n.trip = groupSize(n.sig) === 4 ? [...new Set((o.trip || []).map(Number).filter((g) => Number.isInteger(g) && g >= 0 && g < total(n) / 4))].sort((a, b) => a - b) : [];
       ROWS.forEach((r) => { n.tracks[r.k] = n.tracks[r.k].filter((i) => !(n.trip.includes(Math.floor(i / 4)) && i % 4 === 3)); });
+      // Viertel Triolen (t 'q', zwei Schläge, 3 Noten) und 16tel Triolen (t '16', ein Schlag, 6 Noten); Noten in tupn als "Gruppe:Platz"
+      const G = total(n) / 4, used = new Set(n.trip);
+      n.tup = groupSize(n.sig) === 4 ? (o.tup || []).map((x) => ({ g: Number(x.g), t: x.t === 'q' ? 'q' : '16' })).filter((x) => Number.isInteger(x.g) && x.g >= 0 && x.g + (x.t === 'q' ? 1 : 0) < G
+        && (x.t !== 'q' || Math.floor(x.g / (perBar(n.sig) / 4)) === Math.floor((x.g + 1) / (perBar(n.sig) / 4)))
+        && !used.has(x.g) && !(x.t === 'q' && used.has(x.g + 1)) && (used.add(x.g), x.t === 'q' ? used.add(x.g + 1) : 0, true)) : [];
+      n.tupn = {};
+      for (const r of ROWS) { const l = ((o.tupn || {})[r.k] || []).filter((v) => { const [g, sl] = String(v).split(':').map(Number); const t = n.tup.find((x) => x.g === g); return t && Number.isInteger(sl) && sl >= 0 && sl < (t.t === '16' ? 6 : 3); }); if (l.length) n.tupn[r.k] = [...new Set(l.map(String))]; }
+      for (const t of n.tup) for (const r of ROWS) n.tracks[r.k] = n.tracks[r.k].filter((i) => { const gi = Math.floor(i / 4); return gi !== t.g && !(t.t === 'q' && gi === t.g + 1); });
       for (const [key, v] of Object.entries(o.dyn || {})) { const [k, i] = key.split(':'); if ((v === 'a' || v === 's') && (n.tracks[k] || []).includes(Number(i))) n.dyn[k + ':' + Number(i)] = v; }
       for (const [key, v] of Object.entries(o.flam || {})) { const [k, i] = key.split(':'); if (v && (n.tracks[k] || []).includes(Number(i))) n.flam[k + ':' + Number(i)] = 1; }
       return n;
@@ -51,6 +59,25 @@
   }
   // 8tel Triolen: eine Schlaggruppe (4 Sechzehntel) wird in drei gleiche Teile geteilt; Rasterplätze 0, 1, 2 sind die Triolen, Platz 3 bleibt leer
   const isTrip = (n, i) => groupSize(n.sig) === 4 && (n.trip || []).includes(Math.floor(i / 4));
+  // Tuplet (Viertel oder 16tel Triole), das die Schlaggruppe g abdeckt
+  const tupAt = (n, g) => (n.tup || []).find((t) => t.g === g || (t.t === 'q' && t.g + 1 === g)) || null;
+  const tupSlots = (t) => (t.t === '16' ? 6 : 3);
+  const tupHas = (n, k, g, sl) => ((n.tupn || {})[k] || []).includes(g + ':' + sl);
+  function tupToggle(n, k, g, sl) { n.tupn = n.tupn || {}; const l = n.tupn[k] || [], key = g + ':' + sl; n.tupn[k] = l.includes(key) ? l.filter((x) => x !== key) : l.concat(key); if (!n.tupn[k].length) delete n.tupn[k]; }
+  // Schlag g umstellen: '' normal, '8' 8tel Triole, '16' 16tel Triole, 'q' Viertel Triole (mit dem nächsten Schlag im selben Takt)
+  function setTuplet(n, g, type) {
+    const bpb = perBar(n.sig) / 4;
+    const clearGroup = (gg) => { for (const k in n.tracks) n.tracks[k] = n.tracks[k].filter((i) => Math.floor(i / 4) !== gg); for (const key of Object.keys(n.stick || {})) if (Math.floor(Number(key) / 4) === gg) delete n.stick[key]; };
+    const dropTup = (t) => { n.tup = n.tup.filter((x) => x !== t); for (const k of Object.keys(n.tupn || {})) { n.tupn[k] = n.tupn[k].filter((v) => Number(v.split(':')[0]) !== t.g); if (!n.tupn[k].length) delete n.tupn[k]; } };
+    n.tup = n.tup || []; n.tupn = n.tupn || {};
+    const span = type === 'q' ? [g, g + 1] : [g];
+    if (type === 'q' && (Math.floor((g + 1) / bpb) !== Math.floor(g / bpb) || g + 1 >= total(n) / 4)) return false;
+    for (const gg of span) { const t = tupAt(n, gg); if (t) dropTup(t); n.trip = (n.trip || []).filter((x) => x !== gg); }
+    if (type === '8') { setTrip(n, g, true); return true; }
+    if (type === '16' || type === 'q') { for (const gg of span) clearGroup(gg); n.tup.push({ g, t: type }); n.tup.sort((a, b) => a.g - b.g); }
+    return true;
+  }
+  const tupleType = (n, g) => ((n.trip || []).includes(g) ? '8' : (tupAt(n, g) || {}).t || '');
   function setTrip(n, g, on) {
     n.trip = (n.trip || []).filter((x) => x !== g); if (!on) return;
     n.trip.push(g); n.trip.sort((a, b) => a - b);
@@ -99,10 +126,36 @@
     for (const key of Object.keys(n.flam || {})) if (Number(key.split(':')[1]) >= max) delete n.flam[key];
     n.repeat = n.repeat.filter((b) => b < n.bars);
     n.trip = (n.trip || []).filter((g) => g * 4 < max);
+    n.tup = (n.tup || []).filter((t) => (t.g + (t.t === 'q' ? 1 : 0)) * 4 < max);
+    for (const k of Object.keys(n.tupn || {})) { n.tupn[k] = n.tupn[k].filter((v) => n.tup.some((t) => t.g === Number(v.split(':')[0]))); if (!n.tupn[k].length) delete n.tupn[k]; }
     for (const k of Object.keys(n.marks)) if (Number(k) >= n.bars) delete n.marks[k];
   }
 
   // ---------- Notenbild ----------
+  // Viertel Triole (3 Viertel über 2 Schläge, Klammer mit 3) und 16tel Triole (6 Sechzehntel auf 1 Schlag, zweimal 3)
+  function tupGlyphs(n, tp, g, keys, down, xOf, sw, gs, ink) {
+    const out = [], slots = tupSlots(tp), width = (tp.t === 'q' ? 2 : 1) * gs * sw, XS = (sl) => xOf(g) + (sl * width) / slots;
+    const notes = [];
+    for (let sl = 0; sl < slots; sl++) { const hits = keys.filter((k) => tupHas(n, k, tp.g, sl)).map((k) => BY[k]); if (hits.length) notes.push({ sl, hits, top: Math.max(...hits.map((h) => h.p)), bot: Math.min(...hits.map((h) => h.p)) }); }
+    if (!down) for (let sl = 0; sl < slots; sl++) if (!notes.some((nt) => nt.sl === sl)) out.push(restGlyph(tp.t === '16' ? 1 : 4, XS(sl), ink));
+    if (!notes.length) return out.join('');
+    const sx = (nt) => XS(nt.sl) + (down ? -5.5 : 5.5);
+    const tipY = down ? Math.max(...notes.map((nt) => yOf(nt.bot) + 30)) : Math.min(...notes.map((nt) => yOf(nt.top) - 30));
+    const beamed = tp.t === '16' && notes.length > 1;
+    for (const nt of notes) {
+      for (const h of nt.hits) out.push(head(h, XS(nt.sl), ink));
+      const fromY = down ? yOf(nt.top) : yOf(nt.bot), toY = beamed || tp.t === 'q' ? tipY : (down ? yOf(nt.bot) + 30 : yOf(nt.top) - 30);
+      out.push(`<line x1="${sx(nt)}" x2="${sx(nt)}" y1="${fromY}" y2="${toY}" stroke="${ink}" stroke-width="1.3"/>`);
+      if (tp.t === '16' && !beamed) for (let f = 0; f < 2; f++) { const fy = toY + (down ? -f * 7 : f * 7); out.push(`<path d="M${sx(nt)} ${fy} q 9 ${down ? -6 : 6} 7 ${down ? -15 : 15}" fill="none" stroke="${ink}" stroke-width="2"/>`); }
+    }
+    if (beamed) { const a = sx(notes[0]), b = sx(notes[notes.length - 1]); out.push(`<rect x="${a - 0.6}" y="${tipY - (down ? 4 : 0)}" width="${b - a + 1.2}" height="4" fill="${ink}"/><rect x="${a - 0.6}" y="${tipY + (down ? -11 : 7)}" width="${b - a + 1.2}" height="4" fill="${ink}"/>`); }
+    if (down && notes.length < 2) return out.join(''); // einzelne Fußnote: Kennzeichnung steht in der Oberstimme
+    const ly = down ? tipY + 16 : Math.max(10, tipY - 6);
+    const label = (x) => `<text x="${x}" y="${ly}" text-anchor="middle" font-size="11" font-weight="700" font-style="italic" font-family="Georgia, serif" fill="${ink}">3</text>`;
+    if (tp.t === '16') { out.push(label(XS(1) + 5.5)); out.push(label(XS(4) + 5.5)); }
+    else { const a = XS(0) - 2, b = XS(2) + 12, by = down ? ly - 4 : ly - 4; out.push(`<path d="M${a} ${by + (down ? -5 : 5)} V${by} H${(a + b) / 2 - 7} M${(a + b) / 2 + 7} ${by} H${b} V${by + (down ? -5 : 5)}" fill="none" stroke="${ink}" stroke-width="1.1"/>`); out.push(label((a + b) / 2).replace(`y="${ly}"`, `y="${by + 4}"`)); }
+    return out.join('');
+  }
   const LINE0 = 86;
   const yOf = (p) => LINE0 - p * 5;
   // Zeichnet die Takte [from, to) als eine Notenzeile
@@ -134,6 +187,8 @@
       const onsets = [...new Set(keys.flatMap((k) => n.tracks[k]))].sort((x, y) => x - y);
       for (let g = from * pb; g < to * pb; g += gs) {
         if (n.repeat.includes(Math.floor(g / pb))) continue;
+        const tp = gs === 4 ? tupAt(n, g / 4) : null;
+        if (tp) { if (tp.g === g / 4) out.push(tupGlyphs(n, tp, g, keys, down, xOf, sw, gs, ink)); continue; }
         const inG = onsets.filter((i) => i >= g && i < g + gs);
         const trip = isTrip(n, g), X = (i) => (trip ? xOf(g) + ((i - g) * gs * sw) / 3 : xOf(i));
         if (!inG.length) { if (!down) out.push(restGlyph(gs, xOf(g) + (gs / 2) * sw - 12, ink)); continue; }
@@ -329,6 +384,11 @@
         if (flamOf(n, r.k, src)) hit(r.k, Math.max(ctx.currentTime + 0.005, P.next - 0.03), 's'); // Vorschlag kurz davor, leise
         hit(r.k, P.next, dynOf(n, r.k, src));
       }
+      // Viertel und 16tel Triolen: am Anfang der Gruppe alle Schläge mit genauen Zeiten einplanen
+      if (groupSize(n.sig) === 4 && i % 4 === 0) {
+        const tp = tupAt(n, Math.floor(src / 4));
+        if (tp && tp.g === Math.floor(src / 4)) { const sd = ((60 / P.bpm) * (tp.t === 'q' ? 2 : 1)) / tupSlots(tp); for (const r of ROWS) if (!P.mute.has(r.k)) for (let sl = 0; sl < tupSlots(tp); sl++) if (tupHas(n, r.k, tp.g, sl)) hit(r.k, P.next + sl * sd); }
+      }
       if (CLICK.on) {
         const spb = EIGHTH(n.sig) ? 2 : 4, j = i % pb, beats = pb / spb, acc = CLICK.accents && CLICK.accents.length === beats ? CLICK.accents : null;
         const sub = Math.max(1, Math.min(spb, CLICK.sub || 1)), every = sub === 3 ? 0.5 : spb / sub; // 0.5: keine Rasterklicks bei Triolen
@@ -371,7 +431,7 @@
     steps.forEach((i, j) => { n.stick[i] = pattern[j % pattern.length]; });
     return n;
   }
-  const usedKeys = (n) => ROWS.filter((r) => n.tracks[r.k].length).map((r) => r.k);
+  const usedKeys = (n) => ROWS.filter((r) => n.tracks[r.k].length || ((n.tupn || {})[r.k] || []).length).map((r) => r.k);
 
   // ---------- Editor: Takt wählen, Raster für einen Takt ----------
   const EDSEL = {}; // pro Editor: zuletzt angetippter Schlag { k, i }
@@ -381,15 +441,18 @@
     const pb = perBar(n.sig), gs = groupSize(n.sig), from = curBar * pb, rep = n.repeat.includes(curBar);
     const lbl = (j) => (isTrip(n, from + j) ? [String(Math.floor(j / 4) + 1), 'ta', 'te', ''][j % 4] : countLabel(n.sig, j));
     const off = (j) => isTrip(n, from + j) && j % 4 === 3;
-    const head = `<tr><th scope="col"><span class="nt-sr">Instrument</span></th>${Array.from({ length: pb }, (_, j) => `<th scope="col" class="${j % gs === 0 ? 'nt-beat' : ''}">${esc(lbl(j))}</th>`).join('')}</tr>`;
-    const stickRow = `<tr class="nt-stickrow"><th scope="row">Sticking</th>${Array.from({ length: pb }, (_, j) => {
+    // Spalten mit Triolen Gruppen: Viertel und 16tel Triolen fassen 8 bzw. 4 Rasterspalten zu einer Zelle zusammen
+    const span = (fn, tupFn) => { const out = []; for (let j = 0; j < pb;) { const tp = gs === 4 && j % 4 === 0 ? tupAt(n, (from + j) / 4) : null; if (tp && tp.g === (from + j) / 4) { const c = tp.t === 'q' ? 8 : 4; out.push(tupFn(tp, j, c)); j += c; continue; } out.push(fn(j)); j++; } return out.join(''); };
+    const tupLbl = (tp, j) => { const b = String(j / 4 + 1); return tp.t === 'q' ? [b, 'ta', 'te'] : [b, 'ta', 'te', '+', 'ta', 'te']; };
+    const head = `<tr><th scope="col"><span class="nt-sr">Instrument</span></th>${span((j) => `<th scope="col" class="${j % gs === 0 ? 'nt-beat' : ''}">${esc(lbl(j))}</th>`, (tp, j, c) => `<th scope="col" colspan="${c}" class="nt-beat"><div class="nt-tuprow">${tupLbl(tp, j).map((x) => `<span>${x}</span>`).join('')}</div></th>`)}</tr>`;
+    const stickRow = `<tr class="nt-stickrow"><th scope="row">Sticking</th>${span((j) => {
       const i = from + j, v = (n.stick || {})[i] || '';
       return `<td class="${Math.floor(j / gs) % 2 ? 'nt-alt' : ''}"><button type="button" class="nt-cell nt-stick" data-nt="${id}" data-k="stick" data-i="${i}" aria-pressed="${!!v}" aria-label="Sticking auf ${esc(lbl(j))}: ${v || 'keins'}" ${rep || off(j) ? 'disabled' : ''}>${v}</button></td>`;
-    }).join('')}</tr>`;
-    const rows = stickRow + ROWS.map((r) => `<tr><th scope="row">${r.n}</th>${Array.from({ length: pb }, (_, j) => {
+    }, (tp, j, c) => `<td colspan="${c}"></td>`)}</tr>`;
+    const rows = stickRow + ROWS.map((r) => `<tr><th scope="row">${r.n}</th>${span((j) => {
       const i = from + j;
       return `<td class="${Math.floor(j / gs) % 2 ? 'nt-alt' : ''}"><button type="button" class="nt-cell${EDSEL[id] && EDSEL[id].k === r.k && EDSEL[id].i === i ? ' nt-sel' : ''}" data-nt="${id}" data-k="${r.k}" data-i="${i}" aria-pressed="${has(n, r.k, i)}" data-dyn="${dynOf(n, r.k, i)}" data-flam="${flamOf(n, r.k, i) ? 1 : ''}" aria-label="${r.n} auf ${esc(lbl(j))}, Takt ${curBar + 1}${dynOf(n, r.k, i) === 'a' ? ', betont' : dynOf(n, r.k, i) === 's' ? ', leise' : ''}${flamOf(n, r.k, i) ? ', Flam' : ''}" ${rep || off(j) ? 'disabled' : ''}>${flamOf(n, r.k, i) ? 'fl' : ''}${dynOf(n, r.k, i) === 'a' ? '&gt;' : dynOf(n, r.k, i) === 's' ? '( )' : ''}</button></td>`;
-    }).join('')}</tr>`).join('');
+    }, (tp, j, c) => `<td colspan="${c}" class="nt-tupcell"><div class="nt-tuprow">${Array.from({ length: tupSlots(tp) }, (_, sl) => `<button type="button" class="nt-cell" data-nt="${id}" data-k="${r.k}" data-tup="${tp.g}:${sl}" aria-pressed="${tupHas(n, r.k, tp.g, sl)}" aria-label="${r.n}, ${tp.t === 'q' ? 'Viertel' : '16tel'} Triole Note ${sl + 1}" ${rep ? 'disabled' : ''}></button>`).join('')}</div></td>`)}</tr>`).join('');
     const tabs = Array.from({ length: n.bars }, (_, b) => `<button type="button" class="nt-bartab" data-nt-bar="${b}" data-nt-id="${id}" aria-pressed="${b === curBar}">${b + 1}${n.repeat.includes(b) ? ' %' : ''}${n.marks[b] ? ' · ' + esc(n.marks[b]) : ''}</button>`).join('');
     return `<div class="nt-editor" id="${id}" data-bar="${curBar}">
       <div class="row" style="gap:10px">
@@ -408,11 +471,11 @@
       </div>
       ${rep ? '' : `<div class="row" style="gap:6px;align-items:center" role="group" aria-label="Was ein Tipp ins Raster macht"><span class="small muted">Tippen:</span>${[['', 'Note an/aus'], ['a', 'Betont (lauter) >'], ['s', 'Leise ( )'], ['f', 'Flam']].map(([m, l]) => `<button type="button" class="chip" data-nt-act="mode" data-m="${m}" data-nt-id="${id}" aria-pressed="${(EDMODE[id] || '') === m}">${l}</button>`).join('')}</div>`}
       ${rep ? '<p class="small muted">Dieser Takt wiederholt den Takt davor. Haken entfernen, um ihn auszuschreiben.</p>' : `<div class="nt-grid-wrap"><table class="nt-grid">${head}${rows}</table></div>
-      ${gs === 4 ? `<div class="row" style="gap:6px;align-items:center" role="group" aria-label="8tel Triolen pro Schlag"><span class="small muted">8tel Triole auf Schlag:</span>${Array.from({ length: pb / 4 }, (_, b) => { const g = curBar * (pb / 4) + b; return `<button type="button" class="chip" data-nt-act="trip" data-nt-id="${id}" data-g="${g}" aria-pressed="${(n.trip || []).includes(g)}">${b + 1}</button>`; }).join('')}<span class="small muted">Dann drei Felder pro Schlag: 1 ta te.</span></div>` : ''}`}
+      ${gs === 4 ? `<div class="row" style="gap:8px;align-items:flex-end" role="group" aria-label="Triolen pro Schlag">${Array.from({ length: pb / 4 }, (_, b) => { const g = curBar * (pb / 4) + b, cur = tupleType(n, g), cov = (tupAt(n, g) || {}).g === g - 1; return `<div class="field" style="flex:1;min-width:110px"><label for="${id}-tp${b}">Schlag ${b + 1}</label><select id="${id}-tp${b}" data-nt-ctl="tup" data-g="${g}" ${cov ? 'disabled' : ''}>${cov ? '<option>Viertel Triole</option>' : [['', 'normal'], ['8', '8tel Triole'], ['16', '16tel Triole'], ...(b < pb / 4 - 1 ? [['q', 'Viertel Triole (2 Schläge)']] : [])].map(([v, l]) => `<option value="${v}" ${cur === v ? 'selected' : ''}>${l}</option>`).join('')}</select></div>`; }).join('')}</div>` : ''}`}
     </div>`;
   }
 
   // Samples schon beim ersten Tippen irgendwo in der App vorladen
   if (typeof document !== 'undefined') document.addEventListener('pointerdown', () => { try { audio(); loadSamples(); } catch (e) { /* ohne Audio */ } }, { once: true, capture: true });
-  window.DrumNotation = { setTrip, isTrip, SIGS, ROWS, MAX_BARS, empty, parse, render, toggle, has, play, stop, setTempo, setMute, setTrainer, hit, editorHTML, cursorFor, total, perBar, setBars, usedKeys, isPlaying: () => P.playing, setDyn, dynOf, flamOf, cellText, select: (id, k, i) => { if (k == null) delete EDSEL[id]; else EDSEL[id] = { k, i }; }, selOf: (id) => EDSEL[id] || null, editMode: (id, m) => { if (m !== undefined) EDMODE[id] = m; return EDMODE[id] || ''; }, resetModes: () => { for (const k of Object.keys(EDMODE)) delete EDMODE[k]; for (const k of Object.keys(EDSEL)) delete EDSEL[k]; }, samplesReady: () => samplesReady, autoStick, audio, click, setClick, loadSamples: () => { audio(); return loadSamples(); } };
+  window.DrumNotation = { setTrip, isTrip, setTuplet, tupleType, tupToggle, tupHas, tupAt, SIGS, ROWS, MAX_BARS, empty, parse, render, toggle, has, play, stop, setTempo, setMute, setTrainer, hit, editorHTML, cursorFor, total, perBar, setBars, usedKeys, isPlaying: () => P.playing, setDyn, dynOf, flamOf, cellText, select: (id, k, i) => { if (k == null) delete EDSEL[id]; else EDSEL[id] = { k, i }; }, selOf: (id) => EDSEL[id] || null, editMode: (id, m) => { if (m !== undefined) EDMODE[id] = m; return EDMODE[id] || ''; }, resetModes: () => { for (const k of Object.keys(EDMODE)) delete EDMODE[k]; for (const k of Object.keys(EDSEL)) delete EDSEL[k]; }, samplesReady: () => samplesReady, autoStick, audio, click, setClick, loadSamples: () => { audio(); return loadSamples(); } };
 })();

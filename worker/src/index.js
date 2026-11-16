@@ -415,6 +415,20 @@ export function cleanNotation(n) {
   // 8tel Triolen: Schlaggruppen (je 4 Sechzehntel) nur in x/4 Takten; der 4. Platz der Gruppe bleibt leer
   const trip = ['4/4', '3/4'].includes(sig) ? [...new Set((Array.isArray(o.trip) ? o.trip : []).map(Number).filter((g) => Number.isInteger(g) && g >= 0 && g < steps / 4))].sort((a, b) => a - b) : [];
   for (const k of DRUMS) tracks[k] = tracks[k].filter((i) => !(trip.includes(Math.floor(i / 4)) && i % 4 === 3));
+  // Viertel Triolen (t 'q', 2 Schläge im selben Takt, 3 Noten) und 16tel Triolen (t '16', 1 Schlag, 6 Noten); Noten als "Gruppe:Platz"
+  const G = steps / 4, bpb = G / bars, used = new Set(trip), tup = [];
+  if (['4/4', '3/4'].includes(sig)) for (const x of (Array.isArray(o.tup) ? o.tup : []).slice(0, 64)) {
+    const g = Number(x && x.g), t = x && x.t === 'q' ? 'q' : '16', span = t === 'q' ? [g, g + 1] : [g];
+    if (!Number.isInteger(g) || g < 0 || span[span.length - 1] >= G || Math.floor(span[0] / bpb) !== Math.floor(span[span.length - 1] / bpb) || span.some((y) => used.has(y))) continue;
+    span.forEach((y) => used.add(y)); tup.push({ g, t });
+  }
+  tup.sort((a, b) => a.g - b.g);
+  const tupn = {};
+  for (const k of DRUMS) {
+    const l = (Array.isArray(o.tupn && o.tupn[k]) ? o.tupn[k] : []).map(String).filter((v) => { const [g, sl] = v.split(':').map(Number); const t = tup.find((y) => y.g === g); return t && Number.isInteger(sl) && sl >= 0 && sl < (t.t === '16' ? 6 : 3); });
+    if (l.length) tupn[k] = [...new Set(l)];
+    tracks[k] = tracks[k].filter((i) => !tup.some((t) => Math.floor(i / 4) === t.g || (t.t === 'q' && Math.floor(i / 4) === t.g + 1)));
+  }
   const stick = {};
   for (const [k, v] of Object.entries(o.stick && typeof o.stick === 'object' ? o.stick : {})) {
     const i = Number(k); if (Number.isInteger(i) && i >= 0 && i < steps && (v === 'R' || v === 'L' || v === 'K')) stick[i] = v;
@@ -429,7 +443,7 @@ export function cleanNotation(n) {
     const [k, i] = String(key).split(':'); const n = Number(i);
     if (v && tracks[k] && tracks[k].includes(n)) flam[k + ':' + n] = 1;
   }
-  return JSON.stringify({ v: 2, sig, bars, bpm: int(o.bpm, 30, 300) || 80, tracks, stick, dyn, ...(Object.keys(flam).length ? { flam } : {}), marks, repeat, ...(trip.length ? { trip } : {}) });
+  return JSON.stringify({ v: 2, sig, bars, bpm: int(o.bpm, 30, 300) || 80, tracks, stick, dyn, ...(Object.keys(flam).length ? { flam } : {}), marks, repeat, ...(trip.length ? { trip } : {}), ...(tup.length ? { tup, tupn } : {}) });
 }
 // Gitarre: Akkorde, Schlagmuster, Tabs, Capo
 function cleanGuitar(o) {
