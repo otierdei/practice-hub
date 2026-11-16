@@ -235,11 +235,14 @@ let n = 0; const ok = (m) => console.log('ok ' + (++n) + ' ' + m);
     await t.click('[data-act=close]'); }
   const card = s.locator('.card:has-text("Rock Beat 1")'); assert.equal(await card.locator('.nt-svg:visible').count(), 2, 'Handy: 1 Takt pro Zeile'); ok('Schüler sieht die Noten');
   await card.locator('[data-act=practice]').click(); await s.click('[data-act=beatPlay]');
-  await s.waitForTimeout(600); assert.equal(await s.textContent('[data-act=beatPlay]'), 'Beat stoppen'); await s.click('[data-act=beatPlay]'); ok('Schüler spielt den Beat ab');
+  await s.waitForTimeout(600); assert.equal(await s.getAttribute('[data-act=beatPlay]', 'aria-label'), 'Stoppen'); assert.equal(await s.getAttribute('[data-act=beatPlay]', 'class'), 'play-btn'); await s.click('[data-act=beatPlay]'); assert.equal(await s.getAttribute('[data-act=beatPlay]', 'aria-label'), 'Abspielen'); ok('Schüler spielt den Beat ab (Play Taste)');
   await s.click('[data-act=beatClick]'); assert.equal(await s.getAttribute('[data-act=beatClick]', 'aria-pressed'), 'true');
   await s.click('[data-act=beatPlay]'); await s.waitForTimeout(1500);
   assert.ok(await s.locator('#beats .met-dot.on').count() === 1, 'Punkt leuchtet im Beat'); assert.match(await s.textContent('#trk'), /[1-9]\d* Takte/);
-  await s.click('[data-act=beatPlay]'); ok('Metronom im Beat: Klick an, Punkte laufen mit, Tracker zählt Takte');
+  assert.ok(await s.locator('.met-btn.swing[data-act=beatClick]').count() === 1, 'Pendel schwingt im Beat');
+  await s.click('[data-act=beatPlay]'); await s.waitForTimeout(400); assert.equal(await s.locator('.met-btn.swing').count(), 0, 'Pendel steht nach Stopp');
+  await s.click('[data-act=metronome]'); await s.waitForTimeout(400); assert.equal(await s.locator('.met-btn.swing[data-act=metronome]').count(), 1); await s.click('[data-act=metronome]');
+  ok('Metronom im Beat: Klick an, Punkte laufen mit, Tracker zählt Takte, Pendel zeigt Metronom an');
   { const b0 = Number(await s.textContent('#bpmVal'));
     await s.click('[data-act=beatPlay]'); await s.waitForTimeout(300);
     await s.fill('#ma_bars', '1'); await s.fill('#ma_add', '10'); await s.fill('#ma_max', '300'); await s.check('#ma_on'); await s.dispatchEvent('#ma_on', 'change');
