@@ -1,7 +1,7 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { fileURLToPath } from 'node:url';
-import worker, { cleanup, isMinor, manifestFor } from '../src/index.js';
+import worker, { cleanup, isMinor, manifestFor, instrIcon } from '../src/index.js';
 import { makeD1 } from './d1-shim.mjs';
 
 const ORIGIN = 'https://otierdei.github.io';
@@ -772,6 +772,11 @@ test('Home Bildschirm App pro Schüler: Name und Farbe, Manifest folgt', async (
   assert.equal(m.name, 'Practice Hub Miriam'); assert.equal(m.icons[0].src, '/icon-pink-180.png'); assert.equal(m.start_url, '/#c=ABCDEFGH12');
   assert.equal((await manifestFor('ABCDEFGH12', '', 'evil')).json().then((x) => x.icons[0].src).constructor, Promise);
   assert.equal((await (manifestFor(null, null, 'evil')).json()).icons[0].src, '/icon-180.png');
+  assert.equal((await (manifestFor('ABCDEFGH12', 'X', 'pink', 'guitar')).json()).icons[0].src, '/icon-guitar-pink-180.png');
+  assert.equal((await (manifestFor('ABCDEFGH12', 'X', null, 'drums')).json()).icons[2].src, '/icon-drums.svg');
+  assert.equal((await (manifestFor('ABCDEFGH12', 'X', 'blau', '../x')).json()).icons[0].src, '/icon-blau-180.png');
+  assert.equal(instrIcon('Gitarre'), 'guitar'); assert.equal(instrIcon('Schlagzeug'), 'drums'); assert.equal(instrIcon('Schlagzeug und Gitarre'), 'drums'); assert.equal(instrIcon(null), 'drums');
+  assert.equal((await w.call('/api/home', {}, w.ta)).data.icon, 'drums');
 });
 
 test('Sidestick und Tom Rim werden gespeichert', async () => {

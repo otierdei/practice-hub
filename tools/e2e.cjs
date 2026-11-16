@@ -85,9 +85,10 @@ let n = 0; const ok = (m) => console.log('ok ' + (++n) + ' ' + m);
   await s.getByRole('heading', { name: 'Heute üben' }).waitFor(); ok('Schüler Login per Link');
   { const code = studentLink.split('#c=')[1];
     assert.equal(new URL(s.url()).hash, '#c=' + code, 'Code bleibt im Browser für Zum Home Bildschirm');
-    assert.equal(await s.getAttribute('link[rel=manifest]', 'href'), '/api/manifest?c=' + code);
+    assert.equal(await s.getAttribute('link[rel=manifest]', 'href'), '/api/manifest?c=' + code + '&k=drums');
+    assert.equal(await s.getAttribute('link[rel=apple-touch-icon]', 'href'), 'icon-drums-180.png', 'Schlagzeug Symbol für Schlagzeugschüler');
     const man = await s.evaluate(async () => (await fetch(document.querySelector('link[rel=manifest]').href)).json());
-    assert.equal(man.start_url, '/#c=' + code);
+    assert.equal(man.start_url, '/#c=' + code); assert.equal(man.icons[0].src, '/icon-drums-180.png');
     const devs = () => s.evaluate(() => localStorage.getItem('ph_token'));
     const tok = await devs(); await s.reload(); await s.getByRole('heading', { name: 'Heute üben' }).waitFor(); assert.equal(await devs(), tok, 'Neuladen meldet nicht neu an');
     // Home Bildschirm App: eigener leerer Speicher, startet ohne Link. Ganzen Link einfügen geht.

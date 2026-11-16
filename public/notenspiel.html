@@ -3,8 +3,7 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
-<meta name="theme-color" content="#e5e5e0" media="(prefers-color-scheme: light)">
-<meta name="theme-color" content="#171814" media="(prefers-color-scheme: dark)">
+<meta name="theme-color" content="#fbf3e4">
 <meta name="robots" content="noindex">
 <title>Notenspiel Schlagzeug · Practice Hub</title>
 <link rel="icon" href="icon.svg" type="image/svg+xml">
@@ -73,11 +72,32 @@ button{font:inherit;color:inherit;cursor:pointer;touch-action:manipulation}
 .stars{font-size:1.6rem;letter-spacing:4px}
 input[type=text]{width:100%;min-height:52px;border-radius:14px;border:1px solid var(--line);background:var(--surface);padding:0 14px;font:inherit;color:inherit}
 @media (prefers-reduced-motion:reduce){*{transition:none!important}}
+
+/* Kinder Design wie die Kinderansicht der App: Creme, kräftige Farben, dicke Ränder, immer hell */
+html:root{--bg:#fbf3e4;--surface:#ffffff;--sunk:#f6ead3;--ink:#23241f;--muted:#4a4b44;--line:#23241f;--accent:#2e86ab;--accent-ink:#ffffff;--ring2:#e4572e;--track:#ead9b8;--danger:#d64b26;--good:#2f8a5b;color-scheme:light}
+.card,.level,.opt,.staff,.kit,input[type=text]{border:3px solid #23241f}
+.btn{border:3px solid #23241f;font-weight:800}
+.btn.primary{background:#2e86ab;color:#fff;border:3px solid #23241f;box-shadow:0 5px 0 #23241f}
+.btn.primary:active{transform:translateY(3px);box-shadow:0 2px 0 #23241f}
+.level{box-shadow:0 4px 0 #23241f}
+.level .n{border:3px solid #23241f;background:#f2c14e;color:#23241f}
+.level.done .n{background:#8bc9a3;color:#23241f}
+.bar{height:14px;border:2px solid #23241f}.bar i{background:#8bc9a3}
+.seq span{border:2px solid #23241f;background:#fff}.seq span.ok{background:#8bc9a3;color:#23241f}
+.kit .p{stroke:#23241f;stroke-width:2.2}
+.kit g[data-k].on .p{fill:#f2c14e}.kit g[data-k].on{filter:drop-shadow(0 0 8px #f2c14e)}
+.kit g[data-k].bad .p{fill:#e4572e}
+.staff{background:#fff}
+.tip{background:#9cc5e0;border:3px solid #23241f}
+.opt.right{background:#8bc9a3;border-color:#23241f;box-shadow:0 0 0 3px #2f8a5b}
+.opt.wrong{background:#f6c3b3;opacity:1}
+.fb.good{background:#8bc9a3;border:3px solid #23241f}.fb.bad{background:#f6c3b3;border:3px solid #23241f}
+.cert{border:4px solid #23241f;background:#f2c14e}
 </style>
 </head>
 <body>
 <main class="wrap" id="app" aria-live="polite"></main>
-<script src="notation.js?v=90"></script>
+<script src="notation.js?v=91"></script>
 <script>
 'use strict';
 // Notenspiel für Anfänger: jedes Schlagzeugteil mit Bild, Note und Klang lernen, dann mehrfach prüfen.

@@ -148,7 +148,7 @@ async function studentView(s, studentId, role) {
   const my_beats = await myBeats(s, st.id);
   const changes = await s.all('SELECT chords, count, created_at FROM chord_changes WHERE student_id = ? ORDER BY created_at DESC LIMIT 60', st.id);
   const app = await s.first('SELECT app_name, color FROM student_app WHERE student_id = ?', st.id);
-  return { role, app: app || null, changes, student: st, assignments, sessions, goals, lessons, my_beats, lesson_live: live, consent: consent ? consent.given_at : null, consentVersion: CONSENT_VERSION, canGoal: role === 'student' && canSetGoals(st) };
+  return { role, app: app || null, icon: instrIcon(st.instrument), changes, student: st, assignments, sessions, goals, lessons, my_beats, lesson_live: live, consent: consent ? consent.given_at : null, consentVersion: CONSENT_VERSION, canGoal: role === 'student' && canSetGoals(st) };
 }
 
 // Alle Schüler dürfen eigene Ziele eintragen (Altersgrenze auf Otis Wunsch entfernt)
@@ -1119,10 +1119,13 @@ export function ensureSchema(env) {
 
 // Farben der Home Bildschirm App, Icons liegen in public/ (icon-<farbe>-180.png usw.)
 export const APP_COLORS = { pink: 1, blau: 1 };
-export function manifestFor(c, name, color) {
+// Symbol nach Instrument: nur wer genau "Gitarre" hat, bekommt die Gitarre, alle anderen das Schlagzeug
+export const APP_INSTR = { drums: 1, guitar: 1 };
+export const instrIcon = (instrument) => (/^Gitarre$/.test(String(instrument || '').trim()) ? 'guitar' : 'drums');
+export function manifestFor(c, name, color, instr) {
   const code = /^[A-Za-z0-9-]{8,64}$/.test(String(c || '')) ? String(c) : null;
   const nm = String(name || '').replace(/[^\p{L}\p{N} .'&+]/gu, '').trim().slice(0, 30) || 'Practice Hub';
-  const sfx = APP_COLORS[color] ? '-' + color : '';
+  const sfx = (APP_INSTR[instr] ? '-' + instr : '') + (APP_COLORS[color] ? '-' + color : '');
   const m = { name: nm, short_name: nm, lang: 'de', start_url: code ? '/#c=' + code : '/', scope: '/', display: 'standalone', background_color: '#e5e5e0', theme_color: '#e5e5e0',
     icons: [{ src: `/icon${sfx}-180.png`, sizes: '180x180', type: 'image/png' }, { src: `/icon${sfx}-512.png`, sizes: '512x512', type: 'image/png' }, { src: `/icon${sfx}.svg`, sizes: 'any', type: 'image/svg+xml' }] };
   return new Response(JSON.stringify(m), { headers: { 'Content-Type': 'application/manifest+json; charset=utf-8', 'Cache-Control': 'no-store', 'Referrer-Policy': 'no-referrer' } });
@@ -1134,7 +1137,7 @@ export default {
     // Alles außer /api liefert die App aus (Cloudflare Assets)
     if (!url0.pathname.startsWith('/api/') && env.ASSETS) return env.ASSETS.fetch(req);
     // Manifest mit persönlichem Start Link: die Home Bildschirm App am iPhone hat einen eigenen Speicher und braucht den Code beim ersten Start
-    if (url0.pathname === '/api/manifest') return manifestFor(url0.searchParams.get('c'), url0.searchParams.get('n'), url0.searchParams.get('i'));
+    if (url0.pathname === '/api/manifest') return manifestFor(url0.searchParams.get('c'), url0.searchParams.get('n'), url0.searchParams.get('i'), url0.searchParams.get('k'));
     await ensureSchema(env);
     const cors = corsHeaders(env, req);
     if (req.method === 'OPTIONS') return new Response(null, { status: 204, headers: cors });

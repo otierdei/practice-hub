@@ -223,8 +223,8 @@ details.card summary{cursor:pointer;font-family:var(--display);font-size:1.08rem
 </head>
 <body>
 <div id="app"><div class="wrap"><p class="muted">Lädt …</p></div></div>
-<script src="notation.js?v=90"></script>
-<script src="guitar.js?v=90"></script>
+<script src="notation.js?v=91"></script>
+<script src="guitar.js?v=91"></script>
 <script>
 'use strict';
 // ---------- Grundlagen ----------
@@ -316,9 +316,10 @@ function setManifest() {
   const el = document.querySelector('link[rel="manifest"]'); if (!el) return;
   const code = (S.role === 'student' || S.role === 'parent') && store.get('code', null);
   const app = (S.role === 'student' || S.role === 'parent') && S.data && S.data.app;
-  el.setAttribute('href', code && !STANDALONE ? '/api/manifest?c=' + encodeURIComponent(code) + (app && app.app_name ? '&n=' + encodeURIComponent(app.app_name) : '') + (app && app.color ? '&i=' + app.color : '') : 'manifest.webmanifest');
-  // iPhone nimmt Name und Symbol beim Hinzufügen aus der Seite, nicht aus dem Manifest
-  const sfx = app && app.color ? '-' + app.color : '', nm = (app && app.app_name) || 'Practice Hub';
+  const ik = (S.role === 'student' || S.role === 'parent') && S.data && /^(drums|guitar)$/.test(S.data.icon || '') ? S.data.icon : '';
+  el.setAttribute('href', code && !STANDALONE ? '/api/manifest?c=' + encodeURIComponent(code) + (app && app.app_name ? '&n=' + encodeURIComponent(app.app_name) : '') + (app && app.color ? '&i=' + app.color : '') + (ik ? '&k=' + ik : '') : 'manifest.webmanifest');
+  // iPhone nimmt Name und Symbol beim Hinzufügen aus der Seite, nicht aus dem Manifest. Symbol: Instrument (Schlagzeug oder Gitarre) plus Farbe
+  const sfx = (ik ? '-' + ik : '') + (app && app.color ? '-' + app.color : ''), nm = (app && app.app_name) || 'Practice Hub';
   const t = document.querySelector('meta[name="apple-mobile-web-app-title"]'); if (t) t.setAttribute('content', nm);
   const ic = document.querySelector('link[rel="apple-touch-icon"]'); if (ic) ic.setAttribute('href', 'icon' + sfx + '-180.png');
   if (app && app.app_name) document.title = nm;
@@ -1405,7 +1406,8 @@ function assignmentCard(a, sessions, num) {
     <button class="check" data-act="toggleDone" data-id="${a.id}" aria-pressed="false" aria-label="Als erledigt abhaken"></button></div>
     ${notationPreview(a.notation, 'Noten: ' + (a.title || ''))}
     ${a.song_id ? `<button class="btn" data-act="song" data-id="${esc(a.song_id)}" data-v="${esc(a.song_version || '')}">Song öffnen${a.song_version ? ' · ' + esc(a.song_version) : ''}</button>` : ''}
-    <div class="row" style="flex-wrap:nowrap">${a.url && !th ? `<a class="btn video" href="${esc(a.url)}" ${linkTarget(a.url)}>${PLAY}${linkLabel(a)}</a>` : ''}<button class="btn primary" data-act="practice" data-id="${a.id}" style="flex:1">Üben</button></div>
+    ${isGame(a.url) ? `<div class="row" style="flex-wrap:nowrap"><a class="btn primary" href="${esc(a.url)}" ${linkTarget(a.url)} style="flex:1">${PLAY}Spiel starten</a></div>`
+      : `<div class="row" style="flex-wrap:nowrap">${a.url && !th ? `<a class="btn video" href="${esc(a.url)}" ${linkTarget(a.url)}>${PLAY}${linkLabel(a)}</a>` : ''}<button class="btn primary" data-act="practice" data-id="${a.id}" style="flex:1">Üben</button></div>`}
   </section>`;
 }
 
