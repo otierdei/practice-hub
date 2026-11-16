@@ -402,7 +402,7 @@ let n = 0; const ok = (m) => console.log('ok ' + (++n) + ' ' + m);
   await t.click('#sg [data-gt-act=addChord]'); await t.click('#songGtForm button[type=submit]'); await t.getByText('Gitarre gespeichert').first().waitFor();
   assert.match(await t.textContent('body'), /Tonart A/); assert.match(await t.textContent('body'), /Vers: G D Em C/);
   await t.click('[data-act=songInstr][data-v=guitar]'); await t.fill('#lk_lines', 'Original | https://youtu.be/dQw4w9WgXcQ'); await t.click('#linksForm button[type=submit]'); await t.waitForFunction(() => S.song.links.some((l) => l.instrument === 'guitar'));
-  assert.equal(await t.locator('.sheet img[src*=dQw4w9WgXcQ]').count(), 1, 'Gitarren Video bei Gitarre');
+  await t.locator('.sheet img[src*=dQw4w9WgXcQ]').first().waitFor(); assert.equal(await t.locator('.sheet img[src*=dQw4w9WgXcQ]').count(), 1, 'Gitarren Video bei Gitarre');
   await t.click('[data-act=songInstr][data-v=drums]'); assert.equal(await t.locator('.sheet img[src*=dQw4w9WgXcQ]').count(), 0, 'Schlagzeug zeigt keine Gitarren Videos');
   await t.click('[data-act=songRename][data-v="1"]'); await t.fill('#sr_title', 'E2E Umbenannt'); await t.click('#songRenameForm button[type=submit]');
   await t.locator('.sheet h1', { hasText: 'E2E Umbenannt' }).waitFor();
