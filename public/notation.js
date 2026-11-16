@@ -30,7 +30,7 @@
 
   function empty(sig = '4/4', bars = 1, bpm = 80) {
     const tracks = {}; ROWS.forEach((r) => { tracks[r.k] = []; });
-    return { v: 2, sig, bars, bpm, tracks, stick: {}, dyn: {}, flam: {}, marks: {}, repeat: [] };
+    return { v: 2, sig, bars, bpm, tracks, stick: {}, dyn: {}, flam: {}, marks: {}, repeat: [], trip: [] };
   }
   function parse(s) {
     if (!s) return null;
@@ -42,13 +42,24 @@
       ROWS.forEach((r) => { n.tracks[r.k] = (o.tracks && o.tracks[r.k] || []).filter((x) => x >= 0 && x < total(n)); });
       for (const [k, v] of Object.entries(o.marks || {})) if (Number(k) < n.bars && v) n.marks[Number(k)] = String(v).slice(0, 30);
       n.repeat = (o.repeat || []).map(Number).filter((b) => b > 0 && b < n.bars);
+      n.trip = groupSize(n.sig) === 4 ? [...new Set((o.trip || []).map(Number).filter((g) => Number.isInteger(g) && g >= 0 && g < total(n) / 4))].sort((a, b) => a - b) : [];
+      ROWS.forEach((r) => { n.tracks[r.k] = n.tracks[r.k].filter((i) => !(n.trip.includes(Math.floor(i / 4)) && i % 4 === 3)); });
       for (const [key, v] of Object.entries(o.dyn || {})) { const [k, i] = key.split(':'); if ((v === 'a' || v === 's') && (n.tracks[k] || []).includes(Number(i))) n.dyn[k + ':' + Number(i)] = v; }
       for (const [key, v] of Object.entries(o.flam || {})) { const [k, i] = key.split(':'); if (v && (n.tracks[k] || []).includes(Number(i))) n.flam[k + ':' + Number(i)] = 1; }
       return n;
     } catch (e) { return null; }
   }
+  // 8tel Triolen: eine Schlaggruppe (4 Sechzehntel) wird in drei gleiche Teile geteilt; Rasterplätze 0, 1, 2 sind die Triolen, Platz 3 bleibt leer
+  const isTrip = (n, i) => groupSize(n.sig) === 4 && (n.trip || []).includes(Math.floor(i / 4));
+  function setTrip(n, g, on) {
+    n.trip = (n.trip || []).filter((x) => x !== g); if (!on) return;
+    n.trip.push(g); n.trip.sort((a, b) => a - b);
+    const drop = g * 4 + 3; for (const k in n.tracks) n.tracks[k] = n.tracks[k].filter((i) => i !== drop);
+    if (n.stick) delete n.stick[drop];
+  }
   const has = (n, k, i) => (k === 'stick' ? !!(n.stick || {})[i] : (n.tracks[k] || []).includes(i));
   function toggle(n, k, i) {
+    if (isTrip(n, i) && i % 4 === 3) return;
     if (k === 'stick') { n.stick = n.stick || {}; const v = n.stick[i]; if (!v) n.stick[i] = 'R'; else if (v === 'R') n.stick[i] = 'L'; else if (v === 'L') n.stick[i] = 'K'; else delete n.stick[i]; return; }
     const t = n.tracks[k];
     if (t.includes(i)) { n.tracks[k] = t.filter((x) => x !== i); if (n.dyn) delete n.dyn[k + ':' + i]; if (n.flam) delete n.flam[k + ':' + i]; }
@@ -87,6 +98,7 @@
     for (const key of Object.keys(n.dyn || {})) if (Number(key.split(':')[1]) >= max) delete n.dyn[key];
     for (const key of Object.keys(n.flam || {})) if (Number(key.split(':')[1]) >= max) delete n.flam[key];
     n.repeat = n.repeat.filter((b) => b < n.bars);
+    n.trip = (n.trip || []).filter((g) => g * 4 < max);
     for (const k of Object.keys(n.marks)) if (Number(k) >= n.bars) delete n.marks[k];
   }
 
@@ -123,27 +135,30 @@
       for (let g = from * pb; g < to * pb; g += gs) {
         if (n.repeat.includes(Math.floor(g / pb))) continue;
         const inG = onsets.filter((i) => i >= g && i < g + gs);
+        const trip = isTrip(n, g), X = (i) => (trip ? xOf(g) + ((i - g) * gs * sw) / 3 : xOf(i));
         if (!inG.length) { if (!down) out.push(restGlyph(gs, xOf(g) + (gs / 2) * sw - 12, ink)); continue; }
-        if (!down && inG[0] > g) out.push(restGlyph(inG[0] - g, xOf(g), ink));
+        if (!down && trip) { for (let t = 0; t < 3; t++) if (!inG.includes(g + t)) out.push(restGlyph(2, X(g + t), ink)); }
+        else if (!down && inG[0] > g) out.push(restGlyph(inG[0] - g, xOf(g), ink));
         const notes = inG.map((i, idx) => {
           const end = idx + 1 < inG.length ? inG[idx + 1] : g + gs;
           const dur = end - i;
           const hits = keys.filter((k) => n.tracks[k].includes(i)).map((k) => BY[k]);
           const ps = hits.map((h) => h.p);
+          if (trip) return { i, dur, hits, top: Math.max(...ps), bot: Math.min(...ps), beams: 1, dot: false };
           return { i, dur, hits, top: Math.max(...ps), bot: Math.min(...ps), beams: dur === 1 ? 2 : dur <= 3 ? 1 : 0, dot: dur === 3 || dur === 6 };
         });
-        const sx = (nt) => xOf(nt.i) + (down ? -5.5 : 5.5);
+        const sx = (nt) => X(nt.i) + (down ? -5.5 : 5.5);
         const tipY = down ? Math.max(...notes.map((nt) => yOf(nt.bot) + 30)) : Math.min(...notes.map((nt) => yOf(nt.top) - 30));
         const beamed = notes.length > 1 && notes.every((nt) => nt.beams > 0);
         for (const nt of notes) {
           for (const h of nt.hits) {
             const d = dynOf(n, h.k, nt.i);
             // Zuletzt angetippter Schlag im Editor: farbig hinterlegt
-            if (opt.sel && opt.sel.k === h.k && opt.sel.i === nt.i) out.push(`<circle class="nt-selmark" cx="${xOf(nt.i)}" cy="${yOf(h.p)}" r="9.5" fill="var(--ring2, #8a6236)" opacity=".45"/>`);
-            out.push(head(d === 's' && !h.ghost ? { ...h, ghost: true } : h, xOf(nt.i), ink));
-            if (flamOf(n, h.k, nt.i)) out.push(grace(h, xOf(nt.i) - (d === 's' ? 19 : 13), ink, down));
+            if (opt.sel && opt.sel.k === h.k && opt.sel.i === nt.i) out.push(`<circle class="nt-selmark" cx="${X(nt.i)}" cy="${yOf(h.p)}" r="9.5" fill="var(--ring2, #8a6236)" opacity=".45"/>`);
+            out.push(head(d === 's' && !h.ghost ? { ...h, ghost: true } : h, X(nt.i), ink));
+            if (flamOf(n, h.k, nt.i)) out.push(grace(h, X(nt.i) - (d === 's' ? 19 : 13), ink, down));
           }
-          if (nt.dot) out.push(`<circle cx="${xOf(nt.i) + 10}" cy="${yOf(nt.top % 2 === 0 ? nt.top + 1 : nt.top)}" r="1.8" fill="${ink}"/>`);
+          if (nt.dot) out.push(`<circle cx="${X(nt.i) + 10}" cy="${yOf(nt.top % 2 === 0 ? nt.top + 1 : nt.top)}" r="1.8" fill="${ink}"/>`);
           const fromY = down ? yOf(nt.top) : yOf(nt.bot);
           const toY = beamed ? tipY : (down ? yOf(nt.bot) + 30 : yOf(nt.top) - 30);
           out.push(`<line x1="${sx(nt)}" x2="${sx(nt)}" y1="${fromY}" y2="${toY}" stroke="${ink}" stroke-width="1.3"/>`);
@@ -155,8 +170,9 @@
         // Akzente: > über der Oberstimme, unter der Unterstimme
         for (const nt of notes) if (nt.hits.some((h) => dynOf(n, h.k, nt.i) === 'a')) {
           const ay = down ? Math.max(tipY, yOf(nt.bot) + 30) + 12 : Math.min(tipY, yOf(nt.top) - 30) - 6;
-          out.push(`<path d="M${xOf(nt.i) - 5} ${ay - 4} L${xOf(nt.i) + 5} ${ay} L${xOf(nt.i) - 5} ${ay + 4}" fill="none" stroke="${ink}" stroke-width="1.6"/>`);
+          out.push(`<path d="M${X(nt.i) - 5} ${ay - 4} L${X(nt.i) + 5} ${ay} L${X(nt.i) - 5} ${ay + 4}" fill="none" stroke="${ink}" stroke-width="1.6"/>`);
         }
+        if (trip) { const mx = (sx(notes[0]) + sx(notes[notes.length - 1])) / 2 || sx(notes[0]); out.push(`<text x="${trip && notes.length === 1 ? X(g + 1) + 5 : mx}" y="${down ? tipY + 16 : tipY - 5}" text-anchor="middle" font-size="11" font-weight="700" font-style="italic" font-family="Georgia, serif" fill="${ink}">3</text>`); }
         if (beamed) {
           const dir = down ? -1 : 1;
           out.push(`<rect x="${sx(notes[0]) - 0.6}" y="${tipY - (down ? 4 : 0)}" width="${sx(notes[notes.length - 1]) - sx(notes[0]) + 1.2}" height="4" fill="${ink}"/>`);
@@ -194,7 +210,7 @@
     if (h.p >= 10) parts.push(`<line x1="${x - 9}" x2="${x + 9}" y1="${yOf(10)}" y2="${yOf(10)}" stroke="${ink}" stroke-width="1"/>`);
     if (h.x) parts.push(`<path d="M${x - 4.5} ${y - 4.5} L${x + 4.5} ${y + 4.5} M${x + 4.5} ${y - 4.5} L${x - 4.5} ${y + 4.5}" stroke="${ink}" stroke-width="1.8"/>`);
     else parts.push(`<ellipse cx="${x}" cy="${y}" rx="5.6" ry="4" transform="rotate(-20 ${x} ${y})" fill="${ink}"/>`);
-    if (h.open) parts.push(`<circle cx="${x}" cy="${yOf(12)}" r="3.4" fill="none" stroke="${ink}" stroke-width="1.4"/>`);
+    if (h.open) parts.push(`<circle cx="${x}" cy="${y}" r="7.2" fill="none" stroke="${ink}" stroke-width="1.4"/>`); // offene HiHat: X im Kreis (Otis Schreibweise 16.11.)
     if (h.ghost) parts.push(`<text x="${x - 11}" y="${y + 4}" font-size="13" fill="${ink}" font-family="Georgia, serif">(</text><text x="${x + 7}" y="${y + 4}" font-size="13" fill="${ink}" font-family="Georgia, serif">)</text>`);
     return parts.join('');
   }
@@ -315,12 +331,16 @@
       }
       if (CLICK.on) {
         const spb = EIGHTH(n.sig) ? 2 : 4, j = i % pb, beats = pb / spb, acc = CLICK.accents && CLICK.accents.length === beats ? CLICK.accents : null;
-        const sub = Math.max(1, Math.min(spb, CLICK.sub || 1)), every = spb / sub;
-        if (j % spb === 0) click(P.next, acc ? acc[j / spb] : (j === 0 ? 2 : 1), CLICK.sound, CLICK.vol);
-        else if (Number.isInteger(every) && j % every === 0) click(P.next, 0.5, CLICK.sound, CLICK.vol);
+        const sub = Math.max(1, Math.min(spb, CLICK.sub || 1)), every = sub === 3 ? 0.5 : spb / sub; // 0.5: keine Rasterklicks bei Triolen
+        if (j % spb === 0) {
+          click(P.next, acc ? acc[j / spb] : (j === 0 ? 2 : 1), CLICK.sound, CLICK.vol);
+          // 8tel Triolen: zwei leise Klicks im Drittel und zwei Drittel des Schlags (passt nicht ins 16tel Raster, darum eigene Zeiten)
+          if ((CLICK.sub || 1) === 3 && spb === 4) { const beat = 4 * (60 / P.bpm / 4); click(P.next + beat / 3, 0.5, CLICK.sound, CLICK.vol); click(P.next + (2 * beat) / 3, 0.5, CLICK.sound, CLICK.vol); }
+        }
+        else if (Number.isInteger(every) && j % every === 0 && !isTrip(n, src)) click(P.next, 0.5, CLICK.sound, CLICK.vol);
       }
       P.queue.push({ t: P.next, i });
-      P.next += EIGHTH(n.sig) ? 60 / P.bpm / 2 : 60 / P.bpm / 4;
+      P.next += EIGHTH(n.sig) ? 60 / P.bpm / 2 : isTrip(n, src) ? (i % 4 === 3 ? 0 : 60 / P.bpm / 3) : 60 / P.bpm / 4; // Wiederholungstakte spielen die Triolen ihres Vorbilds
       P.step++;
     }
   }
@@ -359,14 +379,16 @@
   const EDMODE = {}; // pro Editor: '' Note an/aus, 'a' betonen, 's' leise
   function editorHTML(n, id, curBar = 0) {
     const pb = perBar(n.sig), gs = groupSize(n.sig), from = curBar * pb, rep = n.repeat.includes(curBar);
-    const head = `<tr><th scope="col"><span class="nt-sr">Instrument</span></th>${Array.from({ length: pb }, (_, j) => `<th scope="col" class="${j % gs === 0 ? 'nt-beat' : ''}">${esc(countLabel(n.sig, j))}</th>`).join('')}</tr>`;
+    const lbl = (j) => (isTrip(n, from + j) ? [String(Math.floor(j / 4) + 1), 'ta', 'te', ''][j % 4] : countLabel(n.sig, j));
+    const off = (j) => isTrip(n, from + j) && j % 4 === 3;
+    const head = `<tr><th scope="col"><span class="nt-sr">Instrument</span></th>${Array.from({ length: pb }, (_, j) => `<th scope="col" class="${j % gs === 0 ? 'nt-beat' : ''}">${esc(lbl(j))}</th>`).join('')}</tr>`;
     const stickRow = `<tr class="nt-stickrow"><th scope="row">Sticking</th>${Array.from({ length: pb }, (_, j) => {
       const i = from + j, v = (n.stick || {})[i] || '';
-      return `<td class="${Math.floor(j / gs) % 2 ? 'nt-alt' : ''}"><button type="button" class="nt-cell nt-stick" data-nt="${id}" data-k="stick" data-i="${i}" aria-pressed="${!!v}" aria-label="Sticking auf ${esc(countLabel(n.sig, j))}: ${v || 'keins'}" ${rep ? 'disabled' : ''}>${v}</button></td>`;
+      return `<td class="${Math.floor(j / gs) % 2 ? 'nt-alt' : ''}"><button type="button" class="nt-cell nt-stick" data-nt="${id}" data-k="stick" data-i="${i}" aria-pressed="${!!v}" aria-label="Sticking auf ${esc(lbl(j))}: ${v || 'keins'}" ${rep || off(j) ? 'disabled' : ''}>${v}</button></td>`;
     }).join('')}</tr>`;
     const rows = stickRow + ROWS.map((r) => `<tr><th scope="row">${r.n}</th>${Array.from({ length: pb }, (_, j) => {
       const i = from + j;
-      return `<td class="${Math.floor(j / gs) % 2 ? 'nt-alt' : ''}"><button type="button" class="nt-cell${EDSEL[id] && EDSEL[id].k === r.k && EDSEL[id].i === i ? ' nt-sel' : ''}" data-nt="${id}" data-k="${r.k}" data-i="${i}" aria-pressed="${has(n, r.k, i)}" data-dyn="${dynOf(n, r.k, i)}" data-flam="${flamOf(n, r.k, i) ? 1 : ''}" aria-label="${r.n} auf ${esc(countLabel(n.sig, j))}, Takt ${curBar + 1}${dynOf(n, r.k, i) === 'a' ? ', betont' : dynOf(n, r.k, i) === 's' ? ', leise' : ''}${flamOf(n, r.k, i) ? ', Flam' : ''}" ${rep ? 'disabled' : ''}>${flamOf(n, r.k, i) ? 'fl' : ''}${dynOf(n, r.k, i) === 'a' ? '&gt;' : dynOf(n, r.k, i) === 's' ? '( )' : ''}</button></td>`;
+      return `<td class="${Math.floor(j / gs) % 2 ? 'nt-alt' : ''}"><button type="button" class="nt-cell${EDSEL[id] && EDSEL[id].k === r.k && EDSEL[id].i === i ? ' nt-sel' : ''}" data-nt="${id}" data-k="${r.k}" data-i="${i}" aria-pressed="${has(n, r.k, i)}" data-dyn="${dynOf(n, r.k, i)}" data-flam="${flamOf(n, r.k, i) ? 1 : ''}" aria-label="${r.n} auf ${esc(lbl(j))}, Takt ${curBar + 1}${dynOf(n, r.k, i) === 'a' ? ', betont' : dynOf(n, r.k, i) === 's' ? ', leise' : ''}${flamOf(n, r.k, i) ? ', Flam' : ''}" ${rep || off(j) ? 'disabled' : ''}>${flamOf(n, r.k, i) ? 'fl' : ''}${dynOf(n, r.k, i) === 'a' ? '&gt;' : dynOf(n, r.k, i) === 's' ? '( )' : ''}</button></td>`;
     }).join('')}</tr>`).join('');
     const tabs = Array.from({ length: n.bars }, (_, b) => `<button type="button" class="nt-bartab" data-nt-bar="${b}" data-nt-id="${id}" aria-pressed="${b === curBar}">${b + 1}${n.repeat.includes(b) ? ' %' : ''}${n.marks[b] ? ' · ' + esc(n.marks[b]) : ''}</button>`).join('');
     return `<div class="nt-editor" id="${id}" data-bar="${curBar}">
@@ -385,11 +407,12 @@
         ${curBar > 0 ? `<label class="row small" style="flex:1;min-width:150px;gap:8px;color:var(--ink)"><input type="checkbox" data-nt-ctl="repeat" style="width:22px;min-height:22px" ${rep ? 'checked' : ''}> Wiederholt den Takt davor</label>` : ''}
       </div>
       ${rep ? '' : `<div class="row" style="gap:6px;align-items:center" role="group" aria-label="Was ein Tipp ins Raster macht"><span class="small muted">Tippen:</span>${[['', 'Note an/aus'], ['a', 'Betont (lauter) >'], ['s', 'Leise ( )'], ['f', 'Flam']].map(([m, l]) => `<button type="button" class="chip" data-nt-act="mode" data-m="${m}" data-nt-id="${id}" aria-pressed="${(EDMODE[id] || '') === m}">${l}</button>`).join('')}</div>`}
-      ${rep ? '<p class="small muted">Dieser Takt wiederholt den Takt davor. Haken entfernen, um ihn auszuschreiben.</p>' : `<div class="nt-grid-wrap"><table class="nt-grid">${head}${rows}</table></div>`}
+      ${rep ? '<p class="small muted">Dieser Takt wiederholt den Takt davor. Haken entfernen, um ihn auszuschreiben.</p>' : `<div class="nt-grid-wrap"><table class="nt-grid">${head}${rows}</table></div>
+      ${gs === 4 ? `<div class="row" style="gap:6px;align-items:center" role="group" aria-label="8tel Triolen pro Schlag"><span class="small muted">8tel Triole auf Schlag:</span>${Array.from({ length: pb / 4 }, (_, b) => { const g = curBar * (pb / 4) + b; return `<button type="button" class="chip" data-nt-act="trip" data-nt-id="${id}" data-g="${g}" aria-pressed="${(n.trip || []).includes(g)}">${b + 1}</button>`; }).join('')}<span class="small muted">Dann drei Felder pro Schlag: 1 ta te.</span></div>` : ''}`}
     </div>`;
   }
 
   // Samples schon beim ersten Tippen irgendwo in der App vorladen
   if (typeof document !== 'undefined') document.addEventListener('pointerdown', () => { try { audio(); loadSamples(); } catch (e) { /* ohne Audio */ } }, { once: true, capture: true });
-  window.DrumNotation = { SIGS, ROWS, MAX_BARS, empty, parse, render, toggle, has, play, stop, setTempo, setMute, setTrainer, hit, editorHTML, cursorFor, total, perBar, setBars, usedKeys, isPlaying: () => P.playing, setDyn, dynOf, flamOf, cellText, select: (id, k, i) => { if (k == null) delete EDSEL[id]; else EDSEL[id] = { k, i }; }, selOf: (id) => EDSEL[id] || null, editMode: (id, m) => { if (m !== undefined) EDMODE[id] = m; return EDMODE[id] || ''; }, resetModes: () => { for (const k of Object.keys(EDMODE)) delete EDMODE[k]; for (const k of Object.keys(EDSEL)) delete EDSEL[k]; }, samplesReady: () => samplesReady, autoStick, audio, click, setClick, loadSamples: () => { audio(); return loadSamples(); } };
+  window.DrumNotation = { setTrip, isTrip, SIGS, ROWS, MAX_BARS, empty, parse, render, toggle, has, play, stop, setTempo, setMute, setTrainer, hit, editorHTML, cursorFor, total, perBar, setBars, usedKeys, isPlaying: () => P.playing, setDyn, dynOf, flamOf, cellText, select: (id, k, i) => { if (k == null) delete EDSEL[id]; else EDSEL[id] = { k, i }; }, selOf: (id) => EDSEL[id] || null, editMode: (id, m) => { if (m !== undefined) EDMODE[id] = m; return EDMODE[id] || ''; }, resetModes: () => { for (const k of Object.keys(EDMODE)) delete EDMODE[k]; for (const k of Object.keys(EDSEL)) delete EDSEL[k]; }, samplesReady: () => samplesReady, autoStick, audio, click, setClick, loadSamples: () => { audio(); return loadSamples(); } };
 })();

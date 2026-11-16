@@ -867,3 +867,13 @@ test('Lernspiele melden Fortschritt an die Schülerakte', async () => {
   assert.deepEqual(n.done, [1, 2], 'ungültige Stufen fallen weg'); assert.equal(n.cert, null); assert.equal(v.cert, '2026-11-16');
   assert.equal((await w.call('/api/t/student', { id: w.b }, w.t)).data.games.length, 0, 'andere Schüler unberührt');
 });
+
+test('Noten: 8tel Triolen bleiben gespeichert, 4. Platz der Gruppe wird geleert', async () => {
+  const w = await world();
+  const tr = { sn: [0, 1, 2, 3, 4, 8, 12], bd: [7] };
+  const r = await w.call('/api/t/exercise/save', { title: 'Triolen Test', notation: { v: 2, sig: '4/4', bars: 1, bpm: 70, tracks: tr, trip: [0, 1, 99] } }, w.t);
+  const n = JSON.parse((await w.call('/api/t/exercises', {}, w.t)).data.exercises.find((x) => x.id === r.data.id).notation);
+  assert.deepEqual(n.trip, [0, 1]); assert.deepEqual(n.tracks.sn, [0, 1, 2, 4, 8, 12]); assert.deepEqual(n.tracks.bd, []);
+  const r2 = await w.call('/api/t/exercise/save', { title: 'Triolen 68', notation: { v: 2, sig: '6/8', bars: 1, tracks: { sn: [0] }, trip: [0] } }, w.t);
+  assert.equal(JSON.parse((await w.call('/api/t/exercises', {}, w.t)).data.exercises.find((x) => x.id === r2.data.id).notation).trip, undefined, 'keine Triolen in 6/8');
+});

@@ -412,6 +412,9 @@ export function cleanNotation(n) {
     if (Number.isInteger(bar) && bar >= 0 && bar < bars && t) marks[bar] = t;
   }
   const repeat = [...new Set((Array.isArray(o.repeat) ? o.repeat : []).map(Number).filter((x) => Number.isInteger(x) && x > 0 && x < bars))].sort((a, b) => a - b);
+  // 8tel Triolen: Schlaggruppen (je 4 Sechzehntel) nur in x/4 Takten; der 4. Platz der Gruppe bleibt leer
+  const trip = ['4/4', '3/4'].includes(sig) ? [...new Set((Array.isArray(o.trip) ? o.trip : []).map(Number).filter((g) => Number.isInteger(g) && g >= 0 && g < steps / 4))].sort((a, b) => a - b) : [];
+  for (const k of DRUMS) tracks[k] = tracks[k].filter((i) => !(trip.includes(Math.floor(i / 4)) && i % 4 === 3));
   const stick = {};
   for (const [k, v] of Object.entries(o.stick && typeof o.stick === 'object' ? o.stick : {})) {
     const i = Number(k); if (Number.isInteger(i) && i >= 0 && i < steps && (v === 'R' || v === 'L' || v === 'K')) stick[i] = v;
@@ -426,7 +429,7 @@ export function cleanNotation(n) {
     const [k, i] = String(key).split(':'); const n = Number(i);
     if (v && tracks[k] && tracks[k].includes(n)) flam[k + ':' + n] = 1;
   }
-  return JSON.stringify({ v: 2, sig, bars, bpm: int(o.bpm, 30, 300) || 80, tracks, stick, dyn, ...(Object.keys(flam).length ? { flam } : {}), marks, repeat });
+  return JSON.stringify({ v: 2, sig, bars, bpm: int(o.bpm, 30, 300) || 80, tracks, stick, dyn, ...(Object.keys(flam).length ? { flam } : {}), marks, repeat, ...(trip.length ? { trip } : {}) });
 }
 // Gitarre: Akkorde, Schlagmuster, Tabs, Capo
 function cleanGuitar(o) {
