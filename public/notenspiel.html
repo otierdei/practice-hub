@@ -1,0 +1,358 @@
+<!doctype html>
+<html lang="de">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="theme-color" content="#e5e5e0" media="(prefers-color-scheme: light)">
+<meta name="theme-color" content="#171814" media="(prefers-color-scheme: dark)">
+<meta name="robots" content="noindex">
+<title>Notenspiel Schlagzeug · Practice Hub</title>
+<link rel="icon" href="icon.svg" type="image/svg+xml">
+<style>
+@font-face{font-family:"Young Serif";src:url("fonts/young-serif.woff2") format("woff2");font-weight:400;font-display:swap}
+@font-face{font-family:"Figtree";src:url("fonts/figtree.woff2") format("woff2");font-weight:300 900;font-display:swap}
+:root{
+  --bg:#e5e5e0; --surface:#f6f6f3; --sunk:#ededE8; --ink:#23241f; --muted:#5c5d55; --line:#d3d0c6;
+  --accent:#4f5a2c; --accent-ink:#f6f6f3; --ring2:#8a6236; --track:#dcd9d0; --danger:#9b3a24; --good:#3d6b2f;
+  --display:"Young Serif", Georgia, serif; --body:"Figtree", -apple-system, "Segoe UI", system-ui, sans-serif; color-scheme:light;
+}
+@media (prefers-color-scheme: dark){:root{
+  --bg:#171814; --surface:#22231e; --sunk:#1c1d19; --ink:#ecebe4; --muted:#a6a798; --line:#393a31;
+  --accent:#b3c083; --accent-ink:#1b1c16; --ring2:#d1a46f; --track:#34352d; --danger:#e58f72; --good:#a9c98a; color-scheme:dark }}
+*{box-sizing:border-box}
+html,body{margin:0;background:var(--bg);color:var(--ink);font-family:var(--body);font-size:17px;line-height:1.45;-webkit-text-size-adjust:100%}
+body{padding:calc(env(safe-area-inset-top,0px) + 14px) 16px calc(env(safe-area-inset-bottom,0px) + 24px)}
+h1,h2{font-family:var(--display);font-weight:400;margin:0;line-height:1.15;text-wrap:balance}
+h1{font-size:clamp(1.8rem,7vw,2.4rem)} h2{font-size:1.35rem}
+p{margin:0;text-wrap:pretty}
+button{font:inherit;color:inherit;cursor:pointer;touch-action:manipulation}
+.wrap{max-width:560px;margin:0 auto;display:flex;flex-direction:column;gap:14px}
+.card{background:var(--surface);border:1px solid var(--line);border-radius:22px;padding:16px;display:flex;flex-direction:column;gap:12px}
+.row{display:flex;gap:10px;align-items:center;flex-wrap:wrap}.between{justify-content:space-between}
+.muted{color:var(--muted)}.small{font-size:.88rem}
+.btn{min-height:52px;padding:0 20px;border-radius:999px;border:1px solid var(--line);background:var(--surface);font-weight:600}
+.btn.primary{background:var(--accent);color:var(--accent-ink);border-color:transparent}
+.btn.block{width:100%}
+.btn:disabled{opacity:.45;cursor:default}
+.top{display:flex;justify-content:space-between;align-items:center;gap:10px}
+.top a{color:var(--muted);font-size:.9rem}
+.bar{height:10px;border-radius:99px;background:var(--track);overflow:hidden}.bar i{display:block;height:100%;background:var(--accent);transition:width .3s}
+.level{display:flex;align-items:center;gap:14px;width:100%;text-align:left;padding:14px;border-radius:18px;border:1px solid var(--line);background:var(--surface)}
+.level .n{width:42px;height:42px;border-radius:50%;display:grid;place-items:center;background:var(--sunk);font-weight:800;flex:none}
+.level.done .n{background:var(--accent);color:var(--accent-ink)}
+.level:disabled{opacity:.5}
+.level b{display:block}
+.kit{width:100%;height:auto;display:block;background:var(--sunk);border-radius:18px}
+.kit .p{fill:var(--surface);stroke:var(--ink);stroke-width:1.6;transition:fill .15s}
+.kit .stand{stroke:var(--muted);stroke-width:2;fill:none}
+.kit g[data-k].on .p{fill:var(--accent)}
+.kit g[data-k].on{filter:drop-shadow(0 0 6px var(--accent))}
+.kit g[data-k].bad .p{fill:var(--danger)}
+.kit.tap g[data-k]{cursor:pointer}
+.kit.tap g[data-k]:focus-visible .p{stroke:var(--ring2);stroke-width:3}
+.kit .hh-top{transition:transform .2s}
+.kit.open .hh-top{transform:translateY(-9px)}
+.kit .lbl{font:600 12px var(--body);fill:var(--ink);paint-order:stroke;stroke:var(--sunk);stroke-width:4px}
+.staff{color:var(--ink);background:var(--sunk);border-radius:14px;padding:6px 8px}
+.staff svg{display:block;width:100%;height:auto}
+.opts{display:grid;grid-template-columns:1fr 1fr;gap:10px}.opts.one{grid-template-columns:1fr}
+.opt{border:2px solid var(--line);background:var(--surface);border-radius:16px;padding:8px;min-height:56px;font-weight:600}
+.opt .staff{padding:2px 4px}
+.opt.right{border-color:var(--good);box-shadow:0 0 0 2px var(--good)}
+.opt.wrong{border-color:var(--danger);opacity:.7}
+.fb{border-radius:18px;padding:14px;display:flex;flex-direction:column;gap:10px}
+.fb.good{background:color-mix(in srgb,var(--good) 18%,var(--surface))}
+.fb.bad{background:color-mix(in srgb,var(--danger) 14%,var(--surface))}
+.big{font-family:var(--display);font-size:1.7rem;line-height:1.1}
+.tip{background:var(--sunk);border-radius:14px;padding:10px 12px}
+.seq{display:flex;gap:8px;justify-content:center}
+.seq span{width:34px;height:34px;border-radius:50%;display:grid;place-items:center;background:var(--sunk);font-weight:800}
+.seq span.ok{background:var(--accent);color:var(--accent-ink)}
+.seq span.now{outline:3px solid var(--ring2)}
+.cert{text-align:center;border:3px double var(--accent);align-items:center}
+.stars{font-size:1.6rem;letter-spacing:4px}
+input[type=text]{width:100%;min-height:52px;border-radius:14px;border:1px solid var(--line);background:var(--surface);padding:0 14px;font:inherit;color:inherit}
+@media (prefers-reduced-motion:reduce){*{transition:none!important}}
+</style>
+</head>
+<body>
+<main class="wrap" id="app" aria-live="polite"></main>
+<script src="notation.js?v=85"></script>
+<script>
+'use strict';
+// Notenspiel für Anfänger: jedes Schlagzeugteil mit Bild, Note und Klang lernen, dann mehrfach prüfen.
+// Fertig ist man erst, wenn jedes Teil mehrmals hintereinander richtig erkannt wurde und die Abschlussprüfung bestanden ist.
+const ITEMS = [
+  { k: 'bd', name: 'Bassdrum', where: 'im untersten Zwischenraum', play: 'mit dem rechten Fuß über das Pedal', tip: 'Die tiefste Trommel steht auch in den Noten ganz unten. Der Hals zeigt nach unten, weil du sie mit dem Fuß spielst.' },
+  { k: 'sn', name: 'Snare', where: 'im 3. Zwischenraum von unten', play: 'mit den Sticks, sie steht zwischen deinen Knien', tip: 'Die Snare ist die Mitte vom Schlagzeug und sitzt auch in der Mitte der Noten.' },
+  { k: 'hh', name: 'HiHat', where: 'als X über der obersten Linie', play: 'mit dem Stick, der linke Fuß hält die zwei Becken zu', tip: 'Becken bekommen ein X statt einem runden Notenkopf.' },
+  { k: 't1', name: 'Tom 1', where: 'im obersten Zwischenraum', play: 'mit dem Stick, links oben auf der Bassdrum', tip: 'Tom 1 ist die höchste Trommel, darum ist sie die höchste runde Note.' },
+  { k: 't2', name: 'Tom 2', where: 'auf der 4. Linie von unten', play: 'mit dem Stick, rechts oben auf der Bassdrum', tip: 'Tom 2 klingt tiefer als Tom 1, darum sitzt sie eine Stufe tiefer.' },
+  { k: 'ft', name: 'Standtom', where: 'im 2. Zwischenraum von unten', play: 'mit dem Stick, sie steht rechts neben dir auf eigenen Beinen', tip: 'Die Standtom klingt tief und sitzt darum weit unten, direkt über der Bassdrum.' },
+  { k: 'cr', name: 'Crash', where: 'als X über der kleinen Hilfslinie', play: 'mit dem Stick, links oben, für laute Akzente', tip: 'Die Crash ist das höchste Zeichen: das X schwebt über der Hilfslinie.' },
+  { k: 'rd', name: 'Ride', where: 'als X genau auf der kleinen Hilfslinie', play: 'mit dem Stick, rechts das große Becken', tip: 'Die Ride hat ihre eigene kleine Linie über dem Notensystem. Das X sitzt genau darauf.' },
+  { k: 'ho', name: 'HiHat offen', where: 'als X über der obersten Linie mit einem kleinen o darüber', play: 'wie die HiHat, aber der linke Fuß lockert, die Becken klingen offen', tip: 'Das kleine o heißt offen. Ohne o ist die HiHat zu.' },
+  { k: 'hf', name: 'HiHat Fuß', where: 'als X unter dem Notensystem', play: 'nur mit dem linken Fuß das HiHat Pedal treten', tip: 'Unter dem Notensystem und mit X: ein Becken, das du mit dem Fuß spielst.' },
+];
+const BY = Object.fromEntries(ITEMS.map((x) => [x.k, x]));
+const GROUPS = [['bd', 'sn', 'hh'], ['t1', 't2', 'ft'], ['cr', 'rd', 'ho', 'hf']];
+const TAPPABLE = ITEMS.map((x) => x.k).filter((k) => k !== 'ho'); // offene HiHat ist am Bild dieselbe HiHat
+const LEVELS = [
+  { id: 1, title: 'Entdecken', text: 'Lerne jedes Teil kennen: Bild, Klang und Note.' },
+  { id: 2, title: 'Tipp aufs Schlagzeug', text: 'Du siehst eine Note und tippst auf das richtige Teil.', type: 'tapKit', items: TAPPABLE, need: 2 },
+  { id: 3, title: 'Welche Note ist es?', text: 'Du siehst das Teil und wählst die richtige Note.', type: 'noteChoice', items: ITEMS.map((x) => x.k), need: 2 },
+  { id: 4, title: 'Wie heißt die Note?', text: 'Du siehst eine Note und wählst den Namen.', type: 'nameChoice', items: ITEMS.map((x) => x.k), need: 2 },
+  { id: 5, title: 'Hör genau', text: 'Du hörst einen Klang und tippst auf das Teil.', type: 'hear', items: TAPPABLE, need: 1 },
+  { id: 6, title: 'Nachspielen', text: 'Lies vier Noten und spiel sie auf dem Bild nach.', type: 'seq', rounds: 5 },
+  { id: 7, title: 'Abschlussprüfung', text: '12 Fragen gemischt. Mit 11 richtigen bist du Notenprofi.', type: 'exam' },
+];
+const KEY = 'ph_notenspiel';
+let P = load();
+let G = null; // laufende Runde
+function load() { try { return Object.assign({ name: '', done: {}, cert: null }, JSON.parse(localStorage.getItem(KEY) || '{}')); } catch (e) { return { name: '', done: {}, cert: null }; } }
+function save() { try { localStorage.setItem(KEY, JSON.stringify(P)); } catch (e) {} }
+if (!P.name) { try { const n = JSON.parse(localStorage.getItem('ph_name') || 'null'); if (n) P.name = String(n).split(' ')[0]; } catch (e) {} }
+
+const $ = (s) => document.querySelector(s);
+const esc = (t) => String(t).replace(/[&<>"]/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' })[c]);
+const shuffle = (a) => { a = a.slice(); for (let i = a.length - 1; i > 0; i--) { const j = Math.floor(Math.random() * (i + 1)); [a[i], a[j]] = [a[j], a[i]]; } return a; };
+const pick = (a) => a[Math.floor(Math.random() * a.length)];
+const POS = Object.fromEntries(DrumNotation.ROWS.map((r) => [r.k, r.p]));
+
+// Noten: vier Viertel auf einem Teil, oder eine Folge aus vier verschiedenen Teilen
+function noteOf(ks) { const n = DrumNotation.empty('4/4', 1, 80); (Array.isArray(ks) ? ks : [ks, ks, ks, ks]).forEach((k, i) => { if (k) n.tracks[k].push(i * 4); }); return n; }
+function staff(ks, label) { return `<div class="staff">${DrumNotation.render(noteOf(ks), { barsPerLine: 1, stepWidth: 15, label: label || 'Noten' })}</div>`; }
+function sound(k, times = 1) { for (let i = 0; i < times; i++) setTimeout(() => { try { DrumNotation.hit(k); } catch (e) {} }, i * 380); }
+
+// Schlagzeug als Bild. Jedes Teil ist eine Gruppe mit data-k, damit es leuchten und antippbar sein kann.
+function kit(opts = {}) {
+  const on = opts.on || [], bad = opts.bad || [], tap = !!opts.tap, open = on.includes('ho');
+  const g = (k, body, label) => {
+    const kk = k === 'hh' && open ? 'ho' : k;
+    const cls = [on.includes(kk) || (k === 'hh' && on.includes('ho')) ? 'on' : '', bad.includes(k) ? 'bad' : ''].join(' ');
+    return `<g data-k="${k}" class="${cls}" ${tap ? `role="button" tabindex="0" aria-label="${esc(BY[k].name)}"` : 'aria-hidden="true"'}>${body}${opts.labels ? label : ''}</g>`;
+  };
+  const lbl = (x, y, t) => `<text class="lbl" x="${x}" y="${y}" text-anchor="middle">${t}</text>`;
+  return `<svg class="kit${tap ? ' tap' : ''}${open ? ' open' : ''}" viewBox="0 0 360 250" role="img" aria-label="Schlagzeug">
+    <g class="stand"><path d="M70 52V238M58 238h24M300 64V238M288 238h24M38 112V232M98 168l-14 70M120 168l14 70M268 196l-6 42M312 196l6 42"/></g>
+    ${g('bd', `<circle class="p" cx="180" cy="176" r="58"/><circle cx="180" cy="176" r="44" fill="none" stroke="var(--line)" stroke-width="1.5"/><path class="p" d="M168 234h24l4 8h-32z"/>`, lbl(180, 182, 'Bassdrum'))}
+    ${g('t1', `<rect class="p" x="120" y="90" width="48" height="30" rx="6"/><ellipse class="p" cx="144" cy="90" rx="24" ry="7"/>`, lbl(144, 112, 'Tom 1'))}
+    ${g('t2', `<rect class="p" x="192" y="90" width="48" height="30" rx="6"/><ellipse class="p" cx="216" cy="90" rx="24" ry="7"/>`, lbl(216, 112, 'Tom 2'))}
+    ${g('ft', `<rect class="p" x="258" y="146" width="64" height="54" rx="8"/><ellipse class="p" cx="290" cy="146" rx="32" ry="9"/>`, lbl(290, 180, 'Standtom'))}
+    ${g('sn', `<rect class="p" x="78" y="146" width="62" height="24" rx="6"/><ellipse class="p" cx="109" cy="146" rx="31" ry="8"/>`, lbl(109, 164, 'Snare'))}
+    ${g('hh', `<ellipse class="p" cx="38" cy="114" rx="30" ry="5"/><g class="hh-top"><ellipse class="p" cx="38" cy="108" rx="30" ry="5"/></g>`, lbl(38, 98, 'HiHat'))}
+    ${g('hf', `<path class="p" d="M22 226l30-6 4 8-30 8z"/><rect class="p" x="16" y="234" width="44" height="6" rx="3"/>`, lbl(40, 218, 'Fuß'))}
+    ${g('cr', `<ellipse class="p" cx="70" cy="50" rx="50" ry="8" transform="rotate(-8 70 50)"/><circle cx="70" cy="50" r="3" fill="var(--ink)"/>`, lbl(70, 36, 'Crash'))}
+    ${g('rd', `<ellipse class="p" cx="300" cy="62" rx="52" ry="9" transform="rotate(8 300 62)"/><circle cx="300" cy="62" r="3" fill="var(--ink)"/>`, lbl(300, 46, 'Ride'))}
+  </svg>`;
+}
+
+// Bildschirme
+function topBar(title, back = true) { return `<div class="top">${back ? '<button class="btn" data-act="home" style="min-height:44px;padding:0 16px">Übersicht</button>' : '<a href="./">Zur Practice Hub App</a>'}<span class="small muted">${esc(title)}</span></div>`; }
+function render() { const v = G ? G.view() : homeView(); $('#app').innerHTML = v; }
+function homeView() {
+  const next = LEVELS.find((l) => !P.done[l.id]);
+  return `${topBar('Notenspiel', false)}
+    <h1>Schlagzeug Noten lernen</h1>
+    <p class="muted">Lerne, welche Note zu welchem Teil vom Schlagzeug gehört. Spiel die Stufen der Reihe nach. Am Ende kennst du alle Noten.</p>
+    <div class="card"><label for="nm" class="small muted">Dein Vorname (für die Urkunde)</label><input type="text" id="nm" maxlength="30" value="${esc(P.name)}" autocomplete="given-name"></div>
+    ${kit({ labels: true })}
+    <div class="col" style="display:flex;flex-direction:column;gap:10px">${LEVELS.map((l, i) => {
+      const open = i === 0 || P.done[LEVELS[i - 1].id];
+      return `<button class="level ${P.done[l.id] ? 'done' : ''}" data-act="level" data-id="${l.id}" ${open ? '' : 'disabled'}><span class="n">${P.done[l.id] ? '✓' : l.id}</span><span><b>${esc(l.title)}</b><span class="small muted">${esc(l.text)}</span></span></button>`;
+    }).join('')}</div>
+    ${P.cert ? `<button class="btn primary block" data-act="cert">Meine Urkunde ansehen</button>` : next ? `<button class="btn primary block" data-act="level" data-id="${next.id}">${next.id === 1 ? 'Los geht’s' : 'Weiter mit Stufe ' + next.id}</button>` : ''}
+    ${Object.keys(P.done).length ? '<button class="btn block" data-act="reset">Von vorne anfangen</button>' : ''}`;
+}
+
+// Stufe 1: Entdecken mit kleiner Prüfung nach jeder Gruppe
+function learnRun() {
+  const steps = [];
+  steps.push({ t: 'rule' });
+  GROUPS.forEach((gr, gi) => { gr.forEach((k) => steps.push({ t: 'card', k })); steps.push({ t: 'check', ks: gr, gi }); });
+  let i = 0;
+  const run = { id: 1, check: null };
+  run.view = () => {
+    const s = steps[i], prog = Math.round((i / steps.length) * 100);
+    const head = `${topBar('Stufe 1: Entdecken')}<div class="bar" aria-hidden="true"><i style="width:${prog}%"></i></div>`;
+    if (s.t === 'rule') return `${head}<div class="card"><h2>Zwei Regeln zuerst</h2>
+      <p><b>Trommeln</b> haben einen runden Notenkopf. <b>Becken</b> haben ein X.</p>
+      <p>Je <b>höher</b> die Note steht, desto höher klingt das Teil. Ganz unten ist die Bassdrum, ganz oben die Becken.</p>
+      <p>Das Notensystem hat 5 Linien. Wir zählen <b>von unten</b>.</p></div>
+      <button class="btn primary block" data-act="next">Verstanden</button>`;
+    if (s.t === 'card') { const it = BY[s.k]; return `${head}<div class="card">
+      <p class="small muted">Neues Teil</p><p class="big">${esc(it.name)}</p>
+      ${kit({ on: [s.k], tap: true })}
+      <p class="small muted">Tipp auf das Schlagzeug, um jedes Teil zu hören.</p>
+      ${staff(s.k, 'Noten: ' + it.name)}
+      <p><b>So steht sie in den Noten:</b> ${esc(it.where)}.</p>
+      <p><b>So spielst du sie:</b> ${esc(it.play)}.</p>
+      <p class="tip">${esc(it.tip)}</p>
+      <button class="btn block" data-act="hear" data-k="${s.k}">Anhören</button></div>
+      <button class="btn primary block" data-act="next">Weiter</button>`; }
+    // kleine Prüfung: jede Note der Gruppe muss einmal richtig benannt werden
+    if (!run.check) run.check = { left: shuffle(s.ks), cur: null, answered: null };
+    const c = run.check; if (!c.cur) c.cur = c.left[0];
+    const opts = run.opts || (run.opts = shuffle(s.ks.concat(s.gi > 0 ? [pick(GROUPS[s.gi - 1])] : [])));
+    return `${head}<div class="card"><p class="small muted">Kurzer Test ${s.gi + 1} von 3: noch ${c.left.length}</p><h2>Welches Teil ist diese Note?</h2>
+      ${staff(c.cur)}
+      ${c.answered ? feedback(c.answered.ok, c.cur, c.answered.pick) : `<div class="opts">${opts.map((k) => `<button class="opt" data-act="ans" data-k="${k}">${esc(BY[k].name)}</button>`).join('')}</div>`}</div>
+      ${c.answered ? '<button class="btn primary block" data-act="next">Weiter</button>' : ''}`;
+  };
+  run.act = (act, el) => {
+    const s = steps[i];
+    if (act === 'ans' && s.t === 'check') { const c = run.check; const ok = el.dataset.k === c.cur; c.answered = { ok, pick: el.dataset.k }; sound(c.cur); if (ok) c.left.shift(); else c.left.push(c.left.shift()); return render(); }
+    if (act === 'next') {
+      if (s.t === 'check') { const c = run.check; if (c.answered) { c.answered = null; c.cur = c.left[0] || null; run.opts = null; if (c.left.length) return render(); } run.check = null; }
+      i++; if (i >= steps.length) return finishLevel(1); window.scrollTo(0, 0); return render();
+    }
+  };
+  return run;
+}
+
+// Rückmeldung: richtig oder falsch, immer mit Bild, Note und Merksatz
+function feedback(ok, k, picked, noKit) {
+  const it = BY[k];
+  return `<div class="fb ${ok ? 'good' : 'bad'}"><p class="big">${ok ? 'Richtig!' : 'Fast.'}</p>
+    <p>${ok ? 'Das ist die <b>' + esc(it.name) + '</b>.' : (picked ? 'Du hast <b>' + esc(BY[picked].name) + '</b> gewählt. ' : '') + 'Richtig ist die <b>' + esc(it.name) + '</b>.'}</p>
+    ${noKit ? '' : kit({ on: [k], bad: !ok && picked && picked !== k && TAPPABLE.includes(picked) ? [picked] : [] })}
+    ${ok ? '' : `${staff(k, 'Noten: ' + it.name)}<p class="tip">${esc(it.name)} steht ${esc(it.where)}. ${esc(it.tip)}</p>`}</div>`;
+}
+
+// Übungsstufen: jedes Teil muss "need" Mal hintereinander richtig sein
+function masteryRun(lv, items, need, type, examMode) {
+  const run = { id: lv.id, count: Object.fromEntries(items.map((k) => [k, 0])), last: null, cur: null, answered: null, wrongs: 0 };
+  const left = () => items.filter((k) => run.count[k] < need);
+  const nextQ = () => { const l = left(); let c = l.filter((k) => k !== run.last); if (!c.length) c = l; run.cur = pick(c); run.last = run.cur; run.qtype = type === 'mixed' ? pick(TAPPABLE.includes(run.cur) ? ['tapKit', 'noteChoice', 'nameChoice'] : ['noteChoice', 'nameChoice']) : type; run.opts = optionsFor(run.cur, run.qtype); if (run.qtype === 'hear') setTimeout(() => sound(run.cur, 2), 250); };
+  nextQ();
+  run.view = () => {
+    const done = items.reduce((t, k) => t + Math.min(need, run.count[k]), 0), prog = Math.round((done / (items.length * need)) * 100);
+    return `${topBar((examMode ? 'Nochmal üben' : 'Stufe ' + lv.id + ': ' + lv.title))}<div class="bar" aria-label="Fortschritt ${prog} Prozent"><i style="width:${prog}%"></i></div>
+      <div class="card">${question(run)}${run.answered ? feedback(run.answered.ok, run.cur, run.answered.pick, run.qtype === 'noteChoice') : ''}</div>
+      ${run.answered ? '<button class="btn primary block" data-act="next">Weiter</button>' : ''}
+      <p class="small muted" style="text-align:center">Jedes Teil ${need === 1 ? 'einmal' : need + ' mal hintereinander'} richtig, dann ist die Stufe geschafft.</p>`;
+  };
+  run.act = (act, el) => {
+    if ((act === 'ans' || act === 'tap') && !run.answered) {
+      const ok = el.dataset.k === run.cur; run.answered = { ok, pick: el.dataset.k };
+      run.count[run.cur] = ok ? run.count[run.cur] + 1 : 0; if (!ok) run.wrongs++;
+      sound(run.cur); return render();
+    }
+    if (act === 'replay') return sound(run.cur, 2);
+    if (act === 'next') { run.answered = null; if (!left().length) return examMode ? examMode() : finishLevel(lv.id, run.wrongs); nextQ(); window.scrollTo(0, 0); return render(); }
+  };
+  return run;
+}
+function optionsFor(k, type) {
+  if (type === 'tapKit' || type === 'hear') return null;
+  // Falsche Antworten möglichst aus der Nähe (ähnliche Position), damit genau gelesen werden muss
+  const near = ITEMS.map((x) => x.k).filter((x) => x !== k).sort((a, b) => Math.abs(POS[a] - POS[k]) - Math.abs(POS[b] - POS[k]) || Math.random() - 0.5);
+  const pool = near.slice(0, 5); const wrong = shuffle(pool).slice(0, 3);
+  if (k === 'hh' && !wrong.includes('ho')) wrong[0] = 'ho'; if (k === 'ho' && !wrong.includes('hh')) wrong[0] = 'hh';
+  if (k === 'rd' && !wrong.includes('cr')) wrong[1] = 'cr'; if (k === 'cr' && !wrong.includes('rd')) wrong[1] = 'rd';
+  return shuffle([k].concat(wrong));
+}
+function question(run) {
+  const k = run.cur, it = BY[k], a = run.answered;
+  if (run.qtype === 'tapKit') return `<h2>Tipp auf das Teil zu dieser Note</h2>${staff(k)}${a ? '' : kit({ tap: true })}`;
+  if (run.qtype === 'hear') return `<h2>Was hörst du? Tipp auf das Teil.</h2><button class="btn block" data-act="replay">Nochmal anhören</button>${a ? '' : kit({ tap: true })}`;
+  if (run.qtype === 'noteChoice') return `<h2>Welche Note ist die ${esc(it.name)}?</h2>${kit({ on: [k] })}${a ? '' : `<div class="opts one">${run.opts.map((o, i) => `<button class="opt" data-act="ans" data-k="${o}" aria-label="Antwort ${i + 1}">${staff(o, 'Antwort')}</button>`).join('')}</div>`}`;
+  return `<h2>Wie heißt diese Note?</h2>${staff(k)}${a ? '' : `<div class="opts">${run.opts.map((o) => `<button class="opt" data-act="ans" data-k="${o}">${esc(BY[o].name)}</button>`).join('')}</div>`}`;
+}
+
+// Stufe 6: vier Noten lesen und in der richtigen Reihenfolge auf dem Bild antippen
+function seqRun(lv) {
+  const pool = TAPPABLE;
+  const make = () => { const s = []; while (s.length < 4) { const k = pick(pool); if (s[s.length - 1] !== k) s.push(k); } return s; };
+  const run = { id: lv.id, round: 0, seq: make(), pos: 0, miss: null, wrongs: 0 };
+  run.view = () => `${topBar('Stufe 6: Nachspielen')}<div class="bar"><i style="width:${Math.round((run.round / lv.rounds) * 100)}%"></i></div>
+    <div class="card"><p class="small muted">Runde ${run.round + 1} von ${lv.rounds}</p><h2>Lies die Noten von links nach rechts und tipp sie nach</h2>
+      ${staff(run.seq, 'Vier Noten')}
+      <p class="small muted">Füße (Hals nach unten) und Hände werden getrennt geschrieben. Die kleinen Zeichen dazwischen sind Pausen: dort spielt nur die andere Seite.</p>
+      <div class="seq">${run.seq.map((k, i) => `<span class="${i < run.pos ? 'ok' : i === run.pos ? 'now' : ''}">${i + 1}</span>`).join('')}</div>
+      ${run.miss ? `<div class="fb bad"><p class="big">Fast.</p><p>Note ${run.pos + 1} ist die <b>${esc(BY[run.seq[run.pos]].name)}</b>, nicht ${esc(BY[run.miss].name)}.</p>${kit({ on: [run.seq[run.pos]], bad: [run.miss] })}<p class="tip">${esc(BY[run.seq[run.pos]].name)} steht ${esc(BY[run.seq[run.pos]].where)}.</p></div>` : kit({ tap: true, on: run.flash ? [run.flash] : [] })}</div>
+    ${run.miss ? '<button class="btn primary block" data-act="next">Nochmal von vorne</button>' : ''}`;
+  run.act = (act, el) => {
+    if (act === 'tap' && !run.miss) {
+      const k = el.dataset.k; sound(k);
+      if (k !== run.seq[run.pos]) { run.miss = k; run.wrongs++; return render(); }
+      run.pos++; run.flash = k;
+      if (run.pos >= 4) { run.round++; if (run.round >= lv.rounds) return setTimeout(() => finishLevel(lv.id, run.wrongs), 350); setTimeout(() => { run.seq = make(); run.pos = 0; run.flash = null; render(); }, 600); }
+      return render();
+    }
+    if (act === 'next') { run.miss = null; run.pos = 0; run.flash = null; return render(); }
+  };
+  return run;
+}
+
+// Stufe 7: Prüfung. Jedes Teil kommt mindestens einmal, Fragearten gemischt. 11 von 12 richtig.
+function examRun(lv) {
+  const ks = shuffle(ITEMS.map((x) => x.k).concat(shuffle(TAPPABLE).slice(0, 2)));
+  const qs = ks.map((k) => ({ k, type: pick(TAPPABLE.includes(k) ? ['tapKit', 'noteChoice', 'nameChoice', 'hear'] : ['noteChoice', 'nameChoice']) }));
+  const run = { id: lv.id, i: 0, right: 0, missed: [], answered: null };
+  const setQ = () => { const q = qs[run.i]; run.cur = q.k; run.qtype = q.type; run.opts = optionsFor(q.k, q.type); if (q.type === 'hear') setTimeout(() => sound(q.k, 2), 250); };
+  setQ();
+  run.view = () => {
+    if (run.i >= qs.length) {
+      const pass = run.right >= 11;
+      return `${topBar('Abschlussprüfung')}<div class="card" style="text-align:center;align-items:center"><p class="big">${run.right} von ${qs.length} richtig</p>
+        ${pass ? '<p>Bestanden! Du kennst alle Noten.</p>' : `<p>Noch nicht ganz. Übe diese Teile nochmal, dann versuchst du die Prüfung neu:</p><p><b>${[...new Set(run.missed)].map((k) => esc(BY[k].name)).join(', ')}</b></p>`}</div>
+        <button class="btn primary block" data-act="${pass ? 'certNow' : 'practiceMissed'}">${pass ? 'Zur Urkunde' : 'Diese Teile üben'}</button>`;
+    }
+    return `${topBar('Abschlussprüfung')}<div class="bar"><i style="width:${Math.round((run.i / qs.length) * 100)}%"></i></div>
+      <div class="card"><p class="small muted">Frage ${run.i + 1} von ${qs.length}</p>${question(run)}${run.answered ? feedback(run.answered.ok, run.cur, run.answered.pick, run.qtype === 'noteChoice') : ''}</div>
+      ${run.answered ? '<button class="btn primary block" data-act="next">Weiter</button>' : ''}`;
+  };
+  run.act = (act, el) => {
+    if ((act === 'ans' || act === 'tap') && !run.answered && run.i < qs.length) { const ok = el.dataset.k === run.cur; run.answered = { ok, pick: el.dataset.k }; if (ok) run.right++; else run.missed.push(run.cur); sound(run.cur); return render(); }
+    if (act === 'replay') return sound(run.cur, 2);
+    if (act === 'next') { run.answered = null; run.i++; if (run.i < qs.length) setQ(); window.scrollTo(0, 0); return render(); }
+    if (act === 'certNow') { P.done[7] = true; P.cert = new Date().toISOString().slice(0, 10); save(); G = null; return showCert(); }
+    if (act === 'practiceMissed') { const miss = [...new Set(run.missed)]; G = masteryRun({ id: 7, title: 'Nochmal üben' }, miss, 2, 'mixed', () => { G = examRun(lv); window.scrollTo(0, 0); render(); }); return render(); }
+  };
+  return run;
+}
+
+function finishLevel(id, wrongs = 0) {
+  P.done[id] = true; save();
+  const stars = wrongs === 0 ? 3 : wrongs <= 3 ? 2 : 1;
+  const next = LEVELS.find((l) => l.id === id + 1);
+  G = { view: () => `${topBar('Geschafft')}<div class="card" style="text-align:center;align-items:center"><p class="stars" aria-label="${stars} von 3 Sternen">${'★'.repeat(stars)}${'☆'.repeat(3 - stars)}</p><p class="big">Stufe ${id} geschafft!</p><p class="muted">${wrongs ? wrongs + (wrongs === 1 ? ' Fehler' : ' Fehler') + ', und trotzdem alles gelernt.' : 'Ohne einen Fehler. Stark!'}</p></div>
+      ${next ? `<button class="btn primary block" data-act="level" data-id="${next.id}">Weiter mit Stufe ${next.id}: ${esc(next.title)}</button>` : ''}<button class="btn block" data-act="home">Zur Übersicht</button>`, act: () => {} };
+  window.scrollTo(0, 0); render();
+}
+function showCert() {
+  G = { view: () => `${topBar('Urkunde')}<div class="card cert"><p class="small muted">Urkunde</p><h1>Notenprofi</h1><p class="big">${esc(P.name || 'Du')}</p>
+      <p>kennt alle Schlagzeug Noten: Bassdrum, Snare, HiHat, HiHat offen, HiHat Fuß, Tom 1, Tom 2, Standtom, Ride und Crash.</p>
+      ${kit({ on: ITEMS.map((x) => x.k).filter((k) => k !== 'ho'), labels: true })}
+      <p class="small muted">Bestanden am ${esc(new Date(P.cert || Date.now()).toLocaleDateString('de-DE'))} · Practice Hub</p></div>
+      <p class="small muted" style="text-align:center">Mach ein Bildschirmfoto und zeig es deinem Lehrer.</p>
+      <button class="btn block" data-act="home">Zur Übersicht</button>`, act: () => {} };
+  window.scrollTo(0, 0); render();
+}
+function startLevel(id) {
+  const lv = LEVELS.find((l) => l.id === id);
+  G = id === 1 ? learnRun() : lv.type === 'seq' ? seqRun(lv) : lv.type === 'exam' ? examRun(lv) : masteryRun(lv, lv.items, lv.need, lv.type);
+  window.scrollTo(0, 0); render();
+}
+
+document.addEventListener('click', (ev) => {
+  // Antippen am Schlagzeug: in Stufe 1 nur ausprobieren, sonst Antwort
+  const part = ev.target.closest('.kit.tap g[data-k]');
+  if (part) { if (G && G.id === 1) { sound(part.dataset.k); part.classList.add('on'); setTimeout(() => part.classList.remove('on'), 250); return; } if (G && G.act) G.act('tap', part); return; }
+  const el = ev.target.closest('[data-act]'); if (!el) return;
+  const act = el.dataset.act;
+  try { DrumNotation.loadSamples(); } catch (e) {}
+  if (act === 'home') { G = null; return render(); }
+  if (act === 'level') { const nm = $('#nm'); if (nm) { P.name = nm.value.trim(); save(); } return startLevel(Number(el.dataset.id)); }
+  if (act === 'cert') return showCert();
+  if (act === 'hear') return sound(el.dataset.k, 4);
+  if (act === 'reset') { if (confirm('Wirklich von vorne anfangen? Dein Fortschritt wird gelöscht.')) { P = { name: P.name, done: {}, cert: null }; save(); render(); } return; }
+  if (G && G.act) G.act(act, el);
+});
+document.addEventListener('keydown', (ev) => { if ((ev.key === 'Enter' || ev.key === ' ') && ev.target.matches && ev.target.matches('.kit.tap g[data-k]')) { ev.preventDefault(); ev.target.dispatchEvent(new MouseEvent('click', { bubbles: true })); } });
+document.addEventListener('change', (ev) => { if (ev.target.id === 'nm') { P.name = ev.target.value.trim(); save(); } });
+render();
+</script>
+</body>
+</html>
