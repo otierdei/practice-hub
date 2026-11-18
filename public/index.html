@@ -223,8 +223,8 @@ details.card summary{cursor:pointer;font-family:var(--display);font-size:1.08rem
 </head>
 <body>
 <div id="app"><div class="wrap"><p class="muted">Lädt …</p></div></div>
-<script src="notation.js?v=99"></script>
-<script src="guitar.js?v=99"></script>
+<script src="notation.js?v=100"></script>
+<script src="guitar.js?v=100"></script>
 <script>
 'use strict';
 // ---------- Grundlagen ----------
@@ -324,6 +324,30 @@ function setManifest() {
   const ic = document.querySelector('link[rel="apple-touch-icon"]'); if (ic) ic.setAttribute('href', 'icon' + sfx + '-180.png');
   if (app && app.app_name) document.title = nm;
 }
+// ---------- Push für Oti (18.11.2026): Meldung, wenn ein Schüler einen Beat vorschlägt ----------
+const pushOk = () => 'serviceWorker' in navigator && 'PushManager' in window && 'Notification' in window;
+function pushCardHTML() {
+  const st = S.pushState || 'unbekannt', ios = /iPhone|iPad/.test(navigator.userAgent);
+  const hint = !pushOk() ? (ios && !STANDALONE ? 'Auf dem iPhone geht das nur in der App vom Home Bildschirm: Teilen, dann "Zum Home Bildschirm".' : 'Dieser Browser kann keine Benachrichtigungen.')
+    : st === 'an' ? 'An auf diesem Gerät. Du bekommst eine Meldung, wenn ein Schüler einen Beat vorschlägt.'
+    : typeof Notification !== 'undefined' && Notification.permission === 'denied' ? 'Blockiert. Erlaube Benachrichtigungen für Practice Hub in den Einstellungen deines Geräts.'
+    : 'Bekomme eine Meldung, wenn ein Schüler einen Beat vorschlägt.';
+  return `<section class="card" id="pushCard"><h3>Benachrichtigungen</h3><p class="small muted">${hint}</p>${pushOk() ? (st === 'an'
+    ? `<div class="row" style="gap:8px"><button class="btn small" data-act="pushTest">Test senden</button><button class="btn small" data-act="pushOff">Ausschalten</button></div>`
+    : Notification.permission === 'denied' ? '' : `<button class="btn primary" data-act="pushOn">Benachrichtigungen an</button>`) : ''}</section>`;
+}
+async function pushRefresh() { try { if (!pushOk()) return; const reg = await navigator.serviceWorker.getRegistration(); const sub = reg && await reg.pushManager.getSubscription(); const v = sub ? 'an' : 'aus'; if (S.pushState !== v) { S.pushState = v; if (S.role === 'teacher' && S.tab === 'mehr' && !S.overlay) render(); } } catch (e) {} }
+async function pushOn() {
+  if (await Notification.requestPermission() !== 'granted') { toast('Nicht erlaubt'); render(); return; }
+  const reg = await navigator.serviceWorker.ready, { publicKey } = await api('/api/t/push/key');
+  const key = Uint8Array.from(atob(publicKey.replace(/-/g, '+').replace(/_/g, '/')), (c) => c.charCodeAt(0));
+  const sub = await reg.pushManager.subscribe({ userVisibleOnly: true, applicationServerKey: key });
+  await api('/api/t/push/subscribe', sub.toJSON()); S.pushState = 'an'; render(); toast('Benachrichtigungen an');
+}
+async function pushOff() { const reg = await navigator.serviceWorker.getRegistration(); const sub = reg && await reg.pushManager.getSubscription(); if (sub) { try { await api('/api/t/push/unsubscribe', { endpoint: sub.endpoint }); } catch (e) {} await sub.unsubscribe(); } S.pushState = 'aus'; render(); toast('Benachrichtigungen aus'); }
+// Antippen der Meldung öffnet die Akte des Schülers (#s=ID)
+async function openFromHash() { const m = /[#&]s=([A-Za-z0-9-]+)/.exec(location.hash); if (!m || S.role !== 'teacher') return; history.replaceState(null, '', location.pathname + location.search); try { await openStudent(m[1]); } catch (e) {} }
+if ('serviceWorker' in navigator) navigator.serviceWorker.addEventListener('message', (e) => { if (e.data && e.data.type === 'open' && S.role === 'teacher') { const m = /[#&]s=([A-Za-z0-9-]+)/.exec(e.data.url || ''); if (m) openStudent(m[1]); } });
 async function boot() {
   const m = /[#&]c=([A-Za-z0-9-]+)/.exec(location.hash);
   if (m) {
@@ -335,7 +359,7 @@ async function boot() {
     }
   }
   setManifest();
-  if (S.token) { S.tab = TABS[S.role] ? TABS[S.role][0][0] : null; render(); await load(); flushOutbox(); }
+  if (S.token) { S.tab = TABS[S.role] ? TABS[S.role][0][0] : null; render(); await load(); flushOutbox(); if (S.role === 'teacher') { pushRefresh(); openFromHash(); } }
   else render();
 }
 async function doLogin(code) {
@@ -518,6 +542,7 @@ function teacherView() {
     <section class="card"><h3>Alte Notizen importieren</h3><p class="small muted">Datei "practice-hub-import" von deinem Mac wählen. Schüler, die es schon gibt, werden übersprungen.</p>
       <label class="btn" for="importFile" style="cursor:pointer">Importdatei wählen</label><input type="file" id="importFile" accept=".json,.tgz,application/json" class="hidden">
       <p id="importStatus" class="small" aria-live="polite">${esc(S.importMsg || '')}</p></section>
+    ${pushCardHTML()}
     <section class="card"><h3>Stimmgerät</h3>${Guitar.tunerHTML()}<button class="btn block" data-act="tuner">${S.tunerOn ? 'Stimmgerät stoppen' : 'Stimmgerät starten'}</button></section>
     <section class="card"><h3>Capo Helfer</h3>${capoHelper()}</section>
     <section class="card"><a href="datenschutz.html">Datenschutzhinweise</a><button class="btn" data-act="logout">Auf diesem Gerät abmelden</button></section>`;
@@ -1964,6 +1989,9 @@ document.addEventListener('click', async (ev) => {
       case 'beatMute': { const k = el.dataset.k; S.beatMute = (S.beatMute || []).includes(k) ? S.beatMute.filter((x) => x !== k) : (S.beatMute || []).concat(k); el.setAttribute('aria-pressed', String(S.beatMute.includes(k))); DrumNotation.setMute(S.beatMute); break; }
       case 'archiveExercise': await api('/api/t/exercise/archive', { id }); S.exercises = (await api('/api/t/exercises')).exercises; closeOverlay(); toast('Entfernt'); break;
       case 'feed': S.feed = (await api('/api/t/feed')).feed; render(); break;
+      case 'pushOn': try { await pushOn(); } catch (e) { toast('Hat nicht geklappt: ' + (e.message || e)); } break;
+      case 'pushOff': try { await pushOff(); } catch (e) { toast('Hat nicht geklappt'); } break;
+      case 'pushTest': { const r = await api('/api/t/push/test'); toast(r.sent ? 'Test gesendet' : 'Kein Gerät erreicht. Schalte die Benachrichtigungen neu an.'); if (!r.sent) { S.pushState = 'aus'; render(); } break; }
       case 'toggleClose': { const L = S.lesson; L.close_assignments = L.close_assignments.includes(id) ? L.close_assignments.filter((x) => x !== id) : L.close_assignments.concat(id); saveDraft(); render(); break; }
       case 'toggleGoal': { const L = S.lesson; L.goals_reached = L.goals_reached.includes(id) ? L.goals_reached.filter((x) => x !== id) : L.goals_reached.concat(id); saveDraft(); render(); break; }
       case 'rmAssign': DrumNotation.stop(); S.newAsgI = null; S.lesson.new_assignments.splice(Number(el.dataset.i), 1); saveDraft(); render(); break;

@@ -767,6 +767,29 @@ test('Oti bearbeitet Schüler Beat vor der Übernahme, danach nicht mehr', async
   assert.equal((await w.call('/api/t/student/beat/update', { id, title: 'Später', notation: nt }, w.t)).status, 409, 'nach Übernahme nicht mehr');
 });
 
+test('Push an Oti bei neuem Schüler Beat, nicht bei Bearbeitung, nur Lehrer abonniert', async () => {
+  const w = await world();
+  const kp = await crypto.subtle.generateKey({ name: 'ECDH', namedCurve: 'P-256' }, true, ['deriveBits']);
+  const b64 = (u) => Buffer.from(u).toString('base64url');
+  const keys = { p256dh: b64(new Uint8Array(await crypto.subtle.exportKey('raw', kp.publicKey))), auth: b64(crypto.getRandomValues(new Uint8Array(16))) };
+  const sent = []; const real = globalThis.fetch;
+  globalThis.fetch = async (u, o) => { sent.push({ u: String(u), h: o && o.headers }); return new Response(null, { status: 201 }); };
+  try {
+    assert.equal((await w.call('/api/t/push/subscribe', { endpoint: 'https://push.example/abc', keys }, w.tb)).status, 403, 'Schüler darf nicht abonnieren');
+    assert.ok((await w.call('/api/t/push/key', {}, w.t)).data.publicKey.length > 60);
+    assert.equal((await w.call('/api/t/push/subscribe', { endpoint: 'http://unsicher', keys }, w.t)).status, 400);
+    assert.equal((await w.call('/api/t/push/subscribe', { endpoint: 'https://push.example/abc', keys }, w.t)).status, 200);
+    const nt = { sig: '4/4', bars: 1, tracks: { bd: [0], sn: [4] } };
+    const id = (await w.call('/api/my/beat/save', { title: 'Push Fill', notation: nt }, w.tb)).data.id;
+    assert.equal(sent.length, 1, 'ein Push'); assert.equal(sent[0].u, 'https://push.example/abc'); assert.equal(sent[0].h['Content-Encoding'], 'aes128gcm'); assert.match(sent[0].h.Authorization, /^vapid t=/);
+    await w.call('/api/my/beat/save', { id, title: 'Push Fill 2', notation: nt }, w.tb); assert.equal(sent.length, 1, 'Bearbeiten meldet nicht');
+    globalThis.fetch = async () => new Response(null, { status: 410 });
+    assert.equal((await w.call('/api/my/beat/save', { title: 'Nach Abmeldung', notation: nt }, w.tb)).status, 200, 'Speichern klappt trotz totem Abo');
+    globalThis.fetch = async (u) => { sent.push({ u: String(u) }); return new Response(null, { status: 201 }); };
+    assert.equal((await w.call('/api/t/push/test', {}, w.t)).data.sent, 0, 'totes Abo wurde entfernt');
+  } finally { globalThis.fetch = real; }
+});
+
 test('Flam wird gespeichert, nur auf vorhandenen Noten', async () => {
   const w = await world();
   const id = (await w.call('/api/t/exercise/save', { title: 'Flam Beat', notation: { sig: '4/4', bars: 1, tracks: { sn: [0, 4] }, flam: { 'sn:0': 1, 'sn:2': 1, 'hh:0': 1 }, dyn: { 'sn:0': 'a' } } }, w.t)).data.id;

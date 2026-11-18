@@ -164,6 +164,19 @@ CREATE TABLE IF NOT EXISTS assignment_checks (
   student_done_at TEXT NOT NULL
 );
 
+-- Push an Oti (18.11.2026): Abos seiner Geräte und Schlüssel
+CREATE TABLE IF NOT EXISTS push_subs (
+  id TEXT PRIMARY KEY,
+  device_id TEXT,
+  endpoint TEXT NOT NULL UNIQUE,
+  p256dh TEXT NOT NULL,
+  auth TEXT NOT NULL,
+  created_at TEXT NOT NULL,
+  last_ok TEXT,
+  fails INTEGER NOT NULL DEFAULT 0
+);
+CREATE TABLE IF NOT EXISTS push_config (k TEXT PRIMARY KEY, v TEXT NOT NULL);
+
 -- Abgesagte Stunden (schueler, kurzfristig, lehrer)
 CREATE TABLE IF NOT EXISTS cancellations (
   id TEXT PRIMARY KEY,

@@ -131,6 +131,13 @@ let n = 0; const ok = (m) => console.log('ok ' + (++n) + ' ' + m);
   await t.evaluate(() => closeOverlay());
   await s.reload(); await s.getByText('Von Oti in die Bibliothek übernommen').first().waitFor();
   ok('Oti übernimmt Schüler Beat, Schüler sieht übernommen');
+  { // Push (18.11.2026): Karte unter Mehr, Antippen der Meldung (#s=ID) öffnet die Akte
+    await t.click('[data-tab=mehr]'); await t.locator('#pushCard').waitFor(); await t.locator('#pushCard').screenshot({ path: OUT + '/t-push-karte.png' });
+    const sid = await t.evaluate(() => S.data.students.find((x) => x.first_name === 'Jonas').id);
+    await t.evaluate((sid) => { location.hash = 's=' + sid; return openFromHash(); }, sid);
+    await t.getByRole('heading', { name: 'Jonas', exact: true }).waitFor(); assert.equal(await t.evaluate(() => location.hash), '');
+    await t.evaluate(() => closeOverlay()); await t.click('[data-tab=heute]');
+    ok('Benachrichtigungen unter Mehr, Meldung öffnet die Akte des Schülers'); }
 
   // Übungssitzung: Stoppuhr starten, 12 Minuten vorspulen, beenden
   await s.click('.card:has-text("Paradiddle Groove") [data-act=practice]');

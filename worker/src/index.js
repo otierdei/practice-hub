@@ -5,6 +5,7 @@ import { SONG_SCHEMA, syncSongs, songsHome, songDetail, parseLinkLines, slug, so
 // Rechte werden bei jeder Anfrage aus dem Gerätetoken abgeleitet, nie aus der Anfrage.
 
 import { SCHEMA } from './schema.js';
+import { newVapidKeys, sendPush } from './webpush.js';
 
 const DAY = 86400000;
 const TOKEN_DAYS = 180;
@@ -121,6 +122,24 @@ async function authenticate(env, s, req) {
   return { role: a.role, studentId: a.student_id, accessId: a.id, label: a.label, deviceId: d.id };
 }
 
+// ---------- Push an Oti (Otis Wunsch 18.11.2026): neuer Schüler Beat ----------
+const PUSH_SUBJECT = 'https://practice-hub.othniel-erdei.workers.dev/';
+async function vapidKeys(s) {
+  const hit = await s.first("SELECT v FROM push_config WHERE k = 'vapid'"); if (hit) return JSON.parse(hit.v);
+  await s.run("INSERT OR IGNORE INTO push_config (k, v) VALUES ('vapid', ?)", JSON.stringify(await newVapidKeys()));
+  return JSON.parse((await s.first("SELECT v FROM push_config WHERE k = 'vapid'")).v);
+}
+export async function pushTeacher(s, payload) {
+  const subs = await s.all('SELECT * FROM push_subs'); if (!subs.length) return { sent: 0 };
+  const v = await vapidKeys(s); let sent = 0;
+  for (const x of subs) {
+    let r; try { r = await sendPush({ endpoint: x.endpoint, keys: { p256dh: x.p256dh, auth: x.auth } }, payload, v, PUSH_SUBJECT, { topic: payload.tag }); } catch (e) { r = { ok: false, gone: false }; }
+    if (r.gone || (!r.ok && x.fails >= 9)) await s.run('DELETE FROM push_subs WHERE id = ?', x.id);
+    else if (r.ok) { sent++; await s.run('UPDATE push_subs SET last_ok = ?, fails = 0 WHERE id = ?', now(), x.id); }
+    else await s.run('UPDATE push_subs SET fails = fails + 1 WHERE id = ?', x.id);
+  }
+  return { sent };
+}
 const logRow = (who, action, entity, id, summary) => [
   'INSERT INTO log (at, by_role, by_id, action, entity, entity_id, summary) VALUES (?, ?, ?, ?, ?, ?, ?)',
   [now(), who.role, who.accessId || null, action, entity, id, str(summary, 300)],
@@ -681,6 +700,11 @@ async function route(env, req, path, body) {
     const n = (await s.first('SELECT COUNT(*) AS n FROM student_beats WHERE student_id = ?', who.studentId)).n;
     if (n >= 100) throw new HttpError(400, 'Du hast schon 100 Beats. Lösch erst einen alten.');
     const id = uid(); await s.run('INSERT INTO student_beats (id, student_id, song_id, title, notation, created_at, updated_at) VALUES (?, ?, ?, ?, ?, ?, ?)', id, who.studentId, songId, title, nt, t, t);
+    // Nur neue Vorschläge melden, Bearbeitungen nicht. Fehler beim Push dürfen das Speichern nie stören.
+    try {
+      const st = await s.first('SELECT first_name FROM students WHERE id = ?', who.studentId), sg = songId ? await s.first('SELECT title FROM songs WHERE id = ?', songId) : null;
+      await pushTeacher(s, { title: 'Neuer Beat Vorschlag', body: (st ? st.first_name : 'Schüler') + ': ' + title + (sg ? ' (Baustein zu ' + sg.title + ')' : ''), tag: 'beat-' + id, url: './#s=' + who.studentId, ts: Date.now() });
+    } catch (e) { console.log('Push:', e && e.message); }
     return { id };
   }
   if (path === '/api/goal/add' || path === '/api/goal/toggle') {
@@ -943,6 +967,15 @@ async function route(env, req, path, body) {
       else await s.batch([['INSERT INTO student_app (student_id, app_name, color) VALUES (?, ?, ?) ON CONFLICT(student_id) DO UPDATE SET app_name = excluded.app_name, color = excluded.color', [st.id, name, color]]]);
       return { ok: true, app: name || color ? { app_name: name, color } : null };
     }
+    case '/api/t/push/key': return { publicKey: (await vapidKeys(s)).publicKey };
+    case '/api/t/push/subscribe': {
+      const ep = typeof body.endpoint === 'string' && body.endpoint.length <= 1000 ? body.endpoint : '', k = body.keys || {};
+      if (!ep || !/^https:\/\//.test(ep) || typeof k.p256dh !== 'string' || typeof k.auth !== 'string' || k.p256dh.length > 200 || k.auth.length > 100) throw new HttpError(400, 'Ungültiges Abo.');
+      await s.run('INSERT INTO push_subs (id, device_id, endpoint, p256dh, auth, created_at) VALUES (?, ?, ?, ?, ?, ?) ON CONFLICT(endpoint) DO UPDATE SET p256dh = excluded.p256dh, auth = excluded.auth, device_id = excluded.device_id, fails = 0', uid(), who.deviceId, ep, k.p256dh, k.auth, now());
+      return { ok: true };
+    }
+    case '/api/t/push/unsubscribe': await s.run('DELETE FROM push_subs WHERE endpoint = ?', String(body.endpoint || '')); return { ok: true };
+    case '/api/t/push/test': return await pushTeacher(s, { title: 'Practice Hub', body: 'Benachrichtigungen sind an.', tag: 'test', url: './', ts: Date.now() });
     case '/api/t/student/beat/update': {
       // Oti bearbeitet einen Schüler Beat vor der Übernahme (Otis Wunsch 18.11.2026)
       const b = await s.first('SELECT b.id, o.beat_id AS done FROM student_beats b LEFT JOIN student_beat_official o ON o.beat_id = b.id WHERE b.id = ?', String(body.id || ''));

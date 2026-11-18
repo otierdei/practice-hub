@@ -1,6 +1,6 @@
 // Practice Hub Service Worker: App Dateien offline, API nie aus dem Cache
-const CACHE = 'ph-v99';
-const FILES = ['./', 'index.html', 'datenschutz.html', 'notenspiel.html', 'notenwerte.html', 'manifest.webmanifest', 'icon.svg', 'icon-180.png', 'icon-512.png', 'notation.js?v=99', 'guitar.js?v=99', 'fonts/young-serif.woff2', 'fonts/figtree.woff2', 'samples/bd.mp3?v=99', 'samples/sn.mp3?v=99', 'samples/t1.mp3?v=99', 'samples/t2.mp3?v=99', 'samples/ft.mp3?v=99', 'samples/cr.mp3?v=99', 'samples/hh.mp3?v=99', 'samples/ho.mp3?v=99', 'samples/rd.mp3?v=99'];
+const CACHE = 'ph-v100';
+const FILES = ['./', 'index.html', 'datenschutz.html', 'notenspiel.html', 'notenwerte.html', 'manifest.webmanifest', 'icon.svg', 'icon-180.png', 'icon-512.png', 'notation.js?v=100', 'guitar.js?v=100', 'fonts/young-serif.woff2', 'fonts/figtree.woff2', 'samples/bd.mp3?v=100', 'samples/sn.mp3?v=100', 'samples/t1.mp3?v=100', 'samples/t2.mp3?v=100', 'samples/ft.mp3?v=100', 'samples/cr.mp3?v=100', 'samples/hh.mp3?v=100', 'samples/ho.mp3?v=100', 'samples/rd.mp3?v=100'];
 self.addEventListener('install', (e) => { e.waitUntil(caches.open(CACHE).then((c) => c.addAll(FILES)).then(() => self.skipWaiting())); });
 self.addEventListener('activate', (e) => { e.waitUntil(caches.keys().then((ks) => Promise.all(ks.filter((k) => k !== CACHE).map((k) => caches.delete(k)))).then(() => self.clients.claim())); });
 self.addEventListener('fetch', (e) => {
@@ -12,4 +12,17 @@ self.addEventListener('fetch', (e) => {
     return;
   }
   e.respondWith(caches.match(e.request).then((hit) => hit || fetch(e.request)));
+});
+// Push an Oti (18.11.2026): Meldung zeigen, Antippen öffnet die Akte des Schülers
+self.addEventListener('push', (e) => {
+  let d = {}; try { d = e.data ? e.data.json() : {}; } catch (x) { d = { body: e.data ? e.data.text() : '' }; }
+  e.waitUntil(self.registration.showNotification(d.title || 'Practice Hub', { body: d.body || '', tag: d.tag || undefined, icon: 'icon-512.png', badge: 'icon-180.png', data: { url: d.url || './' } }));
+});
+self.addEventListener('notificationclick', (e) => {
+  e.notification.close(); const url = new URL((e.notification.data && e.notification.data.url) || './', self.registration.scope).href;
+  e.waitUntil(self.clients.matchAll({ type: 'window', includeUncontrolled: true }).then((cs) => {
+    const c = cs.find((x) => x.url.startsWith(self.registration.scope));
+    if (c) { c.postMessage({ type: 'open', url }); return c.focus(); }
+    return self.clients.openWindow(url);
+  }));
 });
