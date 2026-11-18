@@ -152,6 +152,9 @@ input[type=range]{accent-color:var(--ring);width:100%;min-height:32px}
 .ring-btn{display:flex;gap:12px;padding:0;border:0;background:none;cursor:pointer;border-radius:50%}
 .ring-btn:focus-visible{outline:2px solid var(--ink);outline-offset:4px}
 .day-none{opacity:.6}
+.gt-vid{display:flex;flex-direction:column;gap:4px;width:150px;text-decoration:none;color:inherit}.gt-vid img{width:150px;aspect-ratio:16/9;object-fit:cover;border-radius:10px}
+.gt-count{font-size:2.6rem;font-weight:800;text-align:center;min-height:0;line-height:1}
+.gt-count.on{min-height:3rem}
 .tour-nav{display:flex;align-items:center;justify-content:space-between;gap:8px}
 .tour-nav .btn[disabled]{opacity:.4}
 .day-row > .t{flex:1;min-width:0}
@@ -234,8 +237,8 @@ details.card summary{cursor:pointer;font-family:var(--display);font-size:1.08rem
 </head>
 <body>
 <div id="app"><div class="wrap"><p class="muted">Lädt …</p></div></div>
-<script src="notation.js?v=106"></script>
-<script src="guitar.js?v=106"></script>
+<script src="notation.js?v=107"></script>
+<script src="guitar.js?v=107"></script>
 <script>
 'use strict';
 // ---------- Grundlagen ----------
@@ -804,7 +807,7 @@ function assignmentDetailView() {
     ${n ? `<div class="nt-staff" id="asg_staff">${DrumNotation.render(n, { cursor: true, label: 'Noten', barsPerLine: 1, stepWidth: Math.max(12, Math.min(22, Math.floor(270 / DrumNotation.perBar(n.sig)))) })}</div><div class="row" style="gap:8px">${playBtn('asgPlay', '', S.asgPlaying, true)}${beatClickChip()}</div><details class="card"><summary>Metronom und Tempo</summary>${metronomeCard(a)}</details>` : notationPreview(a.notation, a.title || '')}
     ${a.url ? (ytEmbed(a.url) || `<a class="btn small" href="${esc(a.url)}" ${linkTarget(a.url)}>${linkLabel(a)}</a>`) : ''}
     ${songBlocksHTML(a)}
-    ${!n && a.song_id && S.song && S.song.parts.some((p) => p.notation) ? `<details class="card"><summary>Metronom und Tempo für die Bausteine</summary>${metronomeCard(a)}</details>` : ''}
+    ${!n && a.song_id && songInstr() !== 'guitar' && S.song && S.song.parts.some((p) => p.notation) ? `<details class="card"><summary>Metronom und Tempo für die Bausteine</summary>${metronomeCard(a)}</details>` : ''}
     ${a.song_id ? `<button class="btn" data-act="song" data-id="${esc(a.song_id)}" data-v="${esc(a.song_version || '')}">Ganzen Song öffnen${a.song_version ? ' · ' + esc(a.song_version) : ''}</button>` : ''}
     ${S.asgEdit === a.id ? `<form id="asgEditForm" class="card col"><b>Bearbeiten</b>
       ${a.part_id ? `<div class="field"><label for="ae_title">Baustein im Song</label><input id="ae_title" maxlength="120" value="${esc(a.part_title || '')}"></div><p class="small muted">Titel und Noten gehören zum Song Baustein. Änderungen gelten überall: im Song und bei allen Schülern mit diesem Baustein.</p>`
@@ -897,7 +900,13 @@ function songTempoMode(sg) {
 const songDetailCache = {};
 async function loadPartChoice(sg) {
   const box = $('#a_partBox'); if (!box) return;
-  if (S.file && isGuitarOnly(S.file.student)) { box.innerHTML = ''; return; } // Bausteine sind Schlagzeug Noten
+  if (S.file && isGuitarOnly(S.file.student)) { // Bausteine sind Schlagzeug Noten; bei Gitarre die Videos zeigen, die der Schüler bekommt
+    let g; try { g = songDetailCache[sg.id] = await api('/api/song', { id: sg.id }); } catch (e) { box.innerHTML = ''; return; }
+    const gl = (g.links || []).filter((l) => l.instrument === 'guitar').sort((x, y) => GUITAR_VERSIONS.indexOf(x.version) - GUITAR_VERSIONS.indexOf(y.version));
+    box.innerHTML = gl.length ? `<div class="col" style="gap:6px"><span class="small muted">Der Schüler sieht diese Videos:</span><div class="row" style="gap:10px">${gl.map((l) => `<a class="gt-vid" href="${esc(l.url)}" target="_blank" rel="noopener">${ytThumb(l.url) ? `<img src="${ytThumb(l.url)}" alt="" loading="lazy">` : ''}<span class="small"><b>${esc(l.version)}</b></span></a>`).join('')}</div></div>`
+      : '<p class="small muted">Dieser Song hat noch keine Gitarrenvideos. Im Song unter Videos bei Gitarre ein Playthrough und ein Tutorial hinzufügen.</p>';
+    return;
+  }
   let d; try { d = songDetailCache[sg.id] = await api('/api/song', { id: sg.id }); } catch (e) { box.innerHTML = ''; return; }
   const cur = $('#a_song') && $('#a_song').value.trim().toLowerCase(); if (cur !== sg.title.toLowerCase()) return;
   const ver = String(versionValue('a') || '').toLowerCase();
@@ -999,7 +1008,7 @@ function lessonView() {
         <section class="card"><h3>Hausaufgaben</h3><div class="list" data-sort="asg">${open.length ? open.map((a, i) => { const on = L.close_assignments.includes(a.id); return `<div class="item" data-sort-id="${a.id}">${grip(i + 1, open.length + L.new_assignments.length > 1)}<span class="t"><button class="link" data-act="asgDetail" data-id="${a.id}"><b>${esc(a.title || a.free_text)}</b></button><br><span class="muted small">${practicedFor(a, f.sessions)}${a.target_bpm ? ' · Ziel ' + a.target_bpm : ''}</span><br>${assignBadges(a)}</span><button class="check ${on ? 'on' : ''}" data-act="toggleClose" data-id="${a.id}" aria-pressed="${on}" aria-label="Als erledigt markieren">${on ? '✓' : ''}</button></div>`; }).join('') : ''}${L.new_assignments.map((a, i) => newAsgRow(a, i, open.length + i + 1)).join('')}${!open.length && !L.new_assignments.length ? '<p class="muted">Keine offenen Hausaufgaben.</p>' : ''}</div>
           <form id="assignForm" class="col">
             ${!gOnly && (S.exercises || []).some((e) => e.category === 'Aufwärmen') ? `<details id="warmBox" ${S.warmOpen ? 'open' : ''}><summary class="small muted">Aufwärmen mit einem Tipp</summary><div class="row" style="gap:6px;margin-top:6px">${S.exercises.filter((e) => e.category === 'Aufwärmen').map((e) => `<button type="button" class="chip" data-act="warmAdd" data-id="${e.id}">${esc(e.title)}</button>`).join('')}</div></details>` : ''}
-            <div class="row" style="flex-wrap:nowrap;align-items:flex-end"><div class="field" style="flex:1"><label for="a_song">Song</label><input id="a_song" list="a_songs" placeholder="Song suchen" autocomplete="off"><datalist id="a_songs">${(S.songs ? S.songs.songs : []).map((x) => `<option value="${esc(x.title)}"></option>`).join('')}</datalist></div><div style="width:170px">${versionField('a', 'Original')}</div></div>
+            <div class="row" style="flex-wrap:nowrap;align-items:flex-end"><div class="field" style="flex:1"><label for="a_song">Song</label><input id="a_song" list="a_songs" placeholder="Song suchen" autocomplete="off"><datalist id="a_songs">${(S.songs ? S.songs.songs : []).map((x) => `<option value="${esc(x.title)}"></option>`).join('')}</datalist></div>${isGuitarOnly(S.file.student) ? '' : `<div style="width:170px">${versionField('a', 'Original')}</div>`}</div>
             ${doneSongsHTML(S.file)}
             <div id="a_partBox"></div>
             <div class="field"><label for="a_ex">Aus der Bibliothek</label><select id="a_ex"><option value="">Freie Aufgabe</option>${exOpts}</select></div>
@@ -1313,7 +1322,7 @@ function songView() {
     ${songLinksSection(d, teacher)}
     ${songGuitarSection(d, teacher)}
     ${teacher && d.playedBy && d.playedBy.length ? `<p class="small muted">Gespielt von: ${d.playedBy.map(esc).join(', ')}</p>` : ''}
-    <section class="col"><h2>Bausteine${songCurVersion(d) && songVersions(d).length > 1 ? ' · ' + esc(songCurVersion(d)) : ''}</h2>
+    <section class="col${songInstr() === 'guitar' ? ' hidden' : ''}"><h2>Bausteine${songCurVersion(d) && songVersions(d).length > 1 ? ' · ' + esc(songCurVersion(d)) : ''}</h2>
       ${songVersions(d).length > 1 ? `<div class="row" style="gap:6px">${songVersions(d).map((v) => `<button class="chip" data-act="songVer" data-v="${esc(v)}" aria-pressed="${v === songCurVersion(d)}">${esc(v)}</button>`).join('')}</div>` : ''}
       ${partsFor(d, songCurVersion(d)).length ? `<div class="col" style="gap:12px" data-sort-kind="parts">${partsFor(d, songCurVersion(d)).map((p, pi, all) => `<section class="card task" data-sort-id="${p.id}"><div class="row" style="flex-wrap:nowrap;align-items:center;gap:14px">
         ${teacher && all.length > 1 && S.partEdit !== p.id ? grip(pi + 1, true) : ''}${ytThumb(p.url) ? `<button class="thumb" data-act="partVideo" data-id="${p.id}" aria-label="Video ansehen: ${esc(p.title)}"><img src="${ytThumb(p.url)}" alt="" loading="lazy" onerror="this.remove()"><span class="thumb-play">${PLAY}</span></button>` : `<span class="task-icon" aria-hidden="true">${ICON_NOTE}</span>`}
@@ -1382,7 +1391,7 @@ document.addEventListener('change', async (ev) => {
 // Welche Videos gelten gerade: Schlagzeug oder Gitarre. Stunde und Akte nach Schüler, Schüler nach eigenem Instrument, sonst Umschalter im Song.
 function songInstr() {
   if (S.songInstrPick) return S.songInstrPick;
-  if (S.role === 'teacher' && !S.preview && S.file && (S.overlay === lessonView || S.overlay === studentFileView)) return isGuitarOnly(S.file.student) ? 'guitar' : 'drums';
+  if (S.role === 'teacher' && !S.preview && S.file && (S.overlay === lessonView || S.overlay === studentFileView || S.overlay === assignmentDetailView)) return isGuitarOnly(S.file.student) ? 'guitar' : 'drums';
   const st = (S.role !== 'teacher' || S.preview) && stuData() ? stuData().student : null;
   return st && isGuitarOnly(st) ? 'guitar' : 'drums';
 }
@@ -1395,17 +1404,21 @@ function partFactor(n, songBpm) { return songBpm && n && Math.abs(n.bpm / songBp
 function partBpm(n, d) { const sb = d && d.song && d.song.bpm; return sb ? sb * partFactor(n, sb) : n.bpm; }
 // Versionen für Videos: feste Auswahl, bereits genutzte eigene und „Eigene Bezeichnung“ mit freiem Feld
 const VERSION_BASE = ['Original', 'Easy', 'Reel', 'Oti Playthrough', 'Fill'];
+// Gitarre hat eigene Video Kategorien (Otis Wunsch 18.11.2026)
+const GUITAR_VERSIONS = ['Playthrough', 'Tutorial'];
+const versionBase = () => (songInstr() === 'guitar' ? GUITAR_VERSIONS : VERSION_BASE);
 function versionField(px, cur, used = [], label = 'Version') {
-  const opts = [...new Set(VERSION_BASE.concat(used))];
+  const base = versionBase(); if (!base.includes(cur) && !used.includes(cur)) cur = base[0];
+  const opts = [...new Set(base.concat(used))];
   return `<div class="field"><label for="${px}_ver">${label}</label><select id="${px}_ver" data-ver-select="${px}">${opts.map((v) => `<option ${v === cur ? 'selected' : ''}>${esc(v)}</option>`).join('')}<option value="__eigen">Eigene Bezeichnung …</option></select></div>
     <div class="field hidden" id="${px}_custom_box"><label for="${px}_custom">Eigene Bezeichnung</label><input id="${px}_custom" maxlength="40" placeholder="z. B. Live, Akustik, Drumcam"></div>`;
 }
-const versionValue = (px) => { const v = $('#' + px + '_ver').value; return v === '__eigen' ? ($('#' + px + '_custom').value.trim() || 'Original') : v; };
+const versionValue = (px) => { if (!$('#' + px + '_ver')) return null; const v = $('#' + px + '_ver').value; return v === '__eigen' ? ($('#' + px + '_custom').value.trim() || 'Original') : v; };
 document.addEventListener('change', (ev) => { const px = ev.target.dataset && ev.target.dataset.verSelect; if (!px) return; const b = $('#' + px + '_custom_box'); if (b) { b.classList.toggle('hidden', ev.target.value !== '__eigen'); if (ev.target.value === '__eigen') $('#' + px + '_custom').focus(); } });
 function songLinksSection(d, teacher) {
-  const links = linksFor(d), versions = [...new Set(links.map((l) => l.version))];
+  const links = linksFor(d), guitar = songInstr() === 'guitar', versions = guitar ? [] : [...new Set(links.map((l) => l.version))];
   const cur = versions.includes(S.songVersion) ? S.songVersion : versions[0];
-  const list = links.filter((l) => l.version === cur);
+  const list = guitar ? links.slice().sort((x, y) => GUITAR_VERSIONS.indexOf(x.version) - GUITAR_VERSIONS.indexOf(y.version)) : links.filter((l) => l.version === cur);
   const st = (S.role !== 'teacher' || S.preview) && stuData() ? stuData().student : null, canPick = (S.role === 'teacher' && !S.preview) || (st && isDual(st));
   return `<section class="col"><div class="row between"><h2>Videos</h2>${canPick ? `<div class="row" role="group" aria-label="Instrument" style="gap:6px">${[['drums', 'Schlagzeug'], ['guitar', 'Gitarre']].map(([k, l]) => `<button class="chip" data-act="songInstr" data-v="${k}" aria-pressed="${songInstr() === k}">${l} (${(d.links || []).filter((x) => (x.instrument || 'drums') === k).length})</button>`).join('')}</div>` : ''}</div>
     ${versions.length > 1 ? `<div class="row" style="gap:6px">${versions.map((v) => `<button class="chip" data-act="songVer" data-v="${esc(v)}" aria-pressed="${v === cur}">${esc(v)}</button>`).join('')}</div>` : ''}
@@ -1500,8 +1513,13 @@ function ytId(url) { const m = /(?:youtu\.be\/|v=|shorts\/|embed\/|live\/)([A-Za
 function songBlocksHTML(a) {
   const d = S.song; if (!a || !a.song_id || !d || d.song.id !== a.song_id) return '';
   const ver = songCurVersion(d, a.song_version);
-  const vids = linksFor(d).filter((l) => l.version === ver), first = vids.find((l) => ytId(l.url));
   const student = S.role === 'student';
+  if (songInstr() === 'guitar') { // Gitarre: Playthrough und Tutorial zusammen zeigen, keine Schlagzeug Bausteine
+    const gv = linksFor(d).slice().sort((x, y) => GUITAR_VERSIONS.indexOf(x.version) - GUITAR_VERSIONS.indexOf(y.version));
+    return `${gv.length ? gv.map((l) => `<section class="col" style="gap:8px"><h3>Video · ${esc(l.title || l.version)}</h3>${ytEmbed(l.url) || `<a class="btn small" href="${esc(l.url)}" target="_blank" rel="noopener">${esc(linkLabel({ url: l.url, source_type: 'link' }))}</a>`}</section>`).join('') : (S.role === 'teacher' && !S.preview ? '<p class="small muted">Noch keine Gitarrenvideos. Im Song unter Videos bei Gitarre ein Playthrough und ein Tutorial hinzufügen.</p>' : '')}
+      ${d.guitar ? `<section class="col" style="gap:10px"><h3>Gitarre</h3>${songGuitarHTML(d)}</section>` : ''}`;
+  }
+  const vids = linksFor(d).filter((l) => l.version === ver), first = vids.find((l) => ytId(l.url));
   return `${first ? `<section class="col" style="gap:8px"><h3>Video · ${esc(ver)}</h3>${ytEmbed(first.url)}${vids.filter((l) => l !== first).map((l) => `<a class="btn small" href="${esc(l.url)}" target="_blank" rel="noopener">${esc(l.title || linkLabel({ url: l.url, source_type: /youtu/.test(l.url) ? 'youtube' : 'link' }))}</a>`).join('')}</section>` : ''}
     ${d.guitar && (isGuitarOnly((stuData() || {}).student) || isDual((stuData() || {}).student)) ? `<section class="col" style="gap:10px"><h3>Gitarre</h3>${songGuitarHTML(d)}</section>` : ''}
     ${!isGuitarOnly((stuData() || {}).student) && partsFor(d, ver).length ? `<section class="col" style="gap:10px"><h3>Bausteine${ver ? ' · ' + esc(ver) : ''}</h3>${partsFor(d, ver).map((p) => `<section class="card col" style="gap:8px"><b>${esc(p.title)}</b>${p.notes ? `<span class="small muted">${esc(p.notes)}</span>` : ''}
@@ -1620,7 +1638,7 @@ function practiceView() {
       ${gtTempoSteps(a)}
       ${metronomeCard(a)}
       ${Guitar.parse(a.notation).chords.length >= 2 ? `<div id="chgBox">${chgBoxHTML(Guitar.parse(a.notation).chords.join(' '))}</div>` : ''}
-      <div class="row">${Guitar.parse(a.notation).strum.cells.some(Boolean) ? `<button class="btn" data-act="gtPlay" data-mode="strum" style="flex:1">${Guitar.isPlaying() ? 'Stopp' : 'Schlagmuster abspielen'}</button>` : ''}${Guitar.parse(a.notation).scale ? `<button class="btn" data-act="gtPlay" data-mode="scale" style="flex:1">Tonleiter abspielen</button>` : ''}${Guitar.parse(a.notation).tab.notes.length ? `<button class="btn" data-act="gtPlay" data-mode="tab" style="flex:1">Tabs abspielen</button>` : ''}</div>` : ''}
+      <div class="gt-count" id="gtCount" aria-live="assertive"></div><p class="small muted">Mitspielen: 4 Klicks zum Einzählen, dann läuft die Übung mit Klick in Schleife, bis du Stopp drückst. Tempo stellst du oben ein.</p><div class="row">${Guitar.parse(a.notation).strum.cells.some(Boolean) ? `<button class="btn" data-act="gtPlay" data-mode="strum" style="flex:1">${Guitar.isPlaying() ? 'Stopp' : 'Mitspielen: Schlagmuster'}</button>` : ''}${Guitar.parse(a.notation).scale ? `<button class="btn" data-act="gtPlay" data-mode="scale" style="flex:1">Mitspielen: Tonleiter</button>` : ''}${Guitar.parse(a.notation).tab.notes.length ? `<button class="btn" data-act="gtPlay" data-mode="tab" style="flex:1">Mitspielen: Tabs</button>` : ''}</div>` : ''}
     ${a && DrumNotation.parse(a.notation) ? `<div class="nt-staff" id="practiceStaff">${DrumNotation.render(DrumNotation.parse(a.notation), { cursor: true, label: 'Noten: ' + (a.title || '') })}</div>
       <div class="ctl-row">${playBtn('beatPlay', '', DrumNotation.isPlaying(), false, true)}${beatClickChip(false, true)}</div>
       ${metronomeCard(a)}
@@ -2081,7 +2099,8 @@ document.addEventListener('click', async (ev) => {
         // Metronom Automatik gilt auch hier: nach X Durchläufen schneller
         const cur = el.dataset.mode === 'scale' ? Guitar.scaleCursor(root && root.querySelector('.gt-scale'), g.scale) : Guitar.cursorFor(root && root.querySelector(el.dataset.mode === 'tab' ? '.gt-tab' : '.gt-strum')); let last = -1, loops = 0;
         const onStep = (i) => { cur(i); if (i >= 0 && i < last) { loops++; const m = metAuto(); if (m.on && loops % Math.max(1, m.bars) === 0) setBpm(Math.min(m.max, MET.bpm + m.add)); } if (i >= 0) last = i; };
-        Guitar.play(g, el.dataset.mode, MET.bpm, onStep);
+        const cnt = $('#gtCount'); const onCount = (k) => { if (cnt) { cnt.textContent = k > 0 ? String(5 - k) : ''; cnt.classList.toggle('on', k > 0); } };
+        Guitar.play(g, el.dataset.mode, MET.bpm, (i) => { if (cnt && cnt.textContent) { cnt.textContent = ''; cnt.classList.remove('on'); } onStep(i); }, null, { countIn: 4, click: true, onCount });
         setPlay(el, true); break;
       }
       case 'tuner': {
