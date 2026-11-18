@@ -113,6 +113,11 @@ let n = 0; const ok = (m) => console.log('ok ' + (++n) + ' ' + m);
   assert.equal(await t.evaluate(() => stuData().sessions.filter((x) => x.seconds >= 170).length > 0), true, 'Sitzung von Aufgabe 2 gespeichert'); ok('Ab 1 min: erst speichern, dann Aufgabe 3');
   await t.click('.tour-nav [data-act=tourGo]:has-text("Vorherige")'); await t.getByText('Aufgabe 2 von ' + list.length).waitFor(); ok('Vorherige geht zurück');
   await t.evaluate(() => { clearInterval(tickTimer); store.del('run'); closeOverlay(); });
+  // ph-v105: ganzer Song ohne Baustein endet auf der Startseite
+  await t.evaluate(async () => { const sg = S.songs.songs.find((x) => x.title === 'Tempo Song E2E'); stuData().assignments.unshift({ id: 'pv-song', title: 'Tempo Song E2E', song_id: sg.id, status: 'offen', minutes_per_day: 10, created_at: new Date().toISOString() }); await goTask('pv-song'); });
+  await t.locator('#clockRing').waitFor(); await t.evaluate(() => { const r = store.get('run'); r.runningSince -= 2 * 60000; store.set('run', r); });
+  await t.click('[data-act=endPractice]'); await t.click('#finishForm button[type=submit]'); await t.waitForTimeout(800);
+  assert.equal(await t.evaluate(() => S.overlay), null, 'Startseite statt Song'); assert.equal(await t.locator('#songAfter').count(), 0); ok('Ganzer Song mit Video: zurück auf die Startseite');
   assert.deepEqual(errors, []); console.log('ALLE ' + n + ' SCHRITTE GRÜN (v101)');
   await b.close();
 })().catch((e) => { console.error('FEHLER', e); process.exit(1); });
