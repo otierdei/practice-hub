@@ -425,8 +425,7 @@ let n = 0; const ok = (m) => console.log('ok ' + (++n) + ' ' + m);
   assert.equal(await s.locator('nav [data-tab=stimmen]').count(), 1, 'Gitarrenschüler hat Stimmen'); ok('Gitarrenschüler sieht Tab Stimmen');
   await s.locator('.card:has-text("Worship Pattern G") [data-act=practice]').click();
   assert.ok(await s.locator('#practiceGuitar .gt-chord').count() >= 5); await s.click('[data-act=gtPlay][data-mode=strum]'); await s.waitForTimeout(400); ok('Schüler sieht Akkorde und spielt Schlagmuster');
-  await s.click('[data-act=gtPlay][data-mode=strum]'); assert.equal(await s.locator('#practiceGuitar .gt-sdot').count(), 18, 'Schüler sieht das Griffbrett'); await s.click('[data-act=gtPlay][data-mode=scale]'); await s.waitForTimeout(600);
-  assert.equal(await s.locator('#practiceGuitar .gt-sdot.on').count(), 1); await s.click('[data-act=gtPlay][data-mode=scale]'); ok('Schüler sieht und spielt die Tonleiter');
+  await s.click('[data-act=gtPlay][data-mode=strum]'); assert.equal(await s.locator('#practiceGuitar .gt-sdot').count(), 18, 'Schüler sieht das Griffbrett'); await s.click('[data-act=gtPlay][data-mode=scale]'); await s.waitForFunction(() => document.querySelectorAll('#practiceGuitar .gt-sdot.on').length === 1, null, { timeout: 10000 }); // erst 4 Klicks Einzählen (ph-v107) await s.click('[data-act=gtPlay][data-mode=scale]'); ok('Schüler sieht und spielt die Tonleiter');
   await s.screenshot({ path: OUT + '/s-gitarre-390-dark.png' });
   await s.click('[data-act=minimize]'); if (await s.locator('#askEnd').count()) await s.click('#askEnd [data-force="1"]'); await s.click('[data-tab=stimmen]'); await s.click('[data-act=tuner]'); await s.waitForTimeout(1500);
   await s.selectOption('#capoKey', 'A'); assert.ok((await s.textContent('body')).includes('Capo 2')); ok('Stimmgerät startet, Capo Helfer rechnet A = G mit Capo 2');
@@ -455,6 +454,8 @@ let n = 0; const ok = (m) => console.log('ok ' + (++n) + ' ' + m);
   assert.equal(await t.locator('[data-act=partPlay]').count(), 1); ok('Notenbild transkribiert, Beispiel gewählt, Baustein mit Noten gespeichert');
   { const sid = await t.evaluate(() => S.song.song.id); await t.evaluate(async (sid) => { await api('/api/t/song/links/add', { song_id: sid, lines: 'Original | https://youtu.be/abcdefghijk', version: 'Original' }).catch(() => {}); }, sid);
     const st = await t.evaluate(() => S.data.students[0].id);
+    // Jonas ist oben auf Gitarre gestellt; Bausteine und Schlagzeug Videos gibt es nur für Schlagzeug (ph-v107)
+    await t.evaluate(async (st) => { const x = (await api('/api/t/student', { id: st })).student; await api('/api/t/student/save', { ...x, instrument: 'Schlagzeug' }); }, st);
     await t.evaluate(async ([st, sid]) => { await api('/api/t/lesson/finish', { student_id: st, date: localDate(), new_assignments: [{ song_id: sid, version: 'Original', start_bpm: 45, target_bpm: 100 }] }); S.file = await api('/api/t/student', { id: st }); }, [st, sid]);
     const aid = await t.evaluate((sid) => S.file.assignments.find((a) => a.song_id === sid).id, sid);
     const keep = await t.evaluate(() => S.overlay);

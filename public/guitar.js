@@ -189,8 +189,29 @@
 
   // ---------- Klang ----------
   let ctx = null;
-  function audio() { ctx = ctx || (window.__phAudio = window.__phAudio || new (window.AudioContext || window.webkitAudioContext)()); if (ctx.state === 'suspended') ctx.resume(); return ctx; }
+  function audio() { ctx = ctx || (window.__phAudio = window.__phAudio || new (window.AudioContext || window.webkitAudioContext)()); if (ctx.state === 'suspended') ctx.resume(); loadSamples(); return ctx; }
+  // Echte Akustikgitarre (Otis Wunsch 18.11.2026): 12 Samples, dazwischen per Tonhöhe verschoben. Bis sie geladen sind, klingt der Synthesizer.
+  const SAMPLES = [['E2', 40], ['G2', 43], ['As2', 46], ['Cs3', 49], ['E3', 52], ['G3', 55], ['As3', 58], ['Cs4', 61], ['E4', 64], ['G4', 67], ['As4', 70], ['Cs5', 73]];
+  const BUF = {}; let loading = false;
+  function loadSamples() {
+    if (loading || !ctx) return; loading = true;
+    for (const [n, m] of SAMPLES) fetch('samples/gtr/' + n + '.mp3?v=1').then((r) => r.arrayBuffer()).then((b) => new Promise((ok, no) => ctx.decodeAudioData(b, ok, no))).then((buf) => { BUF[m] = buf; }).catch(() => {});
+  }
   function pluck(freq, t, dur = 1.2, peak = 0.18) {
+    const midi = 69 + 12 * Math.log2(freq / 440), near = SAMPLES.map((x) => x[1]).filter((m) => BUF[m]).sort((a, b) => Math.abs(a - midi) - Math.abs(b - midi))[0];
+    if (near != null) {
+      const src = ctx.createBufferSource(), g = ctx.createGain(); src.buffer = BUF[near]; src.playbackRate.value = Math.pow(2, (midi - near) / 12);
+      const len = Math.min(dur + 0.4, 1.8); g.gain.setValueAtTime(peak * 4, t); g.gain.setTargetAtTime(0.0001, t + len - 0.25, 0.08);
+      src.connect(g).connect(ctx.destination); src.start(t); src.stop(t + len); return;
+    }
+    synthPluck(freq, t, dur, peak);
+  }
+  function click(t, strong) {
+    const o = ctx.createOscillator(), g = ctx.createGain(); o.frequency.value = strong ? 1600 : 1100;
+    g.gain.setValueAtTime(0.0001, t); g.gain.exponentialRampToValueAtTime(strong ? 0.35 : 0.22, t + 0.002); g.gain.exponentialRampToValueAtTime(0.0001, t + 0.05);
+    o.connect(g).connect(ctx.destination); o.start(t); o.stop(t + 0.06);
+  }
+  function synthPluck(freq, t, dur = 1.2, peak = 0.18) {
     const o = ctx.createOscillator(), o2 = ctx.createOscillator(), g = ctx.createGain(), f = ctx.createBiquadFilter();
     o.type = 'triangle'; o2.type = 'sawtooth'; o.frequency.value = freq; o2.frequency.value = freq * 2;
     f.type = 'lowpass'; f.frequency.setValueAtTime(freq * 8, t); f.frequency.exponentialRampToValueAtTime(freq * 2, t + dur);
@@ -210,12 +231,17 @@
 
   // Wiedergabe: Schlagmuster über die Akkordfolge (ein Durchlauf des Musters pro Akkord) oder Tabs
   const P = { playing: false, timer: null, next: 0, step: 0, g: null, mode: 'strum', bpm: 80, queue: [], onStep: null, onChord: null };
-  function play(g, mode, bpm, onStep, onChord) {
+  // Mitspielen: opt.countIn Schläge Einzählen, opt.click Metronom auf jedem Schlag, läuft in Schleife bis Stopp
+  function play(g, mode, bpm, onStep, onChord, opt = {}) {
     stop(); audio();
-    Object.assign(P, { g, mode, bpm: bpm || g.bpm, onStep, onChord, playing: true, step: 0, queue: [] });
+    Object.assign(P, { g, mode, bpm: bpm || g.bpm, onStep, onChord, playing: true, step: 0, queue: [], click: !!opt.click, onCount: opt.onCount || null });
     if (mode === 'scale') { P.sNotes = scalePattern(g.scale); P.sOrd = scaleOrder(g.scale); if (!P.sNotes.length) { P.playing = false; return; } }
-    P.next = ctx.currentTime + 0.08; P.timer = setInterval(schedule, 25); requestAnimationFrame(draw);
+    P.next = ctx.currentTime + 0.08;
+    const n = Math.max(0, opt.countIn | 0), beat = 60 / P.bpm;
+    for (let k = 0; k < n; k++) { click(P.next, k === 0); P.queue.push({ t: P.next, i: -2 - (n - k), chord: null }); P.next += beat; }
+    P.timer = setInterval(schedule, 25); requestAnimationFrame(draw);
   }
+  const stepsPerBeat = () => (P.mode === 'tab' ? 4 : P.mode === 'scale' ? 2 : (P.g.strum.sub || 8) / 4);
   function stop() { P.playing = false; clearInterval(P.timer); P.timer = null; if (P.onStep) P.onStep(-1); }
   function setTempo(b) { P.bpm = b; }
   function schedule() {
@@ -236,13 +262,14 @@
         for (const [s, step, fret] of g.tab.notes) if (step === i) pluck(fretFreq(s, fret, g.capo || 0), P.next, 0.9, 0.2);
         dur = 60 / P.bpm / 4;
       }
+      if (P.click && P.step % stepsPerBeat() === 0) click(P.next, (P.step / stepsPerBeat()) % 4 === 0);
       P.queue.push({ t: P.next, i, chord }); P.next += dur; P.step++;
     }
   }
   function draw() {
     if (!P.playing) return;
     let cur = null; while (P.queue.length && P.queue[0].t <= ctx.currentTime) cur = P.queue.shift();
-    if (cur) { if (P.onStep) P.onStep(cur.i); if (cur.chord && P.onChord) P.onChord(cur.chord); }
+    if (cur) { if (cur.i <= -2) { if (P.onCount) P.onCount(-1 - cur.i - 1); } else { if (P.onStep) P.onStep(cur.i); if (cur.chord && P.onChord) P.onChord(cur.chord); } }
     requestAnimationFrame(draw);
   }
   function cursorFor(svg, x0Attr) {
@@ -367,5 +394,5 @@
   }
   const cycle = (c) => ({ '': 'D', D: 'U', U: 'X', X: '' }[c || '']);
 
-  window.Guitar = { SYS, SCALES, scalePattern, scaleOrder, scaleSVG, scaleName, scaleToTab, scaleCursor, scalePositions, CHORDS, empty, parse, chordSVG, strumSVG, tabSVG, editorHTML, viewHTML, tunerHTML, tunerStart, tunerStop, play, stop, setTempo, cursorFor, capoTable, soundingKey, cycle, isPlaying: () => P.playing, NOTES_INT, label, strum: (n, d) => { audio(); strum(n, d, ctx.currentTime + 0.01, 0); } };
+  window.Guitar = { samplesLoaded: () => Object.keys(BUF).length, SYS, SCALES, scalePattern, scaleOrder, scaleSVG, scaleName, scaleToTab, scaleCursor, scalePositions, CHORDS, empty, parse, chordSVG, strumSVG, tabSVG, editorHTML, viewHTML, tunerHTML, tunerStart, tunerStop, play, stop, setTempo, cursorFor, capoTable, soundingKey, cycle, isPlaying: () => P.playing, NOTES_INT, label, strum: (n, d) => { audio(); strum(n, d, ctx.currentTime + 0.01, 0); } };
 })();

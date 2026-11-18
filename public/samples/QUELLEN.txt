@@ -2,3 +2,5 @@ Drum Samples in Practice Hub
 bd (Gretsch 22 Kick Dry), sn (Mystery Snare Dry), t1, t2, ft (Pearl Toms Dry), cr (Full Crash): Drum Essentials Vol 1 (Otis Bibliothek, Lizenz laut Oti für die App freigegeben)
 hh, ho: Otis Drum Sample Ordner (Lizenz laut Oti freigegeben)
 rd: Versilian Community Sample Library (VCSL), susCymb2_hit_stick_mp1, CC0 1.0, https://github.com/sgossner/VCSL
+
+Gitarren Samples (samples/gtr, gekürzt auf 1,8 s, mono): Akustikgitarre aus "tonejs-instruments" von Nicholaus Brosowsky (https://github.com/nbrosowsky/tonejs-instruments), npm Paket tonejs-instrument-guitar-acoustic-mp3 (MIT). Die Samples im Repo stehen unter CC BY 3.0, Namensnennung: Nicholaus P. Brosowsky.
