@@ -930,7 +930,7 @@ async function route(env, req, path, body) {
       if (!song) throw new HttpError(404, 'Song nicht gefunden.');
       const title = str(body.title, 120); if (!title) throw new HttpError(400, 'Titel fehlt.');
       const url = cleanUrl(body.url);
-      const n = (await s.first('SELECT COUNT(*) AS n FROM song_parts WHERE song_id = ?', song.id)).n;
+      const n = (await s.first('SELECT COALESCE(MAX(sort) + 1, 0) AS n FROM song_parts WHERE song_id = ?', song.id)).n;
       const id = uid();
       const nt = cleanNotation(body.notation);
       const ops = [['INSERT INTO song_parts (id, song_id, title, url, notes, sort, created_at) VALUES (?, ?, ?, ?, ?, ?, ?)', [id, song.id, title, url, str(body.notes, 500), n, now()]], logRow(who, 'create', 'song_parts', id, title)];
@@ -995,7 +995,7 @@ async function route(env, req, path, body) {
       if (b.done) throw new HttpError(409, 'Schon übernommen.');
       const title = str(body.title, 120) || b.title; const t = now(); const ops = []; let partId = null, exId = null;
       if (b.song_id) {
-        partId = uid(); const n = (await s.first('SELECT COUNT(*) AS n FROM song_parts WHERE song_id = ?', b.song_id)).n;
+        partId = uid(); const n = (await s.first('SELECT COALESCE(MAX(sort) + 1, 0) AS n FROM song_parts WHERE song_id = ?', b.song_id)).n;
         ops.push(['INSERT INTO song_parts (id, song_id, title, url, notes, sort, created_at) VALUES (?, ?, ?, ?, ?, ?, ?)', [partId, b.song_id, title, null, 'Geschrieben von ' + b.first_name, n, t]],
           ['INSERT INTO song_part_notation (part_id, notation) VALUES (?, ?)', [partId, b.notation]]);
         const ver = str(body.version, 40); if (ver) ops.push(['INSERT INTO song_part_version (part_id, version) VALUES (?, ?)', [partId, ver]]);
@@ -1027,12 +1027,21 @@ async function route(env, req, path, body) {
       const ops = []; let tid;
       if (twin) { tid = twin.id; ops.push(['UPDATE song_parts SET url = ?, notes = ? WHERE id = ?', [p.url, p.notes, tid]]); }
       else {
-        tid = uid(); const n = (await s.first('SELECT COUNT(*) AS n FROM song_parts WHERE song_id = ?', p.song_id)).n;
+        tid = uid(); const n = (await s.first('SELECT COALESCE(MAX(sort) + 1, 0) AS n FROM song_parts WHERE song_id = ?', p.song_id)).n;
         ops.push(['INSERT INTO song_parts (id, song_id, title, url, notes, sort, created_at) VALUES (?, ?, ?, ?, ?, ?, ?)', [tid, p.song_id, title, p.url, p.notes, n, now()]], ['INSERT INTO song_part_version (part_id, version) VALUES (?, ?)', [tid, ver]]);
       }
       ops.push(p.notation ? ['INSERT INTO song_part_notation (part_id, notation) VALUES (?, ?) ON CONFLICT(part_id) DO UPDATE SET notation = excluded.notation', [tid, p.notation]] : ['DELETE FROM song_part_notation WHERE part_id = ?', [tid]]);
       ops.push(logRow(who, 'update', 'song_parts', tid, 'Übernommen nach ' + ver)); await s.batch(ops);
       return { id: tid, created: !twin };
+    }
+    case '/api/t/song/parts/reorder': {
+      // Reihenfolge der Bausteine eines Songs festlegen (Otis Wunsch 18.11.2026). ids: alle Bausteine des Songs in neuer Reihenfolge
+      const ids = (Array.isArray(body.ids) ? body.ids : []).slice(0, 200).map(String);
+      const own = new Set((await s.all('SELECT id FROM song_parts WHERE song_id = ?', String(body.song_id || ''))).map((x) => x.id));
+      if (!ids.length || ids.some((x) => !own.has(x)) || new Set(ids).size !== ids.length) throw new HttpError(400, 'Bausteine passen nicht zum Song.');
+      const rest = [...own].filter((x) => !ids.includes(x)); // nicht mitgeschickte bleiben hinten
+      await s.batch(ids.concat(rest).map((x, i) => ['UPDATE song_parts SET sort = ? WHERE id = ?', [i, x]]));
+      return { ok: true };
     }
     case '/api/t/song/part/delete': await s.batch([['DELETE FROM song_parts WHERE id = ?', [String(body.id || '')]], ['DELETE FROM song_part_notation WHERE part_id = ?', [String(body.id || '')]], ['DELETE FROM song_part_version WHERE part_id = ?', [String(body.id || '')]]]); return { ok: true };
     case '/api/t/transcribe': return transcribeImage(env, body, cleanNotation, HttpError);

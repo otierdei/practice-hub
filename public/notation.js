@@ -163,7 +163,7 @@
     const sw = opt.stepWidth || 22, pb = perBar(n.sig), gs = groupSize(n.sig), first = from === 0;
     const x0 = first ? 58 : 26, steps = (to - from) * pb;
     const sticks = Object.entries(n.stick || {}).filter(([i]) => i >= from * pb && i < to * pb && !n.repeat.includes(Math.floor(i / pb)));
-    const W = x0 + steps * sw + 14, H = sticks.length ? 148 : 130, ink = 'currentColor', out = [];
+    const W = x0 + steps * sw + 14, H = 130, ink = 'currentColor', out = [];
     const xOf = (i) => x0 + (i - from * pb) * sw + 8;
     for (let l = 0; l < 5; l++) out.push(`<line x1="6" x2="${W - 6}" y1="${yOf(l * 2)}" y2="${yOf(l * 2)}" stroke="${ink}" stroke-width="1" opacity=".55"/>`);
     if (first) {
@@ -241,11 +241,13 @@
         }
       }
     }
-    for (const [i, v] of sticks) out.push(`<text x="${xOf(Number(i))}" y="142" text-anchor="middle" font-size="12" font-weight="700" font-family="sans-serif" fill="${ink}">${v}</text>`);
     if (opt.cursor) out.push(`<rect class="nt-cursor" x="0" y="20" width="${sw - 2}" height="${H - 26}" rx="4" fill="var(--ring, #5f6b3a)" opacity="0"/>`);
     // Platz oben für Akzente der Oberstimme
     const top = Object.entries(n.dyn || {}).some(([key, v]) => { const [k, i] = key.split(':'); return v === 'a' && !(BY[k] && BY[k].down) && Number(i) >= from * pb && Number(i) < to * pb; }) ? 14 : 0;
-    return `<svg class="nt-svg" viewBox="0 ${-top} ${W} ${H + top}" width="${W}" height="${H + top}" role="img" aria-label="${esc(opt.label || 'Schlagzeug Noten')}${from ? ', ab Takt ' + (from + 1) : ''}" data-x0="${x0}" data-sw="${sw}" data-from="${from * pb}" data-to="${to * pb}">${out.join('')}</svg>`;
+    // Sticking über den Noten (Otis Wunsch 18.11.2026), eine feste Zeile ganz oben, über Akzenten und Halsen
+    const sTop = sticks.length ? 18 : 0;
+    for (const [i, v] of sticks) out.push(`<text class="nt-stick-txt" x="${xOf(Number(i))}" y="${-top - 5}" text-anchor="middle" font-size="12" font-weight="700" font-family="sans-serif" fill="${ink}">${v}</text>`);
+    return `<svg class="nt-svg" viewBox="0 ${-top - sTop} ${W} ${H + top + sTop}" width="${W}" height="${H + top + sTop}" role="img" aria-label="${esc(opt.label || 'Schlagzeug Noten')}${from ? ', ab Takt ' + (from + 1) : ''}" data-x0="${x0}" data-sw="${sw}" data-from="${from * pb}" data-to="${to * pb}">${out.join('')}</svg>`;
   }
   function render(n, opt = {}) {
     if (!n) return '';

@@ -507,6 +507,24 @@ test('App Skripte tragen die Version des Service Worker Caches', async () => {
   for (const k of ['bd', 'sn', 't1', 't2', 'ft', 'cr', 'hh', 'ho', 'rd']) assert.ok(sw.includes(`'samples/${k}.mp3?v=${v}'`), k + ' Sample im Cache mit ?v=' + v);
 });
 
+test('Song Bausteine sortieren: nur Lehrer, nur eigene Bausteine, neue landen hinten', async () => {
+  const w = await world();
+  const sid = (await w.call('/api/t/song/create', { title: 'Sortier Song' }, w.t)).data.id;
+  const other = (await w.call('/api/t/song/create', { title: 'Anderer Song' }, w.t)).data.id;
+  const ids = [];
+  for (const t of ['Intro', 'Vers', 'Chorus']) ids.push((await w.call('/api/t/song/part/save', { song_id: sid, title: t, url: 'youtu.be/abcdefghijk' }, w.t)).data.id);
+  const foreign = (await w.call('/api/t/song/part/save', { song_id: other, title: 'Fremd', url: 'youtu.be/abcdefghijk' }, w.t)).data.id;
+  const order = [ids[2], ids[0], ids[1]];
+  assert.equal((await w.call('/api/t/song/parts/reorder', { song_id: sid, ids: order }, w.tb)).status, 403, 'Schüler darf nicht sortieren');
+  assert.equal((await w.call('/api/t/song/parts/reorder', { song_id: sid, ids: [ids[0], foreign] }, w.t)).status, 400, 'fremder Baustein');
+  assert.equal((await w.call('/api/t/song/parts/reorder', { song_id: sid, ids: [ids[0], ids[0]] }, w.t)).status, 400, 'doppelt');
+  assert.equal((await w.call('/api/t/song/parts/reorder', { song_id: sid, ids: order }, w.t)).status, 200);
+  assert.deepEqual((await w.call('/api/song', { id: sid }, w.tb)).data.parts.map((p) => p.id), order, 'Schüler sieht neue Reihenfolge');
+  await w.call('/api/t/song/part/delete', { id: ids[0] }, w.t);
+  const neu = (await w.call('/api/t/song/part/save', { song_id: sid, title: 'Outro', url: 'youtu.be/abcdefghijk' }, w.t)).data.id;
+  assert.deepEqual((await w.call('/api/song', { id: sid }, w.t)).data.parts.map((p) => p.id), [ids[2], ids[1], neu], 'neuer Baustein hinten, auch nach Löschen');
+});
+
 test('Hausaufgaben Reihenfolge per Ziehen, Schüler sieht sie gleich', async () => {
   const w = await world();
   for (const t of ['A', 'B', 'C']) await w.call('/api/t/assignment/add', { student_id: w.b, free_text: 'Reihe ' + t }, w.t);

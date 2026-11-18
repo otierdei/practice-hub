@@ -149,7 +149,14 @@ input[type=range]{accent-color:var(--ring);width:100%;min-height:32px}
 .drag{cursor:grab;touch-action:none;user-select:none;-webkit-user-select:none;-webkit-touch-callout:none;display:flex;align-items:center;gap:6px;padding:12px 10px 12px 6px;margin-left:-6px;min-height:44px;color:var(--muted);font-size:1.1rem;line-height:1;align-self:stretch;border-radius:10px}
 .drag > span:first-child{letter-spacing:-3px}
 .drag:hover{background:var(--track)}
-.item.dragging{opacity:.75;background:var(--track);border-radius:12px}
+.ring-btn{display:flex;gap:12px;padding:0;border:0;background:none;cursor:pointer;border-radius:50%}
+.ring-btn:focus-visible{outline:2px solid var(--ink);outline-offset:4px}
+.day-none{opacity:.6}
+.day-row > .t{flex:1;min-width:0}
+.day-row > .t > .row{width:100%}
+button.link.small{background:none;border:0;padding:0;margin-top:4px;color:var(--ink);text-decoration:underline;text-underline-offset:3px;cursor:pointer;min-height:32px}
+.item.dragging,.card.dragging{opacity:.75;background:var(--track);border-radius:12px}
+.card.task > .row > .drag{margin-left:-10px}
 .asg-num{font-weight:700;color:var(--muted);min-width:1.4em;align-self:center;font-variant-numeric:tabular-nums}
 .task-title .asg-num{min-width:0}
 .item:has(> .asg-num),.item:has(> .drag){justify-content:flex-start;gap:10px}
@@ -223,8 +230,8 @@ details.card summary{cursor:pointer;font-family:var(--display);font-size:1.08rem
 </head>
 <body>
 <div id="app"><div class="wrap"><p class="muted">Lädt …</p></div></div>
-<script src="notation.js?v=100"></script>
-<script src="guitar.js?v=100"></script>
+<script src="notation.js?v=101"></script>
+<script src="guitar.js?v=101"></script>
 <script>
 'use strict';
 // ---------- Grundlagen ----------
@@ -254,8 +261,8 @@ function toast(msg) {
   document.body.appendChild(el); setTimeout(() => el.remove(), 2600);
 }
 
-async function api(path, body) {
-  if (window.__pv) return previewApi(path, body || {});
+async function api(path, body, real = false) {
+  if (window.__pv && !real) return previewApi(path, body || {});
   const headers = { 'Content-Type': 'application/json' };
   if (S.token) headers.Authorization = 'Bearer ' + S.token;
   let res;
@@ -420,7 +427,7 @@ async function previewApi(path, b) {
     case '/api/my/changes': return { ok: true };
     case '/api/my/beat/delete': d.my_beats = (d.my_beats || []).filter((x) => x.id !== b.id); return { ok: true };
     case '/api/songs': case '/api/song': case '/api/course': case '/api/ping': {
-      window.__pv = false; try { return await api(path, b); } finally { window.__pv = true; }
+      return api(path, b, true); // echt lesen, ohne den Simulationsschalter umzulegen (sonst landen parallele Aufrufe im falschen Speicher)
     }
     default: throw new Error('Simulation: das wird nicht gespeichert');
   }
@@ -787,6 +794,19 @@ function assignmentDetailView() {
     </div>
   </div>`;
 }
+// Antippen der Kreise: jeder Tag seit der letzten Stunde mit Uhrzeit, Dauer und Aufgabe (Otis Wunsch 18.11.2026)
+function practiceDaysHTML(f, sinceDate) {
+  const titles = Object.fromEntries((f.assignments || []).map((a) => [a.id, a.title || a.free_text]));
+  const out = [], d = new Date(sinceDate + 'T12:00:00'), end = localDate();
+  for (let i = 0; i < 60 && localDate(d) <= end; i++, d.setDate(d.getDate() + 1)) {
+    const k = localDate(d), ss = f.sessions.filter((s) => s.local_date === k).sort((a, b) => (a.started_at < b.started_at ? -1 : 1));
+    const sum = mins(ss.reduce((t, s) => t + s.seconds, 0));
+    out.push(`<div class="item day-row${ss.length ? '' : ' day-none'}"><span class="t col" style="gap:4px"><span class="row between" style="flex-wrap:nowrap"><b>${esc(fmtDate(k))}</b><span class="${ss.length ? '' : 'muted'}">${ss.length ? sum + ' min' : 'nicht geübt'}</span></span>
+      ${ss.map((s) => { const t = new Date(s.started_at).toLocaleTimeString('de-DE', { hour: '2-digit', minute: '2-digit' }); const what = titles[s.assignment_id] || (s.note && /^Baustein/.test(s.note) ? s.note.split(' · ')[0] : 'Frei geübt');
+        return `<span class="small"><span class="muted">${t} Uhr · ${Math.max(1, mins(s.seconds))} min</span> ${esc(what)}${s.bpm_reached ? ' · ' + s.bpm_reached + ' BPM' : ''}${s.feeling ? ' · Gefühl ' + s.feeling : ''}</span>`; }).join('')}</span></div>`);
+  }
+  return `<div class="list" id="practiceDays" style="margin-top:8px">${out.join('')}</div>`;
+}
 function historyBlock(f) {
   const rows = f.lessons.map((l) => ({ date: l.date, l })).concat((f.cancellations || []).map((c) => ({ date: c.date, c }))).sort((a, b) => (a.date < b.date ? 1 : -1));
   if (!rows.length) return '';
@@ -869,7 +889,9 @@ document.addEventListener('pointerdown', (ev) => {
     window.removeEventListener('pointermove', move); window.removeEventListener('pointerup', up); window.removeEventListener('pointercancel', up); item.classList.remove('dragging');
     const ids = [...list.querySelectorAll(':scope > [data-sort-id]')].map((x) => x.dataset.sortId);
     list.querySelectorAll(':scope > [data-sort-id] .asg-num').forEach((x, i) => { x.textContent = i + 1; });
-    if (ids.join() === before.join() || !S.file) return;
+    if (ids.join() === before.join()) return;
+    if (list.dataset.sortKind === 'parts') return savePartOrder(ids);
+    if (!S.file) return;
     // Entwürfe in der Stunde (draft:i) nur lokal umsortieren, gespeicherte Hausaufgaben auf dem Server
     const drafts = ids.filter((x) => x.startsWith('draft:')).map((x) => Number(x.slice(6)));
     if (drafts.length && S.lesson) { const old = S.lesson.new_assignments; S.lesson.new_assignments = drafts.map((k) => old[k]); saveDraft(); }
@@ -884,6 +906,17 @@ document.addEventListener('pointerdown', (ev) => {
   };
   window.addEventListener('pointermove', move); window.addEventListener('pointerup', up); window.addEventListener('pointercancel', up);
 });
+// Song Bausteine sortieren (Otis Wunsch 18.11.2026): sichtbare Bausteine der Version neu ordnen, die übrigen Versionen behalten ihre Plätze
+async function savePartOrder(ids) {
+  const d = S.song; if (!d) return;
+  const vis = new Set(ids), queue = ids.slice();
+  const all = d.parts.map((p) => (vis.has(p.id) ? queue.shift() : p.id));
+  try {
+    await api('/api/t/song/parts/reorder', { song_id: d.song.id, ids: all });
+    const pos = Object.fromEntries(all.map((x, i) => [x, i])); d.parts.sort((x, y) => pos[x.id] - pos[y.id]);
+    toast('Reihenfolge gespeichert'); rerenderSong();
+  } catch (e) { toast(e.message); rerenderSong(); }
+}
 function newAsgNotation(a) { const e = a.exercise_id && (S.exercises || []).find((x) => x.id === a.exercise_id); return DrumNotation.parse(a.notation || (e && e.notation)); }
 function newAsgRow(a, i, num) {
   const meta = [tempoText(a), a.minutes_per_day ? a.minutes_per_day + ' min' : ''].filter(Boolean).join(' · ');
@@ -934,8 +967,9 @@ function lessonView() {
       </div>
       <div class="col" style="gap:16px">
         <section class="card"><h3>Seit ${last ? 'der letzten Stunde (' + esc(fmtDate(last.date)) + ')' : '7 Tagen'}</h3>
-          <div class="row">${ring(Math.min(1, total / 100), 76, 7, 'var(--ring)', total + ' Minuten', total + '′')}${ring(days / 7, 76, 7, 'var(--ring2)', days + ' von 7 Tagen', days + '/7')}
-          <span class="muted small" style="flex:1;min-width:120px">${recent.length} Übungssitzungen${recent.length ? ', Gefühl im Schnitt ' + (recent.filter((s) => s.feeling).reduce((t, s) => t + s.feeling, 0) / Math.max(1, recent.filter((s) => s.feeling).length)).toFixed(1) : ''}</span></div>
+          <div class="row"><button class="ring-btn" data-act="practiceDays" aria-expanded="${!!S.practiceDays}" aria-controls="practiceDays" title="Tage und Zeiten anzeigen">${ring(Math.min(1, total / 100), 76, 7, 'var(--ring)', total + ' Minuten, antippen für Tage und Zeiten', total + '′')}${ring(days / 7, 76, 7, 'var(--ring2)', days + ' von 7 Tagen, antippen für Tage und Zeiten', days + '/7')}</button>
+          <span class="muted small" style="flex:1;min-width:120px">${recent.length} Übungssitzungen${recent.some((s) => s.feeling) ? ', Gefühl im Schnitt ' + (recent.filter((s) => s.feeling).reduce((t, s) => t + s.feeling, 0) / recent.filter((s) => s.feeling).length).toFixed(1) : recent.length ? ', ohne Angabe zum Gefühl' : ''}<br><button class="link small" data-act="practiceDays">${S.practiceDays ? 'Tage ausblenden' : 'Tage und Zeiten ansehen'}</button></span></div>
+          ${S.practiceDays ? practiceDaysHTML(f, sinceDate) : ''}
           ${last && last.notes_shared ? `<p class="small"><span class="muted">Letzte Notiz:</span> ${esc(last.notes_shared)}</p>` : ''}
           ${last && last.notes_teacher ? `<details open><summary class="small muted">Letzte Stunde, deine Notiz</summary><p class="small" style="white-space:pre-line">${esc(last.notes_teacher)}</p></details>` : ''}
           ${historyBlock(f)}
@@ -1226,14 +1260,15 @@ function songView() {
     <div class="col" style="gap:4px">${teacher && S.songRename ? `<form id="songRenameForm" class="row" style="gap:8px;flex-wrap:nowrap"><input id="sr_title" maxlength="160" value="${esc(d.song.title)}" style="flex:1" aria-label="Neuer Songtitel"><button class="btn small primary" type="submit">Speichern</button><button class="btn small" type="button" data-act="songRename" data-v="0">Abbrechen</button></form>` : `<h1>${esc(d.song.title)}</h1>`}<span class="muted">${esc(x ? songMeta({ ...x, parts: 0 }) : '')}</span>
       ${teacher && !S.songRename ? `<div class="row" style="gap:8px"><button class="btn small" data-act="songRename" data-v="1">Umbenennen</button><button class="btn small danger" data-act="songDelete">${S.songDelConfirm === d.song.id ? 'Wirklich löschen?' : 'Song löschen'}</button></div>` : ''}
       ${teacher ? `<form id="songBpmForm" class="row" style="gap:8px;flex-wrap:nowrap;align-items:center"><label for="sb_bpm" class="small">Original Tempo</label><input id="sb_bpm" inputmode="numeric" style="width:80px;min-height:40px;text-align:center" value="${d.song.bpm || ''}" placeholder="BPM"><button class="btn small" type="submit">Speichern</button>${d.song.bpm_source ? `<span class="small muted">Quelle: ${esc(d.song.bpm_source)}</span>` : ''}</form>` : d.song.bpm ? `<span class="small muted">Original Tempo ${d.song.bpm} BPM</span>` : ''}</div>
+    ${songAfterHTML(d)}
     ${teacher ? songTeachRow(x) : ''}
     ${songLinksSection(d, teacher)}
     ${songGuitarSection(d, teacher)}
     ${teacher && d.playedBy && d.playedBy.length ? `<p class="small muted">Gespielt von: ${d.playedBy.map(esc).join(', ')}</p>` : ''}
     <section class="col"><h2>Bausteine${songCurVersion(d) && songVersions(d).length > 1 ? ' · ' + esc(songCurVersion(d)) : ''}</h2>
       ${songVersions(d).length > 1 ? `<div class="row" style="gap:6px">${songVersions(d).map((v) => `<button class="chip" data-act="songVer" data-v="${esc(v)}" aria-pressed="${v === songCurVersion(d)}">${esc(v)}</button>`).join('')}</div>` : ''}
-      ${partsFor(d, songCurVersion(d)).length ? partsFor(d, songCurVersion(d)).map((p) => `<section class="card task"><div class="row" style="flex-wrap:nowrap;align-items:center;gap:14px">
-        ${ytThumb(p.url) ? `<button class="thumb" data-act="partVideo" data-id="${p.id}" aria-label="Video ansehen: ${esc(p.title)}"><img src="${ytThumb(p.url)}" alt="" loading="lazy" onerror="this.remove()"><span class="thumb-play">${PLAY}</span></button>` : `<span class="task-icon" aria-hidden="true">${ICON_NOTE}</span>`}
+      ${partsFor(d, songCurVersion(d)).length ? `<div class="col" style="gap:12px" data-sort-kind="parts">${partsFor(d, songCurVersion(d)).map((p, pi, all) => `<section class="card task" data-sort-id="${p.id}"><div class="row" style="flex-wrap:nowrap;align-items:center;gap:14px">
+        ${teacher && all.length > 1 && S.partEdit !== p.id ? grip(pi + 1, true) : ''}${ytThumb(p.url) ? `<button class="thumb" data-act="partVideo" data-id="${p.id}" aria-label="Video ansehen: ${esc(p.title)}"><img src="${ytThumb(p.url)}" alt="" loading="lazy" onerror="this.remove()"><span class="thumb-play">${PLAY}</span></button>` : `<span class="task-icon" aria-hidden="true">${ICON_NOTE}</span>`}
         <div class="col" style="gap:2px;flex:1;min-width:0"><b class="task-title">${esc(p.title)}</b>${p.notes ? `<span class="muted small">${esc(p.notes)}</span>` : ''}</div>
         ${teacher ? `<button class="btn small" data-act="partEdit" data-id="${p.id}">Bearbeiten</button><button class="btn small danger" data-act="partDelete" data-id="${p.id}">Entfernen</button>` : ''}</div>
         ${teacher && songVersions(d).filter((v) => v !== p.version).length && S.partEdit !== p.id ? `<div class="row small" style="gap:6px;align-items:center"><span class="muted">${p.version ? 'Version ' + esc(p.version) + '.' : 'Alle Versionen.'} Übernehmen nach:</span>${songVersions(d).filter((v) => v !== p.version).map((v) => `<button class="chip" data-act="partSync" data-id="${p.id}" data-v="${esc(v)}">${esc(v)}</button>`).join('')}</div>` : ''}
@@ -1245,8 +1280,8 @@ function songView() {
           ${S.nt && S.nt.pe ? DrumNotation.editorHTML(S.nt.pe, 'pe') : '<button type="button" class="btn small" data-act="peNew">Noten schreiben</button>'}
           <p class="small muted">Änderungen gelten überall: im Song und bei allen Schülern, die diesen Baustein als Hausaufgabe haben.</p>
           <div class="row"><button class="btn primary" type="submit">Speichern</button><button class="btn" type="button" data-act="partEditOff">Abbrechen</button></div></form>` : ''}
-        ${S.partEdit === p.id ? '' : p.notation ? `<div id="pn_${p.id}">${notationPreview(p.notation, p.title)}</div><div class="ctl-row">${playBtn('partPlay', `data-id="${p.id}"`, false, false, true)}${beatClickChip(false, true)}${S.role === 'student' ? `<button class="btn small primary" data-act="partPractice" data-id="${p.id}">Üben</button>` : ''}</div>` : ''}
-        ${p.url && !ytId(p.url) ? `<a class="btn small" href="${esc(p.url)}" target="_blank" rel="noopener">Link öffnen</a>` : ''}</section>`).join('') : `<div class="empty">${teacher ? 'Noch keine Bausteine. Leg unten den ersten an, z. B. Groove Vers.' : 'Oti hat für diesen Song noch keine Videos.'}</div>`}
+        ${S.partEdit === p.id ? '' : p.notation ? `<div id="pn_${p.id}">${notationPreview(p.notation, p.title)}</div><div class="ctl-row">${playBtn('partPlay', `data-id="${p.id}"`, false, false, true)}${beatClickChip(false, true)}${S.role === 'student' ? `<button class="btn small primary" data-act="partPractice" data-id="${p.id}">Üben</button>` : ''}</div>` : S.role === 'student' ? `<div class="ctl-row"><button class="btn small primary" data-act="partPractice" data-id="${p.id}">Üben</button></div>` : ''}
+        ${p.url && !ytId(p.url) ? `<a class="btn small" href="${esc(p.url)}" target="_blank" rel="noopener">Link öffnen</a>` : ''}</section>`).join('')}</div>${teacher && partsFor(d, songCurVersion(d)).length > 1 ? '<p class="small muted">Reihenfolge ändern: am Griff ⋮⋮ links ziehen. Gilt auch bei den Schülern.</p>' : ''}` : `<div class="empty">${teacher ? 'Noch keine Bausteine. Leg unten den ersten an, z. B. Groove Vers.' : 'Oti hat für diesen Song noch keine Videos.'}</div>`}
       ${!teacher && (S.role === 'student' || S.preview) && stuData() ? myBeatsSection(stuData(), d.song.id) : ''}
       ${teacher ? `<form id="partForm" class="card col"><b>Baustein hinzufügen</b>
         <div class="field"><label for="pt_title">Titel</label><input id="pt_title" maxlength="120" placeholder="z. B. Groove Vers, Fill in den Chorus"></div>
@@ -1358,7 +1393,7 @@ function partVideoView() {
     <div class="col" style="gap:2px"><span class="muted">${esc(S.song.song.title)}</span><h1>${esc(p.title)}</h1></div>${ytEmbed(p.url)}
     ${S.role === 'student' ? '<button class="btn primary block" data-act="practiceFree">Jetzt üben</button>' : ''}</div>`;
 }
-async function openSong(id) { S.songInstrPick = null; S.songRename = false; S.songDelConfirm = null; S.songGtEdit = false; S.song = await api('/api/song', { id }); openOverlay(songView); }
+async function openSong(id) { S.songAfter = null; S.songInstrPick = null; S.songRename = false; S.songDelConfirm = null; S.songGtEdit = false; S.song = await api('/api/song', { id }); openOverlay(songView); }
 document.addEventListener('input', (ev) => { if (ev.target.id === 'songQ') { S.songQ = ev.target.value; const l = $('#songList'); if (l) l.innerHTML = songResults(); } });
 // Wochen Streak: eine Woche zählt bei mindestens 3 Übetagen; die laufende Woche bricht die Serie nicht
 function weekStreak(sessions) {
@@ -1478,7 +1513,7 @@ function runElapsed(r) { return r.accumulated + (r.runningSince ? Date.now() - r
 // Was gerade geübt wird: eine Hausaufgabe oder ein Song Baustein (part)
 function runTask(r) {
   if (!r) return null;
-  if (r.part) return { id: null, title: r.part.title, notation: r.part.notation, exercise_notes: r.part.notes, minutes_per_day: 10, target_bpm: null };
+  if (r.part) return { id: null, title: r.part.title, notation: r.part.notation, exercise_notes: r.part.notes, url: r.part.url || null, minutes_per_day: 10, target_bpm: null };
   return S.data.assignments.find((x) => x.id === r.assignment_id);
 }
 const runKey = (assignmentId, part) => (part ? 'p:' + part.id : assignmentId || null);
@@ -1828,15 +1863,42 @@ function finishForm() {
       <button class="btn block" type="button" data-act="backToPractice">Weiter üben</button>
     </form></div>`;
 }
+// Nach dem Üben eines Songs oder Bausteins zurück zum Song statt auf die Startseite (Otis Wunsch 18.11.2026)
+function runSongBack(r) {
+  if (!r) return null;
+  const a = r.assignment_id ? (S.data.assignments || []).find((x) => x.id === r.assignment_id) : null;
+  const id = (r.part && r.part.song_id) || (a && a.song_id); if (!id) return null;
+  return { id, ver: (a && a.song_version) || S.songVersion || null };
+}
+// Song sofort zeigen (falls schon geladen), dann frisch laden. Wurde inzwischen etwas anderes geöffnet, nichts überschreiben.
+async function songBack(b, wait = null) {
+  const prep = () => { S.songAfter = { song: b.id, ver: b.ver }; if (b.ver) S.songVersion = b.ver; S.songInstrPick = null; S.songRename = false; S.songDelConfirm = null; S.songGtEdit = false; };
+  if (S.song && S.song.song && S.song.song.id === b.id) { prep(); openOverlay(songView); }
+  // erst nach dem Speichern laden (in der Schüleransicht teilen sich beide Aufrufe den Simulationsschalter)
+  let d; try { await wait; d = await api('/api/song', { id: b.id }); } catch (e) { return; }
+  if (store.get('run', null)) return;
+  if (S.overlay === songView && S.song && S.song.song.id === b.id) { S.song = d; rerenderSong(false); }
+  else if (!S.overlay) { S.song = d; prep(); openOverlay(songView); }
+}
+function songAfterHTML(d) {
+  const A = S.songAfter; if (!A || A.song !== d.song.id || S.role !== 'student') return '';
+  const asg = (stuData() && stuData().assignments || []).find((x) => x.song_id === d.song.id && !x.part_id && x.status !== 'erledigt');
+  const vid = linksFor(d).find((l) => l.version === songCurVersion(d, A.ver) && ytId(l.url)) || linksFor(d).find((l) => ytId(l.url));
+  return `<section class="card col" id="songAfter" style="gap:10px"><b>Gespeichert. Was übst du als Nächstes?</b>
+    <div class="row" style="gap:8px">${asg ? `<button class="btn primary" data-act="practice" data-id="${asg.id}">Ganzen Song mit Video üben</button>` : vid ? `<button class="btn primary" data-act="linkVideo" data-id="${vid.id}">Video üben</button>` : ''}<button class="btn" data-act="close">Fertig für heute</button></div>
+    <span class="small muted">Oder unten einen anderen Baustein üben.</span></section>`;
+}
 function finBpmValue() { const i = $('#fin_bpm'); if (!i) return null; const v = Number(i.value) || null, m = Number(i.dataset.max) || null; return v && m ? Math.min(v, m) : v; }
 function saveSession(feeling) {
   const r = store.get('run', null); if (!r) return;
   const el = runElapsed(r);
   const s = { client_id: (crypto.randomUUID ? crypto.randomUUID() : String(Date.now()) + Math.random()), assignment_id: r.assignment_id, started_at: r.startedAt, ended_at: new Date().toISOString(), local_date: localDate(new Date(r.startedAt)), seconds: Math.max(1, Math.round(el / 1000)), bpm_reached: finBpmValue(), feeling: feeling || null, note: [r.titles && r.titles.length > 1 ? 'Bausteine: ' + r.titles.join(', ') : r.part ? 'Baustein: ' + r.part.title : '', $('#fin_note').value.trim()].filter(Boolean).join(' · ') || null };
-  if (inLessonMode() && !S.preview) { store.del('run'); stopTick(); S.overlay = null; render(); toast('Unterricht: zählt nicht als Übungszeit'); return; }
+  const back = runSongBack(r);
+  if (inLessonMode() && !S.preview) { store.del('run'); stopTick(); S.overlay = null; render(); toast('Unterricht: zählt nicht als Übungszeit'); if (back) songBack(back); return; }
   const ob = store.get('outbox', []); ob.push(s); store.set('outbox', ob);
   store.del('run'); stopTick();
-  S.overlay = null; render(); toast(mins(s.seconds) + ' min gespeichert'); flushOutbox();
+  S.overlay = null; render(); toast(mins(s.seconds) + ' min gespeichert'); const fl = flushOutbox();
+  if (back) songBack(back, fl);
 }
 // Unterrichtsmodus: in der Stunde zählt Üben nicht als Übungszeit. An per Schalter beim Schüler oder automatisch, wenn Oti die Stunde startet.
 function lessonModeUntil(d = S.preview ? S.preview.data : S.data) {
@@ -2171,6 +2233,7 @@ document.addEventListener('click', async (ev) => {
         break;
       }
       case 'backToSong': openOverlay(songView); break;
+      case 'practiceDays': S.practiceDays = !S.practiceDays; render(); break;
       case 'songLang': S.songLang = el.dataset.v; render(); break;
       case 'songVideos': S.songVideos = !S.songVideos; render(); break;
       case 'mySong': {
@@ -2187,7 +2250,7 @@ document.addEventListener('click', async (ev) => {
       case 'practice': await loadSongFor(S.data.assignments.find((x) => x.id === id)); startPractice(id); break;
       case 'practiceFree': startPractice(null); break;
       case 'resumePractice': { const rr = store.get('run'); await loadSongFor(S.data.assignments.find((x) => x.id === rr.assignment_id)); startPractice(rr.assignment_id, rr.part || null); break; }
-      case 'partPractice': { const p = S.song.parts.find((x) => x.id === id); DrumNotation.stop(); S.overlay = null; { const pn = DrumNotation.parse(p.notation), sb = S.song.song.bpm; startPractice(null, { id: p.id, title: S.song.song.title + ': ' + p.title, notation: p.notation, notes: p.notes, song_id: S.song.song.id, factor: partFactor(pn, sb), bpm: sb || (pn && pn.bpm) }); } break; }
+      case 'partPractice': { const p = S.song.parts.find((x) => x.id === id); DrumNotation.stop(); S.overlay = null; { const pn = DrumNotation.parse(p.notation), sb = S.song.song.bpm; startPractice(null, { id: p.id, title: S.song.song.title + ': ' + p.title, notation: p.notation, notes: p.notes, url: p.url || null, song_id: S.song.song.id, factor: partFactor(pn, sb), bpm: sb || (pn && pn.bpm) }); } break; }
       case 'minimize': {
         // Zurück aus der Übung: erst fragen, ob die Sitzung beendet werden soll (Otis Wunsch 12.11.)
         const run = store.get('run', null); closeAskEnd();
