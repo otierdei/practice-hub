@@ -753,6 +753,20 @@ test('Oti übernimmt Schüler Beat: mit Song als Baustein, ohne Song in die Bibl
   const mine = (await w.call('/api/home', {}, w.tb)).data.my_beats; assert.ok(mine.find((x) => x.id === b1).part_id && mine.find((x) => x.id === b2).exercise_id);
 });
 
+test('Oti bearbeitet Schüler Beat vor der Übernahme, danach nicht mehr', async () => {
+  const w = await world();
+  const nt = { sig: '4/4', bars: 1, tracks: { bd: [0], sn: [4] } }, nt2 = { sig: '4/4', bars: 1, tracks: { bd: [0, 8], sn: [4, 12] } };
+  const id = (await w.call('/api/my/beat/save', { title: 'Roh', notation: nt }, w.tb)).data.id;
+  assert.equal((await w.call('/api/t/student/beat/update', { id, title: 'X', notation: nt2 }, w.tb)).status, 403, 'Schüler nicht über Lehrer Weg');
+  assert.equal((await w.call('/api/t/student/beat/update', { id, title: '', notation: nt2 }, w.t)).status, 400);
+  assert.equal((await w.call('/api/t/student/beat/update', { id, title: 'Leer', notation: { sig: '4/4', bars: 1, tracks: {} } }, w.t)).status, 400);
+  assert.equal((await w.call('/api/t/student/beat/update', { id, title: 'Sauber', notation: nt2 }, w.t)).status, 200);
+  const b = (await w.call('/api/home', {}, w.tb)).data.my_beats.find((x) => x.id === id);
+  assert.equal(b.title, 'Sauber'); assert.deepEqual(JSON.parse(b.notation).tracks.bd, [0, 8]);
+  await w.call('/api/t/student/beat/approve', { id }, w.t);
+  assert.equal((await w.call('/api/t/student/beat/update', { id, title: 'Später', notation: nt }, w.t)).status, 409, 'nach Übernahme nicht mehr');
+});
+
 test('Flam wird gespeichert, nur auf vorhandenen Noten', async () => {
   const w = await world();
   const id = (await w.call('/api/t/exercise/save', { title: 'Flam Beat', notation: { sig: '4/4', bars: 1, tracks: { sn: [0, 4] }, flam: { 'sn:0': 1, 'sn:2': 1, 'hh:0': 1 }, dyn: { 'sn:0': 'a' } } }, w.t)).data.id;

@@ -223,8 +223,8 @@ details.card summary{cursor:pointer;font-family:var(--display);font-size:1.08rem
 </head>
 <body>
 <div id="app"><div class="wrap"><p class="muted">Lädt …</p></div></div>
-<script src="notation.js?v=98"></script>
-<script src="guitar.js?v=98"></script>
+<script src="notation.js?v=99"></script>
+<script src="guitar.js?v=99"></script>
 <script>
 'use strict';
 // ---------- Grundlagen ----------
@@ -1015,6 +1015,7 @@ function myBeatItem(b, teacher) {
     ${teacher ? '' : `<button class="btn small" data-act="myBeatEdit" data-id="${b.id}">Bearbeiten</button>`}</div>
     <div id="mbp_${b.id}">${notationPreview(b.notation, b.title)}</div>
     <div class="row" style="gap:8px">${playBtn('myBeatPlay', `data-id="${b.id}"`, false, true)}${teacher ? '' : `<button class="btn small primary" data-act="myBeatPractice" data-id="${b.id}">Üben</button>`}
+      ${teacher && !status ? `<button class="btn small" data-act="beatEditT" data-id="${b.id}">Bearbeiten</button>` : ''}
       ${teacher && !status ? `<button class="btn small primary" data-act="beatApprove" data-id="${b.id}">${b.song_id ? 'Als Song Baustein übernehmen' : 'In die Bibliothek übernehmen'}</button>` : ''}</div></section>`;
 }
 function myBeatsSection(d, songId) {
@@ -1025,13 +1026,14 @@ function myBeatsSection(d, songId) {
 function myBeatView() {
   const b = S.myBeat || {}, songs = S.songs ? S.songs.songs : [];
   return `<div class="wrap" style="max-width:720px"><div class="row between"><button class="btn small" data-act="close">Zurück</button></div>
-    <h1>${b.id ? 'Beat bearbeiten' : b.song_id ? 'Baustein schreiben' : 'Beat schreiben'}</h1>
+    <h1>${b.teacher ? 'Beat von ' + esc((S.file && S.file.student.first_name) || 'Schüler') + ' bearbeiten' : b.id ? 'Beat bearbeiten' : b.song_id ? 'Baustein schreiben' : 'Beat schreiben'}</h1>
     <form id="myBeatForm" class="col" style="gap:12px">
       <div class="field"><label for="mb_title">Name</label><input id="mb_title" maxlength="80" value="${esc(b.title || '')}" placeholder="z. B. Mein Fill, Chorus Groove"></div>
       <div class="field"><label for="mb_song">Zu welchem Song? (optional)</label><input id="mb_song" list="mb_songs" value="${esc((songs.find((x) => x.id === b.song_id) || {}).title || '')}" placeholder="Leer lassen für einen freien Beat" autocomplete="off"><datalist id="mb_songs">${songs.map((x) => `<option value="${esc(x.title)}"></option>`).join('')}</datalist></div>
       ${DrumNotation.editorHTML(S.nt.mb, 'mb')}
       <button class="btn primary block" type="submit">Speichern</button>
-      ${b.id ? `<button class="btn danger" type="button" data-act="myBeatDelete" data-id="${b.id}">${S.mbConfirm === b.id ? 'Wirklich löschen?' : 'Löschen'}</button>` : ''}
+      ${b.teacher ? '<p class="small muted">Der Schüler sieht deine Änderung. Danach kannst du ihn übernehmen.</p>' : ''}
+      ${b.id && !b.teacher ? `<button class="btn danger" type="button" data-act="myBeatDelete" data-id="${b.id}">${S.mbConfirm === b.id ? 'Wirklich löschen?' : 'Löschen'}</button>` : ''}
     </form></div>`;
 }
 function isKid(st) { return !st.birth_year || new Date().getFullYear() - st.birth_year < 13; }
@@ -1879,7 +1881,7 @@ document.addEventListener('click', async (ev) => {
     switch (act) {
       case 'reload': load(); break;
       case 'logout': try { await api('/api/logout'); } catch (e) {} logoutLocal(); break;
-      case 'close': S.newLink = null; if (S.overlay === myBeatView && S.myBeatBack) { DrumNotation.stop(); backToPracticeFromBeat(); break; } closeOverlay(); break;
+      case 'close': S.newLink = null; if (S.overlay === myBeatView && S.myBeat && S.myBeat.teacher) { DrumNotation.stop(); openOverlay(studentFileView); break; } if (S.overlay === myBeatView && S.myBeatBack) { DrumNotation.stop(); backToPracticeFromBeat(); break; } closeOverlay(); break;
       case 'student': S.newLink = null; S.allLessons = false; openStudent(id); break;
       case 'allLessons': S.allLessons = true; render(); break;
       case 'lesson': openLesson(id); break;
@@ -2115,6 +2117,7 @@ document.addEventListener('click', async (ev) => {
         DrumNotation.stop(); S.prevPlaying = 'mb' + id; setPlay(el, true); S.playFactor = 1; playBeat(n, $('#mbp_' + id), n.bpm); break;
       }
       case 'myBeatPractice': { const b = stuData().my_beats.find((x) => x.id === id), n = DrumNotation.parse(b.notation); DrumNotation.stop(); S.overlay = null; startPractice(null, { id: 'b' + b.id, title: 'Mein Beat: ' + b.title, notation: b.notation, notes: '', bpm: n && n.bpm, factor: 1 }); break; }
+      case 'beatEditT': { const b = S.file.beats.find((x) => x.id === id); S.myBeat = { ...b, teacher: true }; S.myBeatBack = false; S.nt = S.nt || {}; S.nt.mb = DrumNotation.parse(b.notation); S.mbConfirm = null; DrumNotation.stop(); if (!S.songs) { try { S.songs = await api('/api/songs'); } catch (e) {} } openOverlay(myBeatView); break; }
       case 'beatApprove': {
         const b = S.file.beats.find((x) => x.id === id); let ver;
         if (b.song_id) { try { const d = await api('/api/song', { id: b.song_id }); const vs = songVersions(d); ver = vs.length ? (S.songVersion && vs.includes(S.songVersion) ? S.songVersion : vs[0]) : null; } catch (e) { ver = null; } }
@@ -2398,6 +2401,10 @@ document.addEventListener('submit', async (ev) => {
     } else if (fid === 'myBeatForm') {
       const st = $('#mb_song').value.trim().toLowerCase(), sg = st && S.songs && S.songs.songs.find((x) => x.title.toLowerCase() === st);
       if (st && !sg) { toast('Diesen Song gibt es nicht. Leer lassen oder aus der Liste wählen.'); return; }
+      if (S.myBeat.teacher) {
+        await api('/api/t/student/beat/update', { id: S.myBeat.id, title: $('#mb_title').value.trim(), song_id: sg ? sg.id : null, notation: S.nt.mb });
+        DrumNotation.stop(); delete S.nt.mb; S.file = Object.assign(await api('/api/t/student', { id: S.file.student.id }), { course: S.file.course }); S.myBeat = null; openOverlay(studentFileView); toast('Beat gespeichert'); return;
+      }
       await api('/api/my/beat/save', { id: S.myBeat.id || undefined, title: $('#mb_title').value.trim(), song_id: sg ? sg.id : null, notation: S.nt.mb });
       DrumNotation.stop(); await reloadStu(); delete S.nt.mb; if (S.myBeatBack) backToPracticeFromBeat(); else closeOverlay(); toast('Gespeichert. Oti sieht deinen Beat.');
     } else if (fid === 'linkEditForm') {

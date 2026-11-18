@@ -943,6 +943,18 @@ async function route(env, req, path, body) {
       else await s.batch([['INSERT INTO student_app (student_id, app_name, color) VALUES (?, ?, ?) ON CONFLICT(student_id) DO UPDATE SET app_name = excluded.app_name, color = excluded.color', [st.id, name, color]]]);
       return { ok: true, app: name || color ? { app_name: name, color } : null };
     }
+    case '/api/t/student/beat/update': {
+      // Oti bearbeitet einen Schüler Beat vor der Übernahme (Otis Wunsch 18.11.2026)
+      const b = await s.first('SELECT b.id, o.beat_id AS done FROM student_beats b LEFT JOIN student_beat_official o ON o.beat_id = b.id WHERE b.id = ?', String(body.id || ''));
+      if (!b) throw new HttpError(404, 'Beat nicht gefunden.');
+      if (b.done) throw new HttpError(409, 'Schon übernommen. Bearbeite ihn jetzt unter Songs oder in der Bibliothek.');
+      const title = str(body.title, 80); if (!title) throw new HttpError(400, 'Name fehlt.');
+      const nt = cleanNotation(body.notation); const no = nt && JSON.parse(nt); if (!no || no.kind || !Object.values(no.tracks).some((t) => t.length)) throw new HttpError(400, 'Der Beat ist leer.');
+      const songId = body.song_id ? String(body.song_id) : null;
+      if (songId && !(await s.first('SELECT id FROM songs WHERE id = ?', songId))) throw new HttpError(404, 'Song nicht gefunden.');
+      await s.batch([['UPDATE student_beats SET title = ?, song_id = ?, notation = ?, updated_at = ? WHERE id = ?', [title, songId, nt, now(), b.id]], logRow(who, 'update', 'student_beats', b.id, 'Schüler Beat bearbeitet: ' + title)]);
+      return { ok: true };
+    }
     case '/api/t/student/beat/approve': {
       // Oti bestätigt einen Schüler Beat: mit Song wird er offizieller Song Baustein, ohne Song eine Bibliotheksübung
       const b = await s.first('SELECT b.*, st.first_name, o.beat_id AS done FROM student_beats b JOIN students st ON st.id = b.student_id LEFT JOIN student_beat_official o ON o.beat_id = b.id WHERE b.id = ?', String(body.id || ''));
