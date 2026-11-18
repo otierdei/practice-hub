@@ -223,8 +223,8 @@ details.card summary{cursor:pointer;font-family:var(--display);font-size:1.08rem
 </head>
 <body>
 <div id="app"><div class="wrap"><p class="muted">Lädt …</p></div></div>
-<script src="notation.js?v=95"></script>
-<script src="guitar.js?v=95"></script>
+<script src="notation.js?v=96"></script>
+<script src="guitar.js?v=96"></script>
 <script>
 'use strict';
 // ---------- Grundlagen ----------
@@ -1756,24 +1756,32 @@ function tapTempo() {
   taps.push(t); if (taps.length > 6) taps.shift();
   if (taps.length >= 3) { const avg = (taps[taps.length - 1] - taps[0]) / (taps.length - 1); setBpm(60000 / avg); }
 }
+// Tempo Frage am Ende (Otis Wunsch 18.11.2026): bei ganzen Songs keine, bei Bausteinen höchstens das Original Tempo des Songs, sonst wie bisher
+function finTempo(r, a) {
+  if (a && a.song_id && !a.part_id && !(r && r.part)) return { ask: false };
+  const pid = r && r.part ? r.part.id : a && a.part_id; if (!pid) return { ask: true, max: null };
+  const d = S.song, mine = d && d.song && (r.part ? d.song.id === r.part.song_id : (d.parts || []).some((p) => p.id === pid));
+  return { ask: true, max: (mine && d.song.bpm) || (r.part && r.part.bpm) || null };
+}
 function finishForm() {
   const r = store.get('run', null);
-  const a = runTask(r);
+  const a = runTask(r), ft = finTempo(r, a);
   return `<div class="wrap" style="max-width:560px">
     <h1>Gut gemacht</h1><p class="muted">${clock(runElapsed(r))} geübt${a ? ' · ' + esc(a.title || a.free_text) : ''}</p>
     <form id="finishForm" class="card">
       ${inLessonMode() && !S.preview ? '<p class="small muted">Unterricht läuft: diese Zeit wird nicht als Übungszeit gespeichert.</p>' : ''}
-      <div class="field"><label for="fin_bpm">Welches Tempo hast du sauber geschafft?</label><input id="fin_bpm" inputmode="numeric" value="${MET.bpm}"></div>
+      ${ft.ask ? `<div class="field"><label for="fin_bpm">Welches Tempo hast du sauber geschafft?</label><input id="fin_bpm" inputmode="numeric" value="${ft.max ? Math.min(MET.bpm, ft.max) : MET.bpm}"${ft.max ? ` data-max="${ft.max}"` : ''}>${ft.max ? `<span class="small muted">Original Tempo des Songs: ${ft.max} BPM</span>` : ''}</div>` : ''}
       <div class="field"><span id="feelLbl" class="small muted">Wie lief es?</span><div class="feel" role="group" aria-labelledby="feelLbl">${[1, 2, 3, 4, 5].map((n) => `<button type="button" data-act="feel" data-v="${n}" aria-pressed="false" aria-label="${['', 'schwer', 'eher schwer', 'okay', 'gut', 'sehr gut'][n]}">${n}</button>`).join('')}</div><div class="row between small muted"><span>schwer</span><span>sehr gut</span></div></div>
       <div class="field"><label for="fin_note">Frage oder Notiz an Oti (optional)</label><textarea id="fin_note" maxlength="500"></textarea></div>
       <button class="btn primary block" type="submit">Speichern</button>
       <button class="btn block" type="button" data-act="backToPractice">Weiter üben</button>
     </form></div>`;
 }
+function finBpmValue() { const i = $('#fin_bpm'); if (!i) return null; const v = Number(i.value) || null, m = Number(i.dataset.max) || null; return v && m ? Math.min(v, m) : v; }
 function saveSession(feeling) {
   const r = store.get('run', null); if (!r) return;
   const el = runElapsed(r);
-  const s = { client_id: (crypto.randomUUID ? crypto.randomUUID() : String(Date.now()) + Math.random()), assignment_id: r.assignment_id, started_at: r.startedAt, ended_at: new Date().toISOString(), local_date: localDate(new Date(r.startedAt)), seconds: Math.max(1, Math.round(el / 1000)), bpm_reached: Number($('#fin_bpm').value) || null, feeling: feeling || null, note: [r.titles && r.titles.length > 1 ? 'Bausteine: ' + r.titles.join(', ') : r.part ? 'Baustein: ' + r.part.title : '', $('#fin_note').value.trim()].filter(Boolean).join(' · ') || null };
+  const s = { client_id: (crypto.randomUUID ? crypto.randomUUID() : String(Date.now()) + Math.random()), assignment_id: r.assignment_id, started_at: r.startedAt, ended_at: new Date().toISOString(), local_date: localDate(new Date(r.startedAt)), seconds: Math.max(1, Math.round(el / 1000)), bpm_reached: finBpmValue(), feeling: feeling || null, note: [r.titles && r.titles.length > 1 ? 'Bausteine: ' + r.titles.join(', ') : r.part ? 'Baustein: ' + r.part.title : '', $('#fin_note').value.trim()].filter(Boolean).join(' · ') || null };
   if (inLessonMode() && !S.preview) { store.del('run'); stopTick(); S.overlay = null; render(); toast('Unterricht: zählt nicht als Übungszeit'); return; }
   const ob = store.get('outbox', []); ob.push(s); store.set('outbox', ob);
   store.del('run'); stopTick();

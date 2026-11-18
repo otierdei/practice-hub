@@ -183,6 +183,11 @@ let n = 0; const ok = (m) => console.log('ok ' + (++n) + ' ' + m);
     ok('Aufwärmen: Stoppuhr läuft nur mit Metronom oder Übung');
     await s.evaluate(() => scrollTo(0, 0)); await s.screenshot({ path: OUT + '/s-schutz-aufwaermen-390-dark.png' });
     await s.evaluate(() => { localStorage.removeItem('ph_run'); }); await s.reload(); await s.getByRole('heading', { name: 'Heute üben' }).waitFor();
+    // Ganzer Song: keine Tempo Frage am Ende
+    await s.evaluate(() => { S.data.assignments.push({ id: 'fake-song', song_id: 'fake', title: 'Ganzer Song', status: 'offen', minutes_per_day: 10, subs: [] }); startPractice('fake-song'); const r = store.get('run'); r.runningSince -= 2 * 60000; store.set('run', r); });
+    await s.click('[data-act=endPractice]'); await s.locator('#finishForm').waitFor(); assert.equal(await s.locator('#fin_bpm').count(), 0, 'keine Tempo Frage bei ganzem Song');
+    ok('Ganzer Song: keine Tempo Frage am Ende');
+    await s.evaluate(() => { clearInterval(tickTimer); localStorage.removeItem('ph_run'); }); await s.reload(); await s.getByRole('heading', { name: 'Heute üben' }).waitFor();
   }
 
   // Unterrichtsmodus: nur Oti schaltet, im Modus zählt Üben nicht
@@ -434,7 +439,10 @@ let n = 0; const ok = (m) => console.log('ok ' + (++n) + ' ' + m);
   await t.evaluate(() => { const r = JSON.parse(localStorage.getItem('ph_pv_run')); r.runningSince -= 3 * 60000; localStorage.setItem('ph_pv_run', JSON.stringify(r)); });
   await t.evaluate(() => { const p = S.song.parts[0]; startPractice(null, { id: 'block2', title: 'Am Kreuz: Block 2', notation: p.notation, notes: '', song_id: S.song.song.id, factor: 1, bpm: 60 }); });
   assert.match(await t.textContent('.sheet h1'), /Block 2/); assert.match(await t.textContent('#clockRing'), /3:0\d/); ok('Zweiten Baustein im gleichen Song üben: springt nicht zurück, Zeit läuft weiter');
-  await t.click('[data-act=endPractice]'); await t.click('#finishForm button[type=submit]'); await t.getByText('3 min gespeichert').waitFor();
+  await t.evaluate(() => { S.song.song.bpm = 70; MET.bpm = 200; });
+  await t.click('[data-act=endPractice]'); assert.equal(await t.inputValue('#fin_bpm'), '70', 'höchstens Original Tempo'); await t.getByText('Original Tempo des Songs: 70 BPM').waitFor();
+  await t.fill('#fin_bpm', '150'); await t.click('#finishForm button[type=submit]'); await t.getByText('3 min gespeichert').waitFor();
+  assert.equal(await t.evaluate(() => S.data.sessions[0].bpm_reached), 70, 'gespeichert höchstens Original Tempo'); ok('Baustein: Tempo Frage höchstens Original Tempo des Songs');
   assert.match(await t.evaluate(() => S.data.sessions[0].note), /^Bausteine: Am Kreuz: Groove Vers neu, Am Kreuz: Block 2/); 
   { // Aufwärmen: nach der vorgegebenen Zeit stoppen Metronom und Beat, Hinweis erscheint, weiter üben möglich
     await t.evaluate(async () => { const a = S.data.assignments.find((x) => x.status === 'offen' && x.exercise_id) || S.data.assignments[0]; a.category = 'Aufwärmen'; a.minutes_per_day = 1; store.del('run'); await startPractice(a.id); });
