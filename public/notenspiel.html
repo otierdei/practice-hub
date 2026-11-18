@@ -98,6 +98,7 @@ html:root{--bg:#fbf3e4;--surface:#ffffff;--sunk:#f6ead3;--ink:#23241f;--muted:#4
 <body>
 <main class="wrap" id="app" aria-live="polite"></main>
 <script src="notation.js?v=93"></script>
+<script src="game-audio.js?v=1"></script>
 <script>
 'use strict';
 // Notenspiel für Anfänger: jedes Schlagzeugteil mit Bild, Note und Klang lernen, dann mehrfach prüfen.
@@ -229,7 +230,7 @@ function learnRun() {
   };
   run.act = (act, el) => {
     const s = steps[i];
-    if (act === 'ans' && s.t === 'check') { const c = run.check; const ok = el.dataset.k === c.cur; c.answered = { ok, pick: el.dataset.k }; sound(c.cur); if (ok) c.left.shift(); else c.left.push(c.left.shift()); return render(); }
+    if (act === 'ans' && s.t === 'check') { const c = run.check; const ok = el.dataset.k === c.cur; c.answered = { ok, pick: el.dataset.k }; window.GameAudio && GameAudio[ok ? 'ok' : 'bad'](); sound(c.cur); if (ok) c.left.shift(); else c.left.push(c.left.shift()); return render(); }
     if (act === 'next') {
       if (s.t === 'check') { const c = run.check; if (c.answered) { c.answered = null; c.cur = c.left[0] || null; run.opts = null; if (c.left.length) return render(); } run.check = null; }
       i++; if (i >= steps.length) return finishLevel(1); window.scrollTo(0, 0); return render();
@@ -262,7 +263,7 @@ function masteryRun(lv, items, need, type, examMode) {
   };
   run.act = (act, el) => {
     if ((act === 'ans' || act === 'tap') && !run.answered) {
-      const ok = el.dataset.k === run.cur; run.answered = { ok, pick: el.dataset.k };
+      const ok = el.dataset.k === run.cur; run.answered = { ok, pick: el.dataset.k }; window.GameAudio && GameAudio[ok ? 'ok' : 'bad']();
       run.count[run.cur] = ok ? run.count[run.cur] + 1 : 0; if (!ok) run.wrongs++;
       sound(run.cur); return render();
     }
@@ -303,7 +304,7 @@ function seqRun(lv) {
   run.act = (act, el) => {
     if (act === 'tap' && !run.miss) {
       const k = el.dataset.k; sound(k);
-      if (k !== run.seq[run.pos]) { run.miss = k; run.wrongs++; return render(); }
+      if (k !== run.seq[run.pos]) { run.miss = k; run.wrongs++; window.GameAudio && GameAudio.bad(); return render(); }
       run.pos++; run.flash = k;
       if (run.pos >= 4) { run.round++; if (run.round >= lv.rounds) return setTimeout(() => finishLevel(lv.id, run.wrongs), 350); setTimeout(() => { run.seq = make(); run.pos = 0; run.flash = null; render(); }, 600); }
       return render();
@@ -332,7 +333,7 @@ function examRun(lv) {
       ${run.answered ? '<button class="btn primary block" data-act="next">Weiter</button>' : ''}`;
   };
   run.act = (act, el) => {
-    if ((act === 'ans' || act === 'tap') && !run.answered && run.i < qs.length) { const ok = el.dataset.k === run.cur; run.answered = { ok, pick: el.dataset.k }; if (ok) run.right++; else run.missed.push(run.cur); sound(run.cur); return render(); }
+    if ((act === 'ans' || act === 'tap') && !run.answered && run.i < qs.length) { const ok = el.dataset.k === run.cur; run.answered = { ok, pick: el.dataset.k }; window.GameAudio && GameAudio[ok ? 'ok' : 'bad'](); if (ok) run.right++; else run.missed.push(run.cur); sound(run.cur); return render(); }
     if (act === 'replay') return sound(run.cur, 2);
     if (act === 'next') { run.answered = null; run.i++; if (run.i < qs.length) setQ(); window.scrollTo(0, 0); return render(); }
     if (act === 'certNow') { P.done[7] = true; P.cert = new Date().toISOString().slice(0, 10); save(); G = null; return showCert(); }
@@ -342,7 +343,7 @@ function examRun(lv) {
 }
 
 function finishLevel(id, wrongs = 0) {
-  P.done[id] = true; save();
+  P.done[id] = true; save(); window.GameAudio && GameAudio.win();
   const stars = wrongs === 0 ? 3 : wrongs <= 3 ? 2 : 1;
   const next = LEVELS.find((l) => l.id === id + 1);
   G = { view: () => `${topBar('Geschafft')}<div class="card" style="text-align:center;align-items:center"><p class="stars" aria-label="${stars} von 3 Sternen">${'★'.repeat(stars)}${'☆'.repeat(3 - stars)}</p><p class="big">Stufe ${id} geschafft!</p><p class="muted">${wrongs ? wrongs + (wrongs === 1 ? ' Fehler' : ' Fehler') + ', und trotzdem alles gelernt.' : 'Ohne einen Fehler. Stark!'}</p></div>
