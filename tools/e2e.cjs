@@ -233,7 +233,7 @@ let n = 0; const ok = (m) => console.log('ok ' + (++n) + ' ' + m);
   assert.match(await t.textContent('body'), /Unterrichtsmodus beim Schüler an/);
   await s.evaluate(async () => { await refreshLessonMode(); }); await s.getByText('Oti hat die Stunde gestartet').waitFor();
   { const before = await s.evaluate(() => S.data.sessions.length);
-    await s.click('[data-act=practiceFree]'); await s.waitForTimeout(200);
+    await s.evaluate(() => startPractice(null)); await s.waitForTimeout(200);
     await s.evaluate(() => { const r = JSON.parse(localStorage.getItem('ph_run')); r.runningSince -= 5 * 60000; localStorage.setItem('ph_run', JSON.stringify(r)); });
     await s.click('[data-act=endPractice]'); await s.getByText('nicht als Übungszeit gespeichert').waitFor(); await s.click('#finishForm button[type=submit]');
     await s.getByText('Unterricht: zählt nicht als Übungszeit').waitFor();
@@ -246,7 +246,7 @@ let n = 0; const ok = (m) => console.log('ok ' + (++n) + ' ' + m);
 
   // Offline üben, dann nachsenden
   await sc.setOffline(true);
-  await s.click('[data-act=practiceFree]'); await s.waitForTimeout(200);
+  await s.evaluate(() => startPractice(null)); await s.waitForTimeout(200);
   await s.evaluate(() => { const r = JSON.parse(localStorage.getItem('ph_run')); r.runningSince -= 5 * 60000; localStorage.setItem('ph_run', JSON.stringify(r)); });
   await s.click('[data-act=endPractice]'); await s.click('#finishForm button[type=submit]');
   await s.getByText('wird gesendet').waitFor(); ok('Offline: Sitzung wartet im Ausgang');

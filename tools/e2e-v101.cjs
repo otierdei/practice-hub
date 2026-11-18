@@ -94,6 +94,25 @@ let n = 0; const ok = (m) => console.log('ok ' + (++n) + ' ' + m);
   await t.evaluate(() => closeOverlay()); await t.evaluate(async () => { S.file = await api('/api/t/student', { id: S.data.students[0].id }); const day = (k) => localDate(new Date(Date.now() - k * 864e5)); S.file.sessions = [{ id: 'x1', local_date: day(2), started_at: new Date(Date.now() - 2 * 864e5).toISOString(), seconds: 21600 }, { id: 'x2', local_date: day(0), started_at: new Date().toISOString(), seconds: 900, note: 'Baustein: Chorus' }].concat(S.file.sessions); openOverlay(studentFileView); });
   await t.locator('#fileSess').waitFor(); await t.click('#fileSess summary'); await t.locator('#fileSess').screenshot({ path: OUT + '/v102-2-akte-sitzungen.png' }); ok('Akte zeigt Übungssitzungen');
 
+  // ph-v103: Großer Üben Knopf startet Aufgabe 1, dann durchklicken
+  await t.evaluate(() => closeOverlay());
+  await t.setViewportSize({ width: 390, height: 844 });
+  await t.evaluate(async () => { const st = S.data.students[0]; S.previewFrom = null; S.file = await api('/api/t/student', { id: st.id }); startPreview(await api('/api/t/preview', { id: st.id })); stuData().assignments.push({ id: 'pv-extra', title: 'Extra Aufgabe', status: 'offen', minutes_per_day: 10, created_at: new Date().toISOString() }); render(); });
+  const list = await t.evaluate(() => tourList().map((a) => a.title || a.free_text));
+  assert.ok(list.length >= 3, 'mindestens 3 offene Aufgaben: ' + list.length);
+  await t.click('.practice-hero'); await t.locator('#clockRing').waitFor();
+  assert.equal((await t.textContent('.sheet h1')).trim(), list[0]); await t.getByText('Aufgabe 1 von ' + list.length).waitFor(); ok('Üben Knopf startet direkt Aufgabe 1');
+  await t.screenshot({ path: OUT + '/v103-1-aufgabe1.png' });
+  await t.click('.tour-nav [data-act=tourGo]:has-text("Nächste")'); await t.getByText('Aufgabe 2 von ' + list.length).waitFor();
+  assert.equal((await t.textContent('.sheet h1')).trim(), list[1]); ok('Unter 1 min: Nächste wechselt sofort');
+  await t.evaluate(() => { const r = store.get('run'); r.runningSince -= 3 * 60000; store.set('run', r); });
+  await t.click('.tour-nav [data-act=tourGo]:has-text("Nächste")'); await t.getByText('Speichern und weiter zur nächsten Aufgabe').waitFor();
+  await t.screenshot({ path: OUT + '/v103-2-speichern-weiter.png' });
+  await t.click('#finishForm button[type=submit]'); await t.getByText('Aufgabe 3 von ' + list.length).waitFor();
+  assert.equal((await t.textContent('.sheet h1')).trim(), list[2]);
+  assert.equal(await t.evaluate(() => stuData().sessions.filter((x) => x.seconds >= 170).length > 0), true, 'Sitzung von Aufgabe 2 gespeichert'); ok('Ab 1 min: erst speichern, dann Aufgabe 3');
+  await t.click('.tour-nav [data-act=tourGo]:has-text("Vorherige")'); await t.getByText('Aufgabe 2 von ' + list.length).waitFor(); ok('Vorherige geht zurück');
+  await t.evaluate(() => { clearInterval(tickTimer); store.del('run'); closeOverlay(); });
   assert.deepEqual(errors, []); console.log('ALLE ' + n + ' SCHRITTE GRÜN (v101)');
   await b.close();
 })().catch((e) => { console.error('FEHLER', e); process.exit(1); });
