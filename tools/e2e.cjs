@@ -134,6 +134,45 @@ let n = 0; const ok = (m) => console.log('ok ' + (++n) + ' ' + m);
   await s.getByText('12 min gespeichert').waitFor(); ok('Sitzung gespeichert');
   await s.waitForFunction(() => (JSON.parse(localStorage.getItem('ph_outbox') || '[]')).length === 0); ok('Ausgang leer, Server hat die Sitzung');
 
+  // Schutz der Übezeit (18.11.2026): Hintergrund, Herzschlag, 5 Minuten Stille, Aufwärmen
+  {
+    const el = () => s.evaluate(() => runElapsed(JSON.parse(localStorage.getItem('ph_run'))));
+    const run = () => s.evaluate(() => JSON.parse(localStorage.getItem('ph_run')));
+    const hide = (h) => s.evaluate((h) => { Object.defineProperty(document, 'hidden', { configurable: true, get: () => h }); Object.defineProperty(document, 'visibilityState', { configurable: true, get: () => h ? 'hidden' : 'visible' }); document.dispatchEvent(new Event('visibilitychange')); }, h);
+    await s.click('.card:has-text("Paradiddle Groove") [data-act=practice]'); await s.waitForTimeout(300);
+    assert.ok((await run()).runningSince, 'läuft');
+    await hide(true); assert.equal((await run()).runningSince, null); assert.equal((await run()).paused, 'hidden');
+    const e1 = await el(); await s.waitForTimeout(1500); assert.equal(await el(), e1, 'im Hintergrund zählt nichts');
+    await hide(false); await s.getByText('Stoppuhr pausiert').waitFor(); ok('Bildschirm gesperrt: Stoppuhr pausiert, Zeit gespeichert, Hinweis');
+    await s.click('#pausedNote [data-act=startStop]'); assert.ok((await run()).runningSince); assert.equal(await s.locator('#pausedNote').count(), 0);
+    // App lief nicht: 10 Minuten seit Start, letztes Lebenszeichen vor 8 Minuten
+    await s.evaluate(() => { const r = JSON.parse(localStorage.getItem('ph_run')); const n = Date.now(); r.accumulated = 0; r.runningSince = n - 10 * 60000; r.hb = n - 8 * 60000; localStorage.setItem('ph_run', JSON.stringify(r)); GUARD.last = n; });
+    await s.waitForTimeout(1300); { const r = await run(); assert.equal(r.runningSince, null); assert.equal(r.paused, 'away'); const m = r.accumulated / 60000; assert.ok(m > 1.9 && m < 2.1, 'nur 2 min gezählt, war ' + m); }
+    ok('Herzschlag: Zeit ohne laufende App zählt nicht');
+    // 4 Minuten still: Warnung, Ich übe weiter
+    await s.click('[data-act=startStop]'); await s.evaluate(() => { GUARD.last = Date.now() - 4 * 60000 - 1000; });
+    await s.locator('#idleWarn').waitFor(); await s.evaluate(() => scrollTo(0, 0)); await s.screenshot({ path: OUT + '/s-schutz-warnung-390-dark.png' }); await s.click('[data-act=stillHere]'); await s.waitForTimeout(300); assert.equal(await s.locator('#idleWarn').count(), 0); assert.ok((await run()).runningSince);
+    ok('4 Minuten Stille: Warnung, Ich übe weiter setzt zurück');
+    // 5 Minuten still: Stopp, stille Minuten abgezogen
+    await s.evaluate(() => { const r = JSON.parse(localStorage.getItem('ph_run')); const n = Date.now(); r.accumulated = 0; r.runningSince = n - 20 * 60000; r.hb = n; localStorage.setItem('ph_run', JSON.stringify(r)); GUARD.last = n - 5 * 60000 - 500; });
+    await s.waitForTimeout(1300); { const r = await run(); assert.equal(r.runningSince, null); assert.equal(r.paused, 'idle'); const m = r.accumulated / 60000; assert.ok(m > 14.9 && m < 15.1, '15 min gezählt, war ' + m); }
+    await s.getByText('5 Minuten ohne Metronom').waitFor(); await s.evaluate(() => scrollTo(0, 0)); await s.screenshot({ path: OUT + '/s-schutz-pause-390-dark.png' }); ok('5 Minuten ohne Metronom, Beat, Video: Stoppuhr stoppt, Stille zählt nicht');
+    // Metronom zählt als Aktivität
+    await s.click('#pausedNote [data-act=startStop]'); await s.evaluate(() => { GUARD.last = Date.now() - 4 * 60000 - 1000; });
+    await s.click('[data-act=metronome]'); await s.waitForTimeout(1300); assert.equal(await s.locator('#idleWarn').count(), 0); await s.click('[data-act=metronome]');
+    ok('Laufendes Metronom hält die Stoppuhr am Leben');
+    // Aufwärmen: nur mit Metronom oder Übung
+    await s.evaluate(() => { const r = JSON.parse(localStorage.getItem('ph_run')); S.data.assignments.find((x) => x.id === r.assignment_id).category = 'Aufwärmen'; });
+    await s.waitForTimeout(1300); assert.equal((await run()).runningSince, null, 'Aufwärmen ohne Ton steht');
+    const w0 = await el(); await s.waitForTimeout(1200); assert.equal(await el(), w0);
+    await s.click('[data-act=metronome]'); await s.waitForTimeout(2300); assert.ok((await run()).runningSince, 'läuft mit Metronom'); assert.ok(await el() > w0 + 1000);
+    await s.click('[data-act=metronome]'); await s.waitForTimeout(1300); assert.equal((await run()).runningSince, null, 'steht wieder');
+    await s.getByText('Beim Aufwärmen läuft die Zeit nur').waitFor();
+    ok('Aufwärmen: Stoppuhr läuft nur mit Metronom oder Übung');
+    await s.evaluate(() => scrollTo(0, 0)); await s.screenshot({ path: OUT + '/s-schutz-aufwaermen-390-dark.png' });
+    await s.evaluate(() => { localStorage.removeItem('ph_run'); }); await s.reload(); await s.getByRole('heading', { name: 'Heute üben' }).waitFor();
+  }
+
   // Unterrichtsmodus: nur Oti schaltet, im Modus zählt Üben nicht
   assert.equal(await s.locator('[data-act=lessonModeOn]').count(), 0); ok('Kein Unterrichtsmodus Schalter beim Schüler');
   await t.evaluate(async () => { await openLesson(S.file.student.id); });
