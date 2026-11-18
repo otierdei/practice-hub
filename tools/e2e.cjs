@@ -187,6 +187,20 @@ let n = 0; const ok = (m) => console.log('ok ' + (++n) + ' ' + m);
     await s.evaluate(() => { S.data.assignments.push({ id: 'fake-song', song_id: 'fake', title: 'Ganzer Song', status: 'offen', minutes_per_day: 10, subs: [] }); startPractice('fake-song'); const r = store.get('run'); r.runningSince -= 2 * 60000; store.set('run', r); });
     await s.click('[data-act=endPractice]'); await s.locator('#finishForm').waitFor(); assert.equal(await s.locator('#fin_bpm').count(), 0, 'keine Tempo Frage bei ganzem Song');
     ok('Ganzer Song: keine Tempo Frage am Ende');
+    // Eigenen Baustein beim Üben schreiben (18.11.2026): Song zeigt Baustein, freie Aufgabe Beat, nach dem Speichern zurück in die Übung
+    await s.evaluate(() => { clearInterval(tickTimer); localStorage.removeItem('ph_run'); closeAskEnd(); S.overlay = null; render(); });
+    await s.evaluate(() => { startPractice('fake-song'); });
+    assert.equal(await s.locator('#practiceWrite [data-act=myBeatNew][data-song="fake"]').count(), 1, 'Song: Baustein schreiben mit Song');
+    await s.evaluate(() => { clearInterval(tickTimer); localStorage.removeItem('ph_run'); S.overlay = null; S.data.assignments.push({ id: 'fake-free', free_text: 'Freies Üben E2E', status: 'offen', minutes_per_day: 10 }); startPractice('fake-free'); });
+    await s.click('#practiceWrite [data-act=myBeatNew]'); await s.locator('#myBeatForm').waitFor();
+    await s.click('[data-act=close]'); await s.locator('#clockRing').waitFor(); ok('Zurück aus dem Beat führt in die laufende Übung');
+    await s.click('#practiceWrite [data-act=myBeatNew]'); await s.fill('#mb_title', 'Fill aus Übung E2E');
+    await s.click('.nt-cell[data-nt=mb][data-k=sn][data-i="0"]'); await s.click('#myBeatForm button[type=submit]');
+    await s.locator('#clockRing').waitFor(); assert.ok(await s.evaluate(() => !!localStorage.getItem('ph_run')), 'Übung läuft weiter');
+    assert.ok(await s.evaluate(() => S.data.my_beats.some((b) => b.title === 'Fill aus Übung E2E')));
+    await s.evaluate(() => scrollTo(0, 0)); await s.locator('#practiceWrite').screenshot({ path: OUT + '/s-baustein-in-uebung.png' });
+    ok('Beim Üben eigenen Beat oder Baustein schreiben, gespeichert, zurück in der Übung');
+    await s.evaluate(() => { clearInterval(tickTimer); localStorage.removeItem('ph_run'); }); await s.reload(); await s.getByRole('heading', { name: 'Heute üben' }).waitFor();
     await s.evaluate(() => { clearInterval(tickTimer); localStorage.removeItem('ph_run'); }); await s.reload(); await s.getByRole('heading', { name: 'Heute üben' }).waitFor();
   }
 
