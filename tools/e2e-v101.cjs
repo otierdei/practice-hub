@@ -78,6 +78,21 @@ let n = 0; const ok = (m) => console.log('ok ' + (++n) + ' ' + m);
   await t.screenshot({ path: OUT + '/v101-4-uebetage.png' });
   console.log(await t.locator('#practiceDays').innerText());
   assert.ok(await t.locator('#practiceDays').getByText(/Uhr · \d+ min/).count()); ok('Uhrzeit und Minuten pro Sitzung');
+  { const labels = await t.locator('#practiceDays .day-row b').allTextContents(); assert.equal(labels[0], await t.evaluate(() => fmtDate(localDate())), 'heute oben'); assert.ok(labels.some((l) => / bis /.test(l)), 'Lücke zusammengefasst'); ok('Neuester Tag oben, Lücken in einer Zeile'); }
+  // Echte Sitzung mit 360 min anlegen (Schüler Link) und in der Akte löschen
+  await t.evaluate(() => { S.file.sessions.unshift({ id: 'nichtda', local_date: localDate(), started_at: new Date().toISOString(), seconds: 21600 }); S.practiceDays = true; render(); });
+  await t.locator('#practiceDays').getByText('ungewöhnlich lang').waitFor(); ok('360 min als ungewöhnlich lang markiert');
+  await t.screenshot({ path: OUT + '/v102-1-uebetage-neu-oben.png' });
+  await t.locator('#practiceDays [data-act=sessDelete][data-id=nichtda]').click(); await t.getByText('Wirklich löschen?').waitFor();
+  await t.locator('#practiceDays [data-act=sessDelete][data-id=nichtda]').click(); await t.getByText('Sitzung nicht gefunden.').waitFor(); ok('Löschen fragt erst nach, Server prüft');
+  // Abgeschlossene Songs aus Notizen: in älterer Stunde erwähnt, in der neuesten nicht
+  await t.evaluate(() => { const L = S.file.lessons[0]; S.file.lessons = [{ ...L, id: 'neu', date: localDate(), notes_teacher: 'Nur Groove geübt' }, { ...L, id: 'alt', date: '2026-10-01', notes_teacher: 'Sortier Song Strophe sauber, Tempo Song E2E angefangen' }];
+    S.file.assignments.push({ id: 'oa', song_id: S.songs.songs.find((x) => x.title === 'Tempo Song E2E').id, status: 'offen', title: 'Tempo Song E2E' }); render(); });
+  await t.locator('#a_doneSongs .chip:has-text("Sortier Song")').waitFor();
+  assert.equal(await t.locator('#a_doneSongs .chip:has-text("Tempo Song E2E")').count(), 0, 'offene Hausaufgabe zählt nicht als abgeschlossen');
+  await t.locator('#a_doneSongs').screenshot({ path: OUT + '/v102-3-abgeschlossen-notizen.png' }); ok('Song aus älteren Notizen steht bei Abgeschlossene Songs');
+  await t.evaluate(() => closeOverlay()); await t.evaluate(async () => { S.file = await api('/api/t/student', { id: S.data.students[0].id }); const day = (k) => localDate(new Date(Date.now() - k * 864e5)); S.file.sessions = [{ id: 'x1', local_date: day(2), started_at: new Date(Date.now() - 2 * 864e5).toISOString(), seconds: 21600 }, { id: 'x2', local_date: day(0), started_at: new Date().toISOString(), seconds: 900, note: 'Baustein: Chorus' }].concat(S.file.sessions); openOverlay(studentFileView); });
+  await t.locator('#fileSess').waitFor(); await t.click('#fileSess summary'); await t.locator('#fileSess').screenshot({ path: OUT + '/v102-2-akte-sitzungen.png' }); ok('Akte zeigt Übungssitzungen');
 
   assert.deepEqual(errors, []); console.log('ALLE ' + n + ' SCHRITTE GRÜN (v101)');
   await b.close();

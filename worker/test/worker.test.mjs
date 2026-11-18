@@ -507,6 +507,19 @@ test('App Skripte tragen die Version des Service Worker Caches', async () => {
   for (const k of ['bd', 'sn', 't1', 't2', 'ft', 'cr', 'hh', 'ho', 'rd']) assert.ok(sw.includes(`'samples/${k}.mp3?v=${v}'`), k + ' Sample im Cache mit ?v=' + v);
 });
 
+test('Übungssitzung löschen: nur Lehrer, danach weg bei Schüler und Akte', async () => {
+  const w = await world();
+  const ha = (await w.call('/api/home', {}, w.ta)).data.assignments[0];
+  const now = new Date(), t0 = new Date(now.getTime() - 7 * 3600e3).toISOString(), t1 = new Date(now.getTime() - 3600e3).toISOString();
+  await w.call('/api/session/add', { client_id: 'lang1', assignment_id: ha.id, started_at: t0, ended_at: t1, local_date: t0.slice(0, 10), seconds: 21600 }, w.ta);
+  const sid = (await w.call('/api/t/student', { id: w.a }, w.t)).data.sessions.find((x) => x.seconds === 21600).id;
+  assert.equal((await w.call('/api/t/session/delete', { id: sid }, w.ta)).status, 403, 'Schüler darf nicht löschen');
+  assert.equal((await w.call('/api/t/session/delete', { id: sid }, w.t)).status, 200);
+  assert.equal((await w.call('/api/t/session/delete', { id: sid }, w.t)).status, 404);
+  assert.ok(!(await w.call('/api/t/student', { id: w.a }, w.t)).data.sessions.some((x) => x.id === sid));
+  assert.ok(!((await w.call('/api/home', {}, w.ta)).data.sessions || []).some((x) => x.seconds === 21600));
+});
+
 test('Song Bausteine sortieren: nur Lehrer, nur eigene Bausteine, neue landen hinten', async () => {
   const w = await world();
   const sid = (await w.call('/api/t/song/create', { title: 'Sortier Song' }, w.t)).data.id;

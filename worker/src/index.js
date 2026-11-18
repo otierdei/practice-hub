@@ -1034,6 +1034,13 @@ async function route(env, req, path, body) {
       ops.push(logRow(who, 'update', 'song_parts', tid, 'Übernommen nach ' + ver)); await s.batch(ops);
       return { id: tid, created: !twin };
     }
+    case '/api/t/session/delete': {
+      // Einzelne Übungssitzung löschen, z. B. vergessene Stoppuhr (Otis Wunsch 18.11.2026)
+      const x = await s.first('SELECT id, student_id, local_date, seconds FROM practice_sessions WHERE id = ?', String(body.id || ''));
+      if (!x) throw new HttpError(404, 'Sitzung nicht gefunden.');
+      await s.batch([['DELETE FROM practice_sessions WHERE id = ?', [x.id]], logRow(who, 'delete', 'practice_sessions', x.id, x.local_date + ', ' + Math.round(x.seconds / 60) + ' min')]);
+      return { ok: true };
+    }
     case '/api/t/song/parts/reorder': {
       // Reihenfolge der Bausteine eines Songs festlegen (Otis Wunsch 18.11.2026). ids: alle Bausteine des Songs in neuer Reihenfolge
       const ids = (Array.isArray(body.ids) ? body.ids : []).slice(0, 200).map(String);

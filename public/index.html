@@ -154,6 +154,8 @@ input[type=range]{accent-color:var(--ring);width:100%;min-height:32px}
 .day-none{opacity:.6}
 .day-row > .t{flex:1;min-width:0}
 .day-row > .t > .row{width:100%}
+.sess-line{display:flex;align-items:center;justify-content:space-between;gap:10px;width:100%}
+.sess-long{color:var(--danger, #a33)}
 button.link.small{background:none;border:0;padding:0;margin-top:4px;color:var(--ink);text-decoration:underline;text-underline-offset:3px;cursor:pointer;min-height:32px}
 .item.dragging,.card.dragging{opacity:.75;background:var(--track);border-radius:12px}
 .card.task > .row > .drag{margin-left:-10px}
@@ -230,8 +232,8 @@ details.card summary{cursor:pointer;font-family:var(--display);font-size:1.08rem
 </head>
 <body>
 <div id="app"><div class="wrap"><p class="muted">Lädt …</p></div></div>
-<script src="notation.js?v=101"></script>
-<script src="guitar.js?v=101"></script>
+<script src="notation.js?v=102"></script>
+<script src="guitar.js?v=102"></script>
 <script>
 'use strict';
 // ---------- Grundlagen ----------
@@ -610,6 +612,7 @@ function studentFileView() {
     <section class="card"><div class="row between"><span class="col" style="gap:0"><b>Spielt im Lobpreis</b><span class="muted small">Sieht dann die Sonntags Setlist</span></span><button class="check ${f.worship ? 'on' : ''}" data-act="worship" aria-pressed="${!!f.worship}" aria-label="Spielt im Lobpreis">${f.worship ? '✓' : ''}</button></div></section>
     <section class="card col">${cancelButtons(st.id)}${(f.cancellations || []).length ? `<details><summary class="small muted">Absagen (${f.cancellations.length})</summary><div class="list">${f.cancellations.map((c) => `<div class="item"><span class="t">${esc(fmtDate(c.date))}</span><span class="small muted">${CANCEL[c.kind] || c.kind}</span></div>`).join('')}</div></details>` : ''}</section>
     <section class="card"><h3>Übezeit pro Woche</h3>${weeksCircles(f.sessions)}</section>
+    ${fileSessionsCard(f)}
     <div class="grid2">
       <section class="card"><h3>Offene Hausaufgaben</h3><div class="list" data-sort="asg">${open.length ? open.map((a, i) => `<div class="item" style="flex-wrap:wrap" data-sort-id="${a.id}">${grip(i + 1, open.length > 1)}<span class="t"><button class="link" data-act="asgDetail" data-id="${a.id}"><b>${esc(a.title || a.free_text)}</b>${asgInstrPill(a, S.file.student)}</button>${a.target_bpm ? ' <span class="muted small">' + (isSongTask(a) ? a.target_bpm + ' BPM' : 'Ziel ' + a.target_bpm) + '</span>' : ''}<br><span class="muted small">${practicedFor(a, f.sessions)}</span><br>${assignBadges(a)}</span>${a.url ? `<a class="btn small" href="${esc(a.url)}" ${linkTarget(a.url)}>${linkLabel(a)}</a>` : ''}<button class="btn small" data-act="addLink" data-id="${a.id}">${a.url ? 'Link ändern' : 'Link hinzufügen'}</button>
         <div id="lk_${a.id}" class="row hidden" style="width:100%;flex-wrap:nowrap"><input id="lki_${a.id}" type="url" inputmode="url" placeholder="YouTube Link einfügen" style="flex:1"><button class="btn small primary" data-act="saveLink" data-id="${a.id}">Speichern</button></div></div>`).join('') : '<p class="muted">Keine.</p>'}</div></section>
@@ -713,11 +716,32 @@ function doneSongs(file) {
     const sg = S.songs && S.songs.songs.find((x) => x.id === a.song_id), e = m.get(a.song_id) || { id: a.song_id, title: sg ? sg.title : (a.title || a.free_text || 'Song'), versions: new Set(), last: '' };
     if (a.song_version) e.versions.add(a.song_version); if ((a.done_at || '') > e.last) e.last = a.done_at || ''; m.set(a.song_id, e);
   }
+  // Otis Regel 18.11.2026: Song stand in älteren Notizen oder Hausaufgaben, in der neuesten Stunde nicht mehr = abgeschlossen
+  for (const e of doneFromNotes(file)) if (!m.has(e.id)) m.set(e.id, e);
   return [...m.values()].sort((x, y) => y.last.localeCompare(x.last));
+}
+const normT = (t) => ' ' + String(t || '').toLowerCase().normalize('NFC').replace(/[^\p{L}\p{N}]+/gu, ' ').trim() + ' ';
+function lessonText(file, l) {
+  const hw = (file.assignments || []).filter((a) => a.lesson_id === l.id);
+  return { text: normT([l.notes_teacher, l.notes_shared].concat(hw.map((a) => a.title || a.free_text)).join(' ')), ids: new Set(hw.map((a) => a.song_id).filter(Boolean)) };
+}
+function doneFromNotes(file) {
+  const ls = ((file && file.lessons) || []).slice().sort((a, b) => (a.date < b.date ? 1 : -1));
+  const songs = (S.songs && S.songs.songs) || []; if (ls.length < 2 || !songs.length) return [];
+  const cands = songs.map((x) => ({ id: x.id, title: x.title, n: normT(x.title) })).filter((x) => x.n.trim().length >= 4);
+  const has = (lt, c) => lt.ids.has(c.id) || lt.text.includes(c.n);
+  const latest = lessonText(file, ls[0]);
+  const open = new Set((file.assignments || []).filter((a) => a.status === 'offen' && a.song_id).map((a) => a.song_id));
+  const out = new Map();
+  for (const l of ls.slice(1)) {
+    const lt = lessonText(file, l);
+    for (const c of cands) if (!out.has(c.id) && !open.has(c.id) && !has(latest, c) && has(lt, c)) out.set(c.id, { id: c.id, title: c.title, versions: new Set(), last: l.date, notes: true });
+  }
+  return [...out.values()];
 }
 function doneSongsHTML(file) {
   const l = doneSongs(file);
-  return `<div class="small" id="a_doneSongs"><b>Schon abgeschlossene Songs</b>${l.length ? `<div class="row" style="gap:6px;margin-top:4px">${l.map((e) => `<span class="chip">${esc(e.title)}${e.versions.size ? ' · ' + esc([...e.versions].join(', ')) : ''}${e.last ? ' · ' + new Date(e.last).toLocaleDateString('de-DE') : ''}</span>`).join('')}</div>` : '<span class="muted"> · noch keiner</span>'}</div>`;
+  return `<div class="small" id="a_doneSongs"><b>Schon abgeschlossene Songs</b>${l.length ? `<div class="row" style="gap:6px;margin-top:4px">${l.map((e) => `<span class="chip"${e.notes ? ' title="Aus deinen Notizen: zuletzt in dieser Stunde erwähnt"' : ''}>${esc(e.title)}${e.versions.size ? ' · ' + esc([...e.versions].join(', ')) : ''}${e.last ? ' · ' + new Date(e.last).toLocaleDateString('de-DE') : ''}</span>`).join('')}</div>` : '<span class="muted"> · noch keiner</span>'}</div>`;
 }
 async function assignNow(item) {
   const r = await api('/api/t/assignments/new', { student_id: S.file.student.id, items: [item] });
@@ -794,18 +818,40 @@ function assignmentDetailView() {
     </div>
   </div>`;
 }
-// Antippen der Kreise: jeder Tag seit der letzten Stunde mit Uhrzeit, Dauer und Aufgabe (Otis Wunsch 18.11.2026)
+// Antippen der Kreise: jeder Tag seit der letzten Stunde, neuester oben, Lücken zusammengefasst (Otis Wunsch 18.11.2026)
+function sessTitle(s, titles) { return titles[s.assignment_id] || (s.note && /^Bausteine?:/.test(s.note) ? s.note.split(' · ')[0] : 'Frei geübt'); }
+// Eine Übungssitzung als Zeile, Lehrer kann sie löschen (zweimal tippen)
+function sessLineHTML(s, titles, withDate) {
+  const t = new Date(s.started_at).toLocaleTimeString('de-DE', { hour: '2-digit', minute: '2-digit' }), m = Math.max(1, mins(s.seconds)), long = m >= 120;
+  return `<span class="small sess-line"><span><span class="muted">${withDate ? esc(fmtDate(s.local_date)) + ', ' : ''}${t} Uhr · </span><b${long ? ' class="sess-long"' : ''}>${m} min</b> ${esc(sessTitle(s, titles))}${s.bpm_reached ? ' · ' + s.bpm_reached + ' BPM' : ''}${s.feeling ? ' · Gefühl ' + s.feeling : ''}${long ? ' <span class="pill">ungewöhnlich lang</span>' : ''}</span>${s.id ? `<button class="btn small ${S.sessDel === s.id ? 'danger' : ''}" data-act="sessDelete" data-id="${esc(s.id)}">${S.sessDel === s.id ? 'Wirklich löschen?' : 'Löschen'}</button>` : ''}</span>`;
+}
 function practiceDaysHTML(f, sinceDate) {
   const titles = Object.fromEntries((f.assignments || []).map((a) => [a.id, a.title || a.free_text]));
-  const out = [], d = new Date(sinceDate + 'T12:00:00'), end = localDate();
-  for (let i = 0; i < 60 && localDate(d) <= end; i++, d.setDate(d.getDate() + 1)) {
-    const k = localDate(d), ss = f.sessions.filter((s) => s.local_date === k).sort((a, b) => (a.started_at < b.started_at ? -1 : 1));
+  const days = [], d = new Date(sinceDate + 'T12:00:00'), end = localDate();
+  for (let i = 0; i < 120 && localDate(d) <= end; i++, d.setDate(d.getDate() + 1)) days.push(localDate(d));
+  days.reverse();
+  const out = [];
+  for (let i = 0; i < days.length; i++) {
+    const k = days[i], ss = f.sessions.filter((s) => s.local_date === k).sort((a, b) => (a.started_at < b.started_at ? 1 : -1));
+    if (!ss.length) { // Lücke: aufeinanderfolgende Tage ohne Üben in einer Zeile
+      let j = i; while (j + 1 < days.length && !f.sessions.some((s) => s.local_date === days[j + 1])) j++;
+      const label = j === i ? fmtDate(k) : fmtDate(days[j]) + ' bis ' + fmtDate(k);
+      out.push(`<div class="item day-row day-none"><span class="t"><span class="row between" style="flex-wrap:nowrap"><b>${esc(label)}</b><span class="muted">${j === i ? 'nicht geübt' : (j - i + 1) + ' Tage nicht geübt'}</span></span></span></div>`);
+      i = j; continue;
+    }
     const sum = mins(ss.reduce((t, s) => t + s.seconds, 0));
-    out.push(`<div class="item day-row${ss.length ? '' : ' day-none'}"><span class="t col" style="gap:4px"><span class="row between" style="flex-wrap:nowrap"><b>${esc(fmtDate(k))}</b><span class="${ss.length ? '' : 'muted'}">${ss.length ? sum + ' min' : 'nicht geübt'}</span></span>
-      ${ss.map((s) => { const t = new Date(s.started_at).toLocaleTimeString('de-DE', { hour: '2-digit', minute: '2-digit' }); const what = titles[s.assignment_id] || (s.note && /^Baustein/.test(s.note) ? s.note.split(' · ')[0] : 'Frei geübt');
-        return `<span class="small"><span class="muted">${t} Uhr · ${Math.max(1, mins(s.seconds))} min</span> ${esc(what)}${s.bpm_reached ? ' · ' + s.bpm_reached + ' BPM' : ''}${s.feeling ? ' · Gefühl ' + s.feeling : ''}</span>`; }).join('')}</span></div>`);
+    out.push(`<div class="item day-row"><span class="t col" style="gap:6px"><span class="row between" style="flex-wrap:nowrap"><b>${esc(fmtDate(k))}</b><span>${sum} min</span></span>${ss.map((s) => sessLineHTML(s, titles)).join('')}</span></div>`);
   }
   return `<div class="list" id="practiceDays" style="margin-top:8px">${out.join('')}</div>`;
+}
+// Akte: letzte Übungssitzungen mit Löschen
+function fileSessionsCard(f) {
+  if (!(f.sessions || []).length) return '';
+  const titles = Object.fromEntries((f.assignments || []).map((a) => [a.id, a.title || a.free_text]));
+  const list = f.sessions.slice().sort((a, b) => (a.started_at < b.started_at ? 1 : -1)), n = S.allSess ? list.length : 15;
+  return `<details class="card" ${S.sessOpen ? 'open' : ''} id="fileSess"><summary><b>Übungssitzungen</b> <span class="muted small">(${list.length}, neueste oben)</span></summary>
+    <div class="list" style="margin-top:8px">${list.slice(0, n).map((s) => `<div class="item day-row"><span class="t">${sessLineHTML(s, titles, true)}</span></div>`).join('')}</div>
+    ${list.length > n ? `<button class="btn small" data-act="allSess">Alle ${list.length} anzeigen</button>` : ''}</details>`;
 }
 function historyBlock(f) {
   const rows = f.lessons.map((l) => ({ date: l.date, l })).concat((f.cancellations || []).map((c) => ({ date: c.date, c }))).sort((a, b) => (a.date < b.date ? 1 : -1));
@@ -2234,6 +2280,11 @@ document.addEventListener('click', async (ev) => {
       }
       case 'backToSong': openOverlay(songView); break;
       case 'practiceDays': S.practiceDays = !S.practiceDays; render(); break;
+      case 'allSess': S.allSess = true; S.sessOpen = true; render(); break;
+      case 'sessDelete': {
+        if (S.sessDel !== id) { S.sessDel = id; S.sessOpen = !!$('#fileSess[open]'); render(); break; }
+        S.sessDel = null; S.sessOpen = !!$('#fileSess[open]');
+        await api('/api/t/session/delete', { id }); S.file.sessions = S.file.sessions.filter((x) => x.id !== id); render(); toast('Sitzung gelöscht'); break; }
       case 'songLang': S.songLang = el.dataset.v; render(); break;
       case 'songVideos': S.songVideos = !S.songVideos; render(); break;
       case 'mySong': {
