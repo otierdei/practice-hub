@@ -99,6 +99,7 @@ html:root{--bg:#fbf3e4;--surface:#ffffff;--sunk:#f6ead3;--ink:#23241f;--muted:#4
 <body>
 <main class="wrap" id="app" aria-live="polite"></main>
 <script src="notation.js?v=93"></script>
+<script src="game-audio.js?v=1"></script>
 <script>
 'use strict';
 // Notenwerte Spiel: Ganze, Halbe, Viertel, Achtel, Sechzehntel, Triolen, Pausen und Flams lernen, zählen und hören.
@@ -284,7 +285,7 @@ function learnRun() {
   };
   run.act = (act, el) => {
     const s = steps[i];
-    if (act === 'ans') { const c = run.c, cur = c.cur, ok = el.dataset.v === BY[cur].beats; c.ans = { ok }; if (ok) c.left.shift(); else c.left.push(c.left.shift()); return render(); }
+    if (act === 'ans') { const c = run.c, cur = c.cur, ok = el.dataset.v === BY[cur].beats; c.ans = { ok }; window.GameAudio && GameAudio[ok ? 'ok' : 'bad'](); if (ok) c.left.shift(); else c.left.push(c.left.shift()); return render(); }
     if (act === 'next') { if (s.t === 'check') { if (run.c.ans) { run.c.ans = null; run.opts = null; if (run.c.left.length) return render(); } run.c = null; } i++; if (i >= steps.length) return finishLevel(1); window.scrollTo(0, 0); return render(); }
   };
   return run;
@@ -346,7 +347,7 @@ function quizRun(lv, gen, opt) {
       <p class="small muted" style="text-align:center">${keys ? `Jeder Wert ${opt.need === 1 ? 'einmal' : opt.need + ' mal hintereinander'} richtig.` : `${opt.rounds} richtige Antworten.`}</p>`; };
   run.act = (act, el) => {
     if (act === 'playQ') return playQ(run.q);
-    if (act === 'ans' && !run.ans) { const i = Number(el.dataset.i), ok = i === rightIndex(run.q); run.ans = { ok, pick: i }; if (keys) count[run.lastK] = ok ? count[run.lastK] + 1 : 0; if (ok) run.correct++; else run.wrongs++; return render(); }
+    if (act === 'ans' && !run.ans) { const i = Number(el.dataset.i), ok = i === rightIndex(run.q); run.ans = { ok, pick: i }; window.GameAudio && GameAudio[ok ? 'ok' : 'bad'](); if (keys) count[run.lastK] = ok ? count[run.lastK] + 1 : 0; if (ok) run.correct++; else run.wrongs++; return render(); }
     if (act === 'next') { run.ans = null; if (!left().length) return opt.onDone ? opt.onDone() : finishLevel(lv.id, run.wrongs); next(); window.scrollTo(0, 0); return render(); }
   };
   return run;
@@ -365,7 +366,7 @@ function examRun(lv) {
   run.act = (act, el) => {
     const q = qs[run.i];
     if (act === 'playQ') return playQ(q);
-    if (act === 'ans' && !run.ans) { const i = Number(el.dataset.i), ok = i === rightIndex(q); run.ans = { ok, pick: i }; if (ok) run.right++; else run.missed.push(q.kind); return render(); }
+    if (act === 'ans' && !run.ans) { const i = Number(el.dataset.i), ok = i === rightIndex(q); run.ans = { ok, pick: i }; window.GameAudio && GameAudio[ok ? 'ok' : 'bad'](); if (ok) run.right++; else run.missed.push(q.kind); return render(); }
     if (act === 'next') { run.ans = null; run.i++; { const nq = qs[run.i]; if (nq && (nq.kind === 'hear' || nq.kind === 'fhear')) setTimeout(() => { if (G === run && qs[run.i] === nq) playQ(nq); }, 300); } window.scrollTo(0, 0); return render(); }
     if (act === 'certNow') { P.done[8] = true; P.cert = new Date().toISOString().slice(0, 10); save(); return showCert(); }
     if (act === 'again') { const kinds = [...new Set(run.missed)]; const gen = () => { const k = pick(kinds); return k === 'len' ? qLen(pick(VALS).k) : k === 'sym' ? qSym(pick(VALS).k) : k === 'count' ? qCount() : k === 'hear' ? qHear() : k === 'fill' || k === 'calc' ? qMath() : pick(FLAMQ)(); };
@@ -374,7 +375,7 @@ function examRun(lv) {
   return run;
 }
 function finishLevel(id, wrongs = 0) {
-  P.done[id] = true; save(); const stars = wrongs === 0 ? 3 : wrongs <= 3 ? 2 : 1, next = LEVELS.find((l) => l.id === id + 1);
+  P.done[id] = true; save(); window.GameAudio && GameAudio.win(); const stars = wrongs === 0 ? 3 : wrongs <= 3 ? 2 : 1, next = LEVELS.find((l) => l.id === id + 1);
   G = { view: () => `${topBar('Geschafft')}<div class="card" style="text-align:center;align-items:center"><p class="stars" aria-label="${stars} von 3 Sternen">${'★'.repeat(stars)}${'☆'.repeat(3 - stars)}</p><p class="big">Stufe ${id} geschafft!</p><p class="muted">${wrongs ? wrongs + ' Fehler, und trotzdem alles gelernt.' : 'Ohne einen Fehler. Stark!'}</p></div>${next ? `<button class="btn primary block" data-act="level" data-id="${next.id}">Weiter mit Stufe ${next.id}: ${esc(next.title)}</button>` : ''}<button class="btn block" data-act="home">Zur Übersicht</button>`, act: () => {} };
   window.scrollTo(0, 0); render();
 }
