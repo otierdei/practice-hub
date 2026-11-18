@@ -1923,7 +1923,8 @@ function finishForm() {
 }
 // Nach dem Üben eines Songs oder Bausteins zurück zum Song statt auf die Startseite (Otis Wunsch 18.11.2026)
 function runSongBack(r) {
-  if (!r) return null;
+  // Nur nach einem Baustein zurück in den Song; ganzer Song mit Video endet auf der Startseite (Otis Wunsch 18.11.2026, 16:05)
+  if (!r || !r.part) return null;
   const a = r.assignment_id ? (S.data.assignments || []).find((x) => x.id === r.assignment_id) : null;
   const id = (r.part && r.part.song_id) || (a && a.song_id); if (!id) return null;
   return { id, ver: (a && a.song_version) || S.songVersion || null };
