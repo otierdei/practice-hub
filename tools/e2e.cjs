@@ -49,6 +49,18 @@ let n = 0; const ok = (m) => console.log('ok ' + (++n) + ' ' + m);
   await t.click('#assignForm button[type=submit]'); await t.getByText('Tempo Song E2E (Original) aufgegeben').waitFor(); assert.match(await t.textContent('[data-sort="asg"] > [data-sort-id]:not([data-sort-id^="draft:"]):has-text("Tempo Song E2E")'), /Ziel 74/);
   await t.fill('#a_song', 'Tempo Song E2E'); await t.selectOption('#a_ver', 'Reel'); await t.click('#assignForm button[type=submit]'); await t.getByText('Tempo Song E2E (Reel) aufgegeben').waitFor();
   await t.fill('#a_song', 'Tempo Song E2E'); await t.selectOption('#a_ver', 'Reel'); await t.click('#assignForm button[type=submit]'); await t.getByText('Du hast diese Version schon aufgegeben').waitFor();
+  { // Abgeschlossene Songs: Liste und Rückfrage beim erneuten Aufgeben (18.11.2026)
+    await t.getByText('noch keiner').waitFor();
+    await t.evaluate(() => { const sg = S.songs.songs.find((x) => x.title === 'Tempo Song E2E'); S.file.assignments.push({ id: 'fake-done', song_id: sg.id, song_version: 'Original', status: 'erledigt', done_at: '2026-10-12T10:00:00Z' }); openOverlay(S.overlay); });
+    await t.locator('#a_doneSongs .chip:has-text("Tempo Song E2E")').waitFor(); await t.locator('#a_doneSongs').screenshot({ path: OUT + '/t-songs-abgeschlossen.png' });
+    let msg = ''; t.once('dialog', (d) => { msg = d.message(); d.dismiss(); });
+    const before = await t.locator('[data-sort="asg"] > [data-sort-id]:has-text("Tempo Song E2E")').count();
+    await t.fill('#a_song', 'Tempo Song E2E'); await t.selectOption('#a_ver', 'Easy'); await t.click('#assignForm button[type=submit]'); await t.waitForTimeout(400);
+    assert.equal(msg, 'Schüler hat diesen Song schon einmal abgeschlossen, willst du ihn nochmal aufgeben?');
+    assert.equal(await t.locator('[data-sort="asg"] > [data-sort-id]:has-text("Tempo Song E2E")').count(), before, 'Abbrechen gibt nicht auf');
+    await t.evaluate(() => { S.file.assignments = S.file.assignments.filter((a) => a.id !== 'fake-done'); openOverlay(S.overlay); });
+    ok('Abgeschlossene Songs sichtbar, Rückfrage beim erneuten Aufgeben, Abbrechen gibt nicht auf');
+  }
   assert.equal(await t.locator('[data-sort="asg"] > [data-sort-id]:has-text("Tempo Song E2E")').count(), 2); ok('Song in zwei Versionen aufgeben (Original und Reel), gleiche Version blockiert');
   await t.evaluate(async () => { const sg = S.songs.songs.find((x) => x.title === 'Tempo Song E2E'); await api('/api/t/song/part/save', { song_id: sg.id, title: 'Chorus' }); });
   await t.fill('#a_song', 'Tempo Song E2E'); await t.selectOption('#a_ver', 'Original'); await t.locator('#a_part').waitFor();
