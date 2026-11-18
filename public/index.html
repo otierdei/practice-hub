@@ -223,8 +223,8 @@ details.card summary{cursor:pointer;font-family:var(--display);font-size:1.08rem
 </head>
 <body>
 <div id="app"><div class="wrap"><p class="muted">Lädt …</p></div></div>
-<script src="notation.js?v=97"></script>
-<script src="guitar.js?v=97"></script>
+<script src="notation.js?v=98"></script>
+<script src="guitar.js?v=98"></script>
 <script>
 'use strict';
 // ---------- Grundlagen ----------
@@ -1663,6 +1663,7 @@ function goalReached(r) {
 // 3. Fünf Minuten weder Metronom noch Beat noch Gitarre noch Video: Stoppuhr hält an, die stillen Minuten zählen nicht. Warnung nach vier Minuten.
 // 4. Aufwärmen: Stoppuhr läuft nur, solange Metronom oder Übung abgespielt wird.
 const GUARD = { last: Date.now(), yt: new Map(), first: true };
+const EXT_MAX = 15 * 60000, extMs = (r) => Math.min(EXT_MAX, Math.max(0, Date.now() - (r.extSince || Date.now())));
 const IDLE_WARN = 4 * 60000, IDLE_STOP = 5 * 60000, HB_GAP = 20000;
 function ytPlaying() { for (const [w, st] of GUARD.yt) { if (st === 1 && w && !w.closed) return true; } return false; }
 function playingNow() {
@@ -1679,6 +1680,7 @@ function guardNoteHTML(r) {
   if (isWarmup(r)) return `<p class="small muted" style="text-align:center;margin:0">Beim Aufwärmen läuft die Zeit nur, solange Metronom oder Übung spielen.</p>`;
   const m = { hidden: 'Pausiert, weil die App im Hintergrund war oder der Bildschirm gesperrt wurde.', away: 'Pausiert, weil die App nicht offen war.', idle: 'Pausiert nach 5 Minuten ohne Metronom, Beat oder Video. Die stillen Minuten zählen nicht.' }[r.paused];
   if (r.runningSince && !isWarmup(r) && Date.now() - GUARD.last >= IDLE_WARN) return `<div class="card" id="idleWarn" role="status"><b>Übst du noch?</b><span class="small">Seit 4 Minuten läuft weder Metronom noch Beat noch Video. In einer Minute hält die Stoppuhr an.</span><button class="btn small primary" data-act="stillHere" style="margin-top:8px">Ich übe weiter</button></div>`;
+  if (r.paused === 'ext' && !r.runningSince) { const mn = Math.max(1, Math.round(extMs(r) / 60000)); return `<div class="card" id="extAsk" role="status"><b>Hast du beim Video mitgespielt?</b><span class="small">Du warst außerhalb der App. Wenn du mitgespielt hast, zählen bis zu ${EXT_MAX / 60000} Minuten.</span><div class="row" style="gap:8px;margin-top:8px;flex-wrap:nowrap"><button class="btn small primary" data-act="extYes" style="flex:1">Ja, ${mn} min zählen</button><button class="btn small" data-act="extNo" style="flex:1">Nein</button></div></div>`; }
   return m && !r.runningSince ? `<div class="card" id="pausedNote" role="status"><b>Stoppuhr pausiert</b><span class="small">${m} Deine Zeit bis dahin ist gespeichert.</span><button class="btn small primary" data-act="startStop" style="margin-top:8px">Weiter üben</button></div>` : '';
 }
 function guardTick() {
@@ -1707,6 +1709,14 @@ setInterval(guardTick, 1000);
 function guardHide() { const r = store.get('run', null); if (r && r.runningSince) { pauseRun(r, isWarmup(r) ? null : 'hidden'); stopSound(); } }
 document.addEventListener('visibilitychange', () => { if (document.hidden) guardHide(); else { GUARD.last = Date.now(); const r = store.get('run', null); if (r && r.paused && S.overlay === practiceView) openOverlay(practiceView); } });
 window.addEventListener('pagehide', guardHide);
+// Video außerhalb der App (Otis Wunsch 18.11.2026): Uhr hält beim Antippen an, beim Zurückkommen fragt die App, ob mitgespielt wurde
+document.addEventListener('click', (e) => {
+  const l = e.target.closest && e.target.closest('a[href]'); if (!l || S.overlay !== practiceView) return;
+  let ext = false; try { ext = new URL(l.href, location.href).origin !== location.origin; } catch (x) {} if (!ext) return;
+  const r = store.get('run', null); if (!r || !r.runningSince || isWarmup(r)) return;
+  pauseRun(r, 'ext'); r.extSince = Date.now(); store.set('run', r); stopSound();
+  setTimeout(() => { if (S.overlay === practiceView) openOverlay(practiceView); }, 1200);
+}, true);
 // YouTube meldet seinen Zustand per postMessage, sobald wir zuhören
 document.addEventListener('load', (e) => { const f = e.target; if (f && f.tagName === 'IFRAME' && /youtube/.test(f.src || '')) { try { f.contentWindow.postMessage(JSON.stringify({ event: 'listening', id: 1, channel: 'widget' }), '*'); } catch (x) {} } }, true);
 window.addEventListener('message', (e) => {
@@ -2160,6 +2170,7 @@ document.addEventListener('click', async (ev) => {
       }
       case 'askEndClose': closeAskEnd(); break;
       case 'teacherLive': { const on = el.dataset.v === '1'; const r = await api('/api/t/lesson/live', { student_id: S.file.student.id, on }); S.lessonLive = r.until; openOverlay(lessonView); toast(on ? 'Unterrichtsmodus beim Schüler an' : 'Unterrichtsmodus beim Schüler aus'); break; }
+      case 'extYes': case 'extNo': { const r = store.get('run'); if (act === 'extYes') r.accumulated += extMs(r); r.extSince = null; r.paused = null; r.runningSince = Date.now(); r.hb = Date.now(); GUARD.last = Date.now(); store.set('run', r); requestWake(); openOverlay(practiceView); break; }
       case 'stillHere': GUARD.last = Date.now(); openOverlay(practiceView); break;
       case 'startStop': { const r = store.get('run'); if (r.runningSince) { r.accumulated += Date.now() - r.runningSince; r.runningSince = null; releaseWake(); } else { r.runningSince = Date.now(); r.paused = null; r.hb = Date.now(); GUARD.last = Date.now(); requestWake(); } store.set('run', r); render(); break; }
       case 'bpm': setBpm(MET.bpm + Number(el.dataset.d)); break;

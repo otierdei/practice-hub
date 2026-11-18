@@ -200,6 +200,19 @@ let n = 0; const ok = (m) => console.log('ok ' + (++n) + ' ' + m);
     assert.ok(await s.evaluate(() => S.data.my_beats.some((b) => b.title === 'Fill aus Übung E2E')));
     await s.evaluate(() => scrollTo(0, 0)); await s.locator('#practiceWrite').screenshot({ path: OUT + '/s-baustein-in-uebung.png' });
     ok('Beim Üben eigenen Beat oder Baustein schreiben, gespeichert, zurück in der Übung');
+    // Video außerhalb der App: Uhr hält an, beim Zurückkommen Frage (18.11.2026)
+    await s.evaluate(() => { clearInterval(tickTimer); localStorage.removeItem('ph_run'); S.overlay = null; S.data.assignments.push({ id: 'fake-ext', free_text: 'Mitspielen E2E', url: 'https://example.com/video', status: 'offen', minutes_per_day: 10 }); startPractice('fake-ext'); });
+    const extClick = () => s.evaluate(() => { document.addEventListener('click', (e) => { if (e.target.closest('a[href^="https://example.com"]')) e.preventDefault(); }, { once: true }); document.querySelector('.sheet a[href="https://example.com/video"], a[href="https://example.com/video"]').click(); });
+    await extClick();
+    { const r = await s.evaluate(() => JSON.parse(localStorage.getItem('ph_run'))); assert.equal(r.runningSince, null); assert.equal(r.paused, 'ext'); }
+    await s.evaluate(() => { const r = JSON.parse(localStorage.getItem('ph_run')); r.accumulated = 60000; r.extSince = Date.now() - 6 * 60000; localStorage.setItem('ph_run', JSON.stringify(r)); openOverlay(practiceView); });
+    await s.getByText('Hast du beim Video mitgespielt?').waitFor(); await s.evaluate(() => scrollTo(0, 0)); await s.locator('#extAsk').screenshot({ path: OUT + '/s-extern-frage.png' });
+    await s.click('[data-act=extYes]'); { const r = await s.evaluate(() => JSON.parse(localStorage.getItem('ph_run'))); assert.ok(r.runningSince); const m = r.accumulated / 60000; assert.ok(m > 6.9 && m < 7.1, '1 + 6 min, war ' + m); }
+    await extClick();
+    await s.evaluate(() => { const r = JSON.parse(localStorage.getItem('ph_run')); r.extSince = Date.now() - 40 * 60000; localStorage.setItem('ph_run', JSON.stringify(r)); openOverlay(practiceView); });
+    const acc0 = await s.evaluate(() => JSON.parse(localStorage.getItem('ph_run')).accumulated);
+    await s.click('[data-act=extNo]'); assert.equal(await s.evaluate(() => JSON.parse(localStorage.getItem('ph_run')).accumulated), acc0, 'Nein zählt nichts');
+    ok('Video außerhalb: Uhr pausiert, Ja zählt die Zeit draußen (höchstens 15 min), Nein zählt nichts');
     await s.evaluate(() => { clearInterval(tickTimer); localStorage.removeItem('ph_run'); }); await s.reload(); await s.getByRole('heading', { name: 'Heute üben' }).waitFor();
     await s.evaluate(() => { clearInterval(tickTimer); localStorage.removeItem('ph_run'); }); await s.reload(); await s.getByRole('heading', { name: 'Heute üben' }).waitFor();
   }
