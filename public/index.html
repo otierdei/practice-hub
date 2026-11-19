@@ -245,8 +245,8 @@ details.card summary{cursor:pointer;font-family:var(--display);font-size:1.08rem
 </head>
 <body>
 <div id="app"><div class="wrap"><p class="muted">Lädt …</p></div></div>
-<script src="notation.js?v=109"></script>
-<script src="guitar.js?v=109"></script>
+<script src="notation.js?v=110"></script>
+<script src="guitar.js?v=110"></script>
 <script>
 'use strict';
 // ---------- Grundlagen ----------
@@ -2234,6 +2234,11 @@ document.addEventListener('click', async (ev) => {
         try {
           await Guitar.tunerStart((r) => {
             const n = $('#tunerNote'), c = $('#tunerCents'), d = $('#tunerDot'); if (!n) return;
+            if (!r.freq) { // nichts erkannt: sagen, ob das Mikrofon überhaupt etwas hört
+              n.textContent = '–'; d.setAttribute('cx', 120); document.querySelectorAll('.gt-string').forEach((x) => x.classList.remove('on'));
+              c.textContent = r.state && r.state !== 'running' ? 'Ton ist blockiert. Tippe noch einmal auf Starten.' : r.level < 0.002 ? 'Ich höre nichts. Halte das Handy näher an die Gitarre.' : 'Spiel eine leere Saite und lass sie klingen';
+              return;
+            }
             n.textContent = r.name; c.textContent = (r.cents > 0 ? '+' : '') + r.cents + ' Cent' + (Math.abs(r.cents) <= 5 ? ', gestimmt' : r.cents < 0 ? ', etwas höher drehen' : ', etwas tiefer drehen');
             d.setAttribute('cx', 120 + Math.max(-50, Math.min(50, r.cents)) * 2);
             document.querySelectorAll('.gt-string').forEach((x) => x.classList.toggle('on', Number(x.dataset.s) === r.string));
