@@ -292,12 +292,12 @@
   function soundingKey(shape, capo) { const k = NOTES_INT.indexOf(shape); return k < 0 ? '' : NOTES_INT[(k + capo) % 12]; }
 
   // ---------- Stimmgerät ----------
-  const T = { stream: null, raf: 0, analyser: null, buf: null, last: 0, hist: [] };
+  const T = { stream: null, ac: null, src: null, raf: 0, analyser: null, buf: null, last: 0, hist: [], idle: 0, heard: 0 };
   // Tonhöhe mit YIN auf halber Abtastrate, nur Lags für 60 bis 1200 Hz (19.11.2026: vorher Autokorrelation über den ganzen Puffer,
   // rund zehnmal langsamer und in jedem Bild gerechnet, dadurch reagierte das Stimmgerät am iPhone sehr träge)
   const Y = { ds: null, d: null };
   function autoCorrelate(buf, rate) {
-    let rms = 0; for (let i = 0; i < buf.length; i++) rms += buf[i] * buf[i]; rms = Math.sqrt(rms / buf.length); if (rms < 0.008) return -1;
+    let rms = 0; for (let i = 0; i < buf.length; i++) rms += buf[i] * buf[i]; rms = Math.sqrt(rms / buf.length); if (rms < 0.002) return -1;
     const n = buf.length >> 1, sr = rate / 2;
     if (!Y.ds || Y.ds.length !== n) Y.ds = new Float32Array(n);
     const x = Y.ds; for (let i = 0; i < n; i++) x[i] = (buf[2 * i] + buf[2 * i + 1]) * 0.5;
@@ -315,29 +315,53 @@
     const n = 12 * Math.log2(freq / 440) + 69, r = Math.round(n);
     return { name: NOTES[(r % 12 + 12) % 12], octave: Math.floor(r / 12) - 1, cents: Math.round((n - r) * 100) };
   }
+  // iPhone (19.11.2026): eigener AudioContext nur fürs Stimmgerät. Der gemeinsame Kontext (Metronom, Samples) läuft in WebKit
+  // nur für die Wiedergabe und liefert vom Mikrofon oft nur Stille. Das Mikrofon bleibt nach "Stoppen" 10 Minuten offen (stumm geschaltet),
+  // damit iOS beim nächsten Start nicht wieder nach der Freigabe fragt.
+  const liveStream = () => T.stream && T.stream.getAudioTracks().some((x) => x.readyState === 'live');
   async function tunerStart(onReading) {
-    audio();
-    T.stream = await navigator.mediaDevices.getUserMedia({ audio: { echoCancellation: false, noiseSuppression: false, autoGainControl: false } });
-    const src = ctx.createMediaStreamSource(T.stream); T.analyser = ctx.createAnalyser(); T.analyser.fftSize = 2048; src.connect(T.analyser);
-    T.buf = new Float32Array(T.analyser.fftSize);
-    T.hist = []; T.last = 0;
+    clearTimeout(T.idle);
+    // Kontext noch im Tippen anlegen und starten (iOS erlaubt das nur dort), danach erst das Mikrofon holen
+    if (!T.ac || T.ac.state === 'closed') T.ac = new (window.AudioContext || window.webkitAudioContext)();
+    const resumed = T.ac.state === 'running' ? null : T.ac.resume().catch(() => {});
+    if (!liveStream()) {
+      T.stream = await navigator.mediaDevices.getUserMedia({ audio: { echoCancellation: false, noiseSuppression: false, autoGainControl: false } });
+      if (T.src) { try { T.src.disconnect(); } catch (e) {} T.src = null; }
+    }
+    T.stream.getAudioTracks().forEach((x) => { x.enabled = true; });
+    if (resumed) await resumed;
+    if (T.ac.state !== 'running') { try { await T.ac.resume(); } catch (e) {} }
+    if (!T.src) { T.src = T.ac.createMediaStreamSource(T.stream); T.analyser = T.ac.createAnalyser(); T.analyser.fftSize = 4096; T.src.connect(T.analyser); T.buf = new Float32Array(T.analyser.fftSize); }
+    T.hist = []; T.last = 0; T.heard = 0;
     const loop = (now) => {
       T.raf = requestAnimationFrame(loop);
-      if (now - T.last < 30) return; // höchstens etwa 30 Messungen pro Sekunde, Rest der Zeit bleibt für die Anzeige
+      if (now - T.last < 45) return; // etwa 20 Messungen pro Sekunde, Rest der Zeit bleibt für die Anzeige
       T.last = now;
+      if (T.ac.state !== 'running') T.ac.resume().catch(() => {});
       T.analyser.getFloatTimeDomainData(T.buf);
-      const f = autoCorrelate(T.buf, ctx.sampleRate);
-      if (!(f > 60 && f < 1200)) { if (T.hist.length && now - T.hist[T.hist.length - 1].t > 400) T.hist = []; return; }
+      let rms = 0; for (let i = 0; i < T.buf.length; i += 4) rms += T.buf[i] * T.buf[i]; rms = Math.sqrt(rms / (T.buf.length / 4));
+      const f = autoCorrelate(T.buf, T.ac.sampleRate);
+      if (!(f > 60 && f < 1200)) {
+        if (T.hist.length && now - T.hist[T.hist.length - 1].t > 400) T.hist = [];
+        if (!T.hist.length) onReading({ freq: null, level: rms, state: T.ac.state }); // nichts erkannt: Pegel anzeigen
+        return;
+      }
       // Median der letzten Messungen gegen Ausreißer (Oktavsprünge beim Anschlag); neuer Ton setzt sofort neu an
       if (T.hist.length && Math.abs(Math.log2(f / T.hist[T.hist.length - 1].f)) > 0.08) T.hist = [];
       T.hist.push({ f, t: now }); if (T.hist.length > 5) T.hist.shift();
       const m = T.hist.map((h) => h.f).sort((x, y) => x - y)[T.hist.length >> 1];
       const nearest = OPEN.reduce((best, o, s) => (Math.abs(Math.log2(m / o)) < Math.abs(Math.log2(m / OPEN[best])) ? s : best), 0);
-      onReading({ freq: m, ...noteOf(m), string: nearest });
+      onReading({ freq: m, level: rms, ...noteOf(m), string: nearest });
     };
     T.raf = requestAnimationFrame(loop);
   }
-  function tunerStop() { cancelAnimationFrame(T.raf); if (T.stream) T.stream.getTracks().forEach((t) => t.stop()); T.stream = null; }
+  function tunerRelease() { clearTimeout(T.idle); if (T.stream) T.stream.getTracks().forEach((x) => x.stop()); T.stream = null; if (T.src) { try { T.src.disconnect(); } catch (e) {} } T.src = null; }
+  function tunerStop() {
+    cancelAnimationFrame(T.raf); T.raf = 0;
+    if (T.stream) T.stream.getAudioTracks().forEach((x) => { x.enabled = false; });
+    clearTimeout(T.idle); T.idle = setTimeout(tunerRelease, 10 * 60000);
+  }
+  document.addEventListener('visibilitychange', () => { if (document.hidden && !T.raf) tunerRelease(); });
   function tunerHTML() {
     return `<div class="gt-tuner" id="tuner">
       <div class="gt-tuner-note" aria-live="polite"><b id="tunerNote">–</b><span id="tunerCents" class="muted">Spiel eine leere Saite</span></div>
