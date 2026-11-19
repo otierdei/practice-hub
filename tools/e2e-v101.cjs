@@ -88,6 +88,7 @@ let n = 0; const ok = (m) => console.log('ok ' + (++n) + ' ' + m);
   // Abgeschlossene Songs aus Notizen: in älterer Stunde erwähnt, in der neuesten nicht
   await t.evaluate(() => { const L = S.file.lessons[0]; S.file.lessons = [{ ...L, id: 'neu', date: localDate(), notes_teacher: 'Nur Groove geübt' }, { ...L, id: 'alt', date: '2026-10-01', notes_teacher: 'Sortier Song Strophe sauber, Tempo Song E2E angefangen' }];
     S.file.assignments.push({ id: 'oa', song_id: S.songs.songs.find((x) => x.title === 'Tempo Song E2E').id, status: 'offen', title: 'Tempo Song E2E' }); render(); });
+  assert.equal(await t.locator('#a_doneSongs').evaluate((e) => e.tagName === 'DETAILS' && !e.open), true, 'zugeklappt'); await t.click('#a_doneSongs summary'); ok('Abgeschlossene Songs zugeklappt, Antippen klappt auf');
   await t.locator('#a_doneSongs .chip:has-text("Sortier Song")').waitFor();
   assert.equal(await t.locator('#a_doneSongs .chip:has-text("Tempo Song E2E")').count(), 0, 'offene Hausaufgabe zählt nicht als abgeschlossen');
   await t.locator('#a_doneSongs').screenshot({ path: OUT + '/v102-3-abgeschlossen-notizen.png' }); ok('Song aus älteren Notizen steht bei Abgeschlossene Songs');
