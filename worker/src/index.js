@@ -6,6 +6,7 @@ import { SONG_SCHEMA, syncSongs, songsHome, songDetail, parseLinkLines, slug, so
 
 import { SCHEMA } from './schema.js';
 import { newVapidKeys, sendPush } from './webpush.js';
+import { MISSION_SCHEMA, missionApi, missionDeleteStudentStatements } from './missions.js';
 
 const DAY = 86400000;
 const TOKEN_DAYS = 180;
@@ -145,6 +146,8 @@ const logRow = (who, action, entity, id, summary) => [
   [now(), who.role, who.accessId || null, action, entity, id, str(summary, 300)],
 ];
 
+const missions = (s, who) => missionApi({ s, who, now, uid, str, int, HttpError, logRow, newAssignmentStatements, orderAppend, cleanUrl });
+
 // ---------- Lesen für Schüler und Eltern ----------
 // Läuft gerade eine Stunde bei Oti? Dann ist der Schüler im Unterrichtsmodus.
 async function lessonLive(s, studentId) {
@@ -174,7 +177,8 @@ async function studentView(s, studentId, role) {
   const my_beats = await myBeats(s, st.id);
   const changes = await s.all('SELECT chords, count, created_at FROM chord_changes WHERE student_id = ? ORDER BY created_at DESC LIMIT 60', st.id);
   const app = await s.first('SELECT app_name, color FROM student_app WHERE student_id = ?', st.id);
-  return { role, app: app || null, icon: instrIcon(st.instrument), changes, student: st, assignments, sessions, goals, lessons, my_beats, lesson_live: live, consent: consent ? consent.given_at : null, consentVersion: CONSENT_VERSION, canGoal: role === 'student' && canSetGoals(st) };
+  const mis = await missions(s, { role }).forStudent(st.id);
+  return { role, app: app || null, icon: instrIcon(st.instrument), changes, missions: mis, student: st, assignments, sessions, goals, lessons, my_beats, lesson_live: live, consent: consent ? consent.given_at : null, consentVersion: CONSENT_VERSION, canGoal: role === 'student' && canSetGoals(st) };
 }
 
 // Alle Schüler dürfen eigene Ziele eintragen (Altersgrenze auf Otis Wunsch entfernt)
@@ -267,7 +271,8 @@ async function teacherStudent(s, id) {
   const changes = await s.all('SELECT chords, count, created_at FROM chord_changes WHERE student_id = ? ORDER BY created_at DESC LIMIT 60', id);
   const app = await s.first('SELECT app_name, color FROM student_app WHERE student_id = ?', id);
   const games = (await s.all('SELECT game, data, updated_at FROM game_progress WHERE student_id = ?', id)).map((r) => ({ game: r.game, updated_at: r.updated_at, ...JSON.parse(r.data) }));
-  return { student: st, lessons, assignments, sessions, goals, access, consents, worship, cancellations, beats, changes, games, app: app || null };
+  const mis = await missions(s, { role: 'teacher' }).forStudent(id);
+  return { student: st, lessons, assignments, sessions, goals, access, consents, worship, cancellations, beats, changes, games, app: app || null, missions: mis };
 }
 
 async function saveStudent(s, who, b) {
@@ -309,6 +314,7 @@ async function deleteStudent(s, who, id) {
 }
 function deleteStudentStatements(id) {
   return [
+    ...missionDeleteStudentStatements(id),
     ['DELETE FROM assignment_songs WHERE assignment_id IN (SELECT id FROM assignments WHERE student_id = ?)', [id]],
     ['DELETE FROM assignment_checks WHERE assignment_id IN (SELECT id FROM assignments WHERE student_id = ?)', [id]],
     ['DELETE FROM assignment_order WHERE assignment_id IN (SELECT id FROM assignments WHERE student_id = ?)', [id]],
@@ -1063,7 +1069,7 @@ async function route(env, req, path, body) {
     case '/api/t/exercise/archive':
       await s.batch([['UPDATE exercises SET archived = 1 WHERE id = ?', [String(body.id || '')]], logRow(who, 'archive', 'exercises', String(body.id || ''), 'archiviert')]);
       return { ok: true };
-    case '/api/t/lesson/finish': return finishLesson(s, who, body);
+    case '/api/t/lesson/finish': { const r = await finishLesson(s, who, body); await missions(s, who).sync(body.student_id); return r; }
     case '/api/t/assignments/new': {
       // Hausaufgabe in der Stunde sofort speichern, damit Oti sie gleich sortieren kann und der Schüler sie sieht
       const st = await s.first('SELECT id, first_name FROM students WHERE id = ?', String(body.student_id || ''));
@@ -1104,6 +1110,8 @@ async function route(env, req, path, body) {
     case '/api/t/assignment/status': {
       const status = body.status === 'erledigt' ? 'erledigt' : 'offen';
       await s.run('UPDATE assignments SET status = ?, done_at = ? WHERE id = ?', status, status === 'erledigt' ? now() : null, String(body.id || ''));
+      const owner = await s.first('SELECT student_id FROM assignments WHERE id = ?', String(body.id || ''));
+      if (owner) await missions(s, who).sync(owner.student_id);
       return { ok: true };
     }
     case '/api/t/assignment/add': {
@@ -1157,7 +1165,7 @@ async function route(env, req, path, body) {
       return { ok: true };
     }
     case '/api/t/assignment/delete': {
-      const a = await s.first('SELECT id, free_text FROM assignments WHERE id = ?', String(body.id || ''));
+      const a = await s.first('SELECT id, student_id, free_text FROM assignments WHERE id = ?', String(body.id || ''));
       if (!a) throw new HttpError(404, 'Hausaufgabe nicht gefunden.');
       await s.batch([
         ['DELETE FROM assignment_checks WHERE assignment_id = ?', [a.id]],
@@ -1166,8 +1174,17 @@ async function route(env, req, path, body) {
         ['DELETE FROM assignments WHERE id = ?', [a.id]],
         logRow(who, 'delete', 'assignments', a.id, 'Hausaufgabe entfernt' + (a.free_text ? ': ' + a.free_text.slice(0, 60) : '')),
       ]);
+      await missions(s, who).sync(a.student_id);
       return { ok: true };
     }
+    case '/api/t/missions': return missions(s, who).templates();
+    case '/api/t/mission/save': return missions(s, who).save(body);
+    case '/api/t/mission/archive': return missions(s, who).archive(body);
+    case '/api/t/mission/step/add': return missions(s, who).stepAdd(body);
+    case '/api/t/mission/step/delete': return missions(s, who).stepDelete(body);
+    case '/api/t/mission/steps/reorder': return missions(s, who).stepsReorder(body);
+    case '/api/t/mission/assign': return missions(s, who).assign(body);
+    case '/api/t/mission/cancel': return missions(s, who).cancel(body);
     case '/api/t/feed': return { feed: await s.all('SELECT at, by_role, action, entity, summary FROM log ORDER BY at DESC LIMIT 60') };
   }
   throw new HttpError(404, 'Unbekannte Aktion.');
@@ -1178,7 +1195,7 @@ const schemaReady = new WeakMap();
 export function ensureSchema(env) {
   let p = schemaReady.get(env.DB);
   if (!p) {
-    const stmts = (SCHEMA + SONG_SCHEMA + COURSE_SCHEMA).replace(/--[^\n]*/g, '').split(';').map((x) => x.trim()).filter(Boolean);
+    const stmts = (SCHEMA + SONG_SCHEMA + COURSE_SCHEMA + MISSION_SCHEMA).replace(/--[^\n]*/g, '').split(';').map((x) => x.trim()).filter(Boolean);
     p = env.DB.batch(stmts.map((q) => env.DB.prepare(q))).catch((e) => { schemaReady.delete(env.DB); throw e; });
     schemaReady.set(env.DB, p);
   }
