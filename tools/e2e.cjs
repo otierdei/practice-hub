@@ -52,7 +52,7 @@ let n = 0; const ok = (m) => console.log('ok ' + (++n) + ' ' + m);
   { // Abgeschlossene Songs: Liste und Rückfrage beim erneuten Aufgeben (18.11.2026)
     await t.getByText('noch keiner').waitFor();
     await t.evaluate(() => { const sg = S.songs.songs.find((x) => x.title === 'Tempo Song E2E'); S.file.assignments.push({ id: 'fake-done', song_id: sg.id, song_version: 'Original', status: 'erledigt', done_at: '2026-10-12T10:00:00Z' }); openOverlay(S.overlay); });
-    await t.locator('#a_doneSongs .chip:has-text("Tempo Song E2E")').waitFor(); await t.locator('#a_doneSongs').screenshot({ path: OUT + '/t-songs-abgeschlossen.png' });
+    await t.click('#a_doneSongs summary'); await t.locator('#a_doneSongs .chip:has-text("Tempo Song E2E")').waitFor(); await t.locator('#a_doneSongs').screenshot({ path: OUT + '/t-songs-abgeschlossen.png' });
     let msg = ''; t.once('dialog', (d) => { msg = d.message(); d.dismiss(); });
     const before = await t.locator('[data-sort="asg"] > [data-sort-id]:has-text("Tempo Song E2E")').count();
     await t.fill('#a_song', 'Tempo Song E2E'); await t.selectOption('#a_ver', 'Easy'); await t.click('#assignForm button[type=submit]'); await t.waitForTimeout(400);

@@ -245,8 +245,8 @@ details.card summary{cursor:pointer;font-family:var(--display);font-size:1.08rem
 </head>
 <body>
 <div id="app"><div class="wrap"><p class="muted">Lädt …</p></div></div>
-<script src="notation.js?v=110"></script>
-<script src="guitar.js?v=110"></script>
+<script src="notation.js?v=111"></script>
+<script src="guitar.js?v=111"></script>
 <script>
 'use strict';
 // ---------- Grundlagen ----------
@@ -755,7 +755,9 @@ function doneFromNotes(file) {
 }
 function doneSongsHTML(file) {
   const l = doneSongs(file);
-  return `<div class="small" id="a_doneSongs"><b>Schon abgeschlossene Songs</b>${l.length ? `<div class="row" style="gap:6px;margin-top:4px">${l.map((e) => `<span class="chip"${e.notes ? ' title="Aus deinen Notizen: zuletzt in dieser Stunde erwähnt"' : ''}>${esc(e.title)}${e.versions.size ? ' · ' + esc([...e.versions].join(', ')) : ''}${e.last ? ' · ' + new Date(e.last).toLocaleDateString('de-DE') : ''}</span>`).join('')}</div>` : '<span class="muted"> · noch keiner</span>'}</div>`;
+  // Otis Wunsch 19.11.2026: zugeklappt, damit der Bildschirm nicht voll wird; erst beim Antippen sichtbar
+  if (!l.length) return `<div class="small muted" id="a_doneSongs">Schon abgeschlossene Songs: noch keiner</div>`;
+  return `<details class="small" id="a_doneSongs"><summary><b>Schon abgeschlossene Songs (${l.length})</b></summary><div class="row" style="gap:6px;margin-top:6px">${l.map((e) => `<span class="chip"${e.notes ? ' title="Aus deinen Notizen: zuletzt in dieser Stunde erwähnt"' : ''}>${esc(e.title)}${e.versions.size ? ' · ' + esc([...e.versions].join(', ')) : ''}${e.last ? ' · ' + new Date(e.last).toLocaleDateString('de-DE') : ''}</span>`).join('')}</div></details>`;
 }
 async function assignNow(item) {
   const r = await api('/api/t/assignments/new', { student_id: S.file.student.id, items: [item] });
