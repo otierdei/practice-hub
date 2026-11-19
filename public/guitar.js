@@ -292,19 +292,24 @@
   function soundingKey(shape, capo) { const k = NOTES_INT.indexOf(shape); return k < 0 ? '' : NOTES_INT[(k + capo) % 12]; }
 
   // ---------- Stimmgerät ----------
-  const T = { stream: null, raf: 0, analyser: null, buf: null };
+  const T = { stream: null, raf: 0, analyser: null, buf: null, last: 0, hist: [] };
+  // Tonhöhe mit YIN auf halber Abtastrate, nur Lags für 60 bis 1200 Hz (19.11.2026: vorher Autokorrelation über den ganzen Puffer,
+  // rund zehnmal langsamer und in jedem Bild gerechnet, dadurch reagierte das Stimmgerät am iPhone sehr träge)
+  const Y = { ds: null, d: null };
   function autoCorrelate(buf, rate) {
-    let rms = 0; for (const v of buf) rms += v * v; rms = Math.sqrt(rms / buf.length); if (rms < 0.012) return -1;
-    let r1 = 0, r2 = buf.length - 1; const th = 0.2;
-    for (let i = 0; i < buf.length / 2; i++) if (Math.abs(buf[i]) < th) { r1 = i; break; }
-    for (let i = 1; i < buf.length / 2; i++) if (Math.abs(buf[buf.length - i]) < th) { r2 = buf.length - i; break; }
-    const b = buf.slice(r1, r2), n = b.length, c = new Float32Array(n);
-    for (let i = 0; i < n; i++) for (let j = 0; j < n - i; j++) c[i] += b[j] * b[j + i];
-    let d = 0; while (d < n - 1 && c[d] > c[d + 1]) d++;
-    let max = -1, pos = -1; for (let i = d; i < n; i++) if (c[i] > max) { max = c[i]; pos = i; }
-    if (pos < 1 || pos >= n - 1) return -1;
-    const x1 = c[pos - 1], x2 = c[pos], x3 = c[pos + 1], a = (x1 + x3 - 2 * x2) / 2, bb = (x3 - x1) / 2;
-    return rate / (a ? pos - bb / (2 * a) : pos);
+    let rms = 0; for (let i = 0; i < buf.length; i++) rms += buf[i] * buf[i]; rms = Math.sqrt(rms / buf.length); if (rms < 0.008) return -1;
+    const n = buf.length >> 1, sr = rate / 2;
+    if (!Y.ds || Y.ds.length !== n) Y.ds = new Float32Array(n);
+    const x = Y.ds; for (let i = 0; i < n; i++) x[i] = (buf[2 * i] + buf[2 * i + 1]) * 0.5;
+    const minLag = Math.max(2, Math.floor(sr / 1200)), maxLag = Math.min(Math.floor(sr / 60), n >> 1), W = n - maxLag - 1;
+    if (!Y.d || Y.d.length !== maxLag + 2) Y.d = new Float32Array(maxLag + 2);
+    const d = Y.d; d[0] = 1; let run = 0;
+    for (let t = 1; t <= maxLag + 1; t++) { let s = 0; for (let j = 0; j < W; j++) { const v = x[j] - x[j + t]; s += v * v; } run += s; d[t] = run ? (s * t) / run : 1; }
+    let tau = -1;
+    for (let t = minLag; t <= maxLag; t++) if (d[t] < 0.15) { while (t + 1 <= maxLag && d[t + 1] < d[t]) t++; tau = t; break; }
+    if (tau < 0) { let best = 1; for (let t = minLag; t <= maxLag; t++) if (d[t] < best) { best = d[t]; tau = t; } if (best > 0.35) return -1; }
+    const a = d[tau - 1], b = d[tau], c = d[tau + 1], den = a + c - 2 * b;
+    return sr / (den ? tau + (a - c) / (2 * den) : tau);
   }
   function noteOf(freq) {
     const n = 12 * Math.log2(freq / 440) + 69, r = Math.round(n);
@@ -315,16 +320,22 @@
     T.stream = await navigator.mediaDevices.getUserMedia({ audio: { echoCancellation: false, noiseSuppression: false, autoGainControl: false } });
     const src = ctx.createMediaStreamSource(T.stream); T.analyser = ctx.createAnalyser(); T.analyser.fftSize = 2048; src.connect(T.analyser);
     T.buf = new Float32Array(T.analyser.fftSize);
-    const loop = () => {
+    T.hist = []; T.last = 0;
+    const loop = (now) => {
+      T.raf = requestAnimationFrame(loop);
+      if (now - T.last < 30) return; // höchstens etwa 30 Messungen pro Sekunde, Rest der Zeit bleibt für die Anzeige
+      T.last = now;
       T.analyser.getFloatTimeDomainData(T.buf);
       const f = autoCorrelate(T.buf, ctx.sampleRate);
-      if (f > 60 && f < 1200) {
-        const nearest = OPEN.reduce((best, o, s) => (Math.abs(Math.log2(f / o)) < Math.abs(Math.log2(f / OPEN[best])) ? s : best), 0);
-        onReading({ freq: f, ...noteOf(f), string: nearest });
-      }
-      T.raf = requestAnimationFrame(loop);
+      if (!(f > 60 && f < 1200)) { if (T.hist.length && now - T.hist[T.hist.length - 1].t > 400) T.hist = []; return; }
+      // Median der letzten Messungen gegen Ausreißer (Oktavsprünge beim Anschlag); neuer Ton setzt sofort neu an
+      if (T.hist.length && Math.abs(Math.log2(f / T.hist[T.hist.length - 1].f)) > 0.08) T.hist = [];
+      T.hist.push({ f, t: now }); if (T.hist.length > 5) T.hist.shift();
+      const m = T.hist.map((h) => h.f).sort((x, y) => x - y)[T.hist.length >> 1];
+      const nearest = OPEN.reduce((best, o, s) => (Math.abs(Math.log2(m / o)) < Math.abs(Math.log2(m / OPEN[best])) ? s : best), 0);
+      onReading({ freq: m, ...noteOf(m), string: nearest });
     };
-    loop();
+    T.raf = requestAnimationFrame(loop);
   }
   function tunerStop() { cancelAnimationFrame(T.raf); if (T.stream) T.stream.getTracks().forEach((t) => t.stop()); T.stream = null; }
   function tunerHTML() {
@@ -394,5 +405,5 @@
   }
   const cycle = (c) => ({ '': 'D', D: 'U', U: 'X', X: '' }[c || '']);
 
-  window.Guitar = { samplesLoaded: () => Object.keys(BUF).length, SYS, SCALES, scalePattern, scaleOrder, scaleSVG, scaleName, scaleToTab, scaleCursor, scalePositions, CHORDS, empty, parse, chordSVG, strumSVG, tabSVG, editorHTML, viewHTML, tunerHTML, tunerStart, tunerStop, play, stop, setTempo, cursorFor, capoTable, soundingKey, cycle, isPlaying: () => P.playing, NOTES_INT, label, strum: (n, d) => { audio(); strum(n, d, ctx.currentTime + 0.01, 0); } };
+  window.Guitar = { pitch: autoCorrelate, samplesLoaded: () => Object.keys(BUF).length, SYS, SCALES, scalePattern, scaleOrder, scaleSVG, scaleName, scaleToTab, scaleCursor, scalePositions, CHORDS, empty, parse, chordSVG, strumSVG, tabSVG, editorHTML, viewHTML, tunerHTML, tunerStart, tunerStop, play, stop, setTempo, cursorFor, capoTable, soundingKey, cycle, isPlaying: () => P.playing, NOTES_INT, label, strum: (n, d) => { audio(); strum(n, d, ctx.currentTime + 0.01, 0); } };
 })();
