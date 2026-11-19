@@ -996,3 +996,120 @@ test('Kein Lehrer Code und kein Hash in wrangler.toml', async () => {
   assert.ok(!/TEACHER_CODE/.test(toml), 'TEACHER_CODE oder TEACHER_CODE_HASH gehört nicht ins Repo');
   assert.ok(!/\b[0-9a-f]{64}\b/.test(toml), 'kein Hash im Repo');
 });
+
+// ---------- Missionen (ph-v108) ----------
+async function missionWorld() {
+  const w = await world();
+  const sid = (await w.call('/api/t/song/create', { title: 'Thank God Im Free' }, w.t)).data.id;
+  const p1 = (await w.call('/api/t/song/part/save', { song_id: sid, title: 'Groove Strophe', notation: { sig: '4/4', bars: 1, tracks: { bd: [0, 8], sn: [4, 12] } } }, w.t)).data.id;
+  const p2 = (await w.call('/api/t/song/part/save', { song_id: sid, title: 'Fill 1', notation: { sig: '4/4', bars: 1, tracks: { sn: [0, 2, 4, 6] } } }, w.t)).data.id;
+  const mid = (await w.call('/api/t/mission/save', { title: 'Thank God Im Free spielen', goal: 'Ganzer Song mit Video', instrument: 'drums' }, w.t)).data.id;
+  const s1 = (await w.call('/api/t/mission/step/add', { mission_id: mid, kind: 'part', part_id: p1, start_bpm: 60, target_bpm: 128 }, w.t)).data.id;
+  const s2 = (await w.call('/api/t/mission/step/add', { mission_id: mid, kind: 'part', part_id: p2 }, w.t)).data.id;
+  const s3 = (await w.call('/api/t/mission/step/add', { mission_id: mid, kind: 'song', song_id: sid, version: 'Original' }, w.t)).data.id;
+  return { ...w, sid, p1, p2, mid, s1, s2, s3 };
+}
+
+test('Missionen: nur Oti baut und gibt auf, Schüler sieht nur eigene Mission', async () => {
+  const w = await missionWorld();
+  assert.equal((await w.call('/api/t/missions', {}, w.ta)).status, 403);
+  assert.equal((await w.call('/api/t/mission/save', { title: 'X' }, w.ta)).status, 403);
+  const list = (await w.call('/api/t/missions', {}, w.t)).data.missions;
+  assert.equal(list.length, 1);
+  assert.deepEqual(list[0].steps.map((x) => x.title), ['Thank God Im Free: Groove Strophe', 'Thank God Im Free: Fill 1', 'Thank God Im Free (Original)']);
+  const r = (await w.call('/api/t/mission/assign', { mission_id: w.mid, student_ids: [w.a] }, w.t)).data;
+  assert.deepEqual(r.assigned, ['Anna']);
+  const home = (await w.call('/api/home', {}, w.ta)).data;
+  assert.equal(home.missions.length, 1);
+  assert.deepEqual(home.missions[0].steps.map((x) => x.status), ['offen', 'gesperrt', 'gesperrt']);
+  const step1 = home.assignments.find((a) => a.id === home.missions[0].steps[0].assignment_id);
+  assert.equal(step1.part_id, w.p1);
+  assert.equal(step1.start_bpm, 60);
+  assert.equal(step1.target_bpm, 128);
+  assert.equal((await w.call('/api/home', {}, w.tb)).data.missions.length, 0);
+});
+
+test('Missionen: fertig melden schaltet nicht frei, erst Otis Haken; am Ende geschafft', async () => {
+  const w = await missionWorld();
+  await w.call('/api/t/mission/assign', { mission_id: w.mid, student_ids: [w.a] }, w.t);
+  let m = (await w.call('/api/home', {}, w.ta)).data.missions[0];
+  const a1 = m.steps[0].assignment_id;
+  await w.call('/api/assignment/toggle', { id: a1, done: true }, w.ta);
+  m = (await w.call('/api/home', {}, w.ta)).data.missions[0];
+  assert.equal(m.steps[0].reported, true);
+  assert.equal(m.steps[1].status, 'gesperrt');
+  await w.call('/api/t/assignment/status', { id: a1, status: 'erledigt' }, w.t);
+  m = (await w.call('/api/home', {}, w.ta)).data.missions[0];
+  assert.deepEqual(m.steps.map((x) => x.status), ['fertig', 'offen', 'gesperrt']);
+  assert.equal(m.done, 1);
+  // Schritt 2 in der Stunde schließen (close_assignments), Schritt 3 per Löschen überspringen
+  await w.call('/api/t/lesson/finish', { student_id: w.a, date: '2026-11-19', close_assignments: [m.steps[1].assignment_id] }, w.t);
+  m = (await w.call('/api/home', {}, w.ta)).data.missions[0];
+  assert.deepEqual(m.steps.map((x) => x.status), ['fertig', 'fertig', 'offen']);
+  await w.call('/api/t/assignment/status', { id: m.steps[2].assignment_id, status: 'erledigt' }, w.t);
+  m = (await w.call('/api/home', {}, w.ta)).data.missions[0];
+  assert.equal(m.status, 'fertig');
+  assert.ok(m.done_at);
+  assert.equal(m.done, 3);
+  const file = (await w.call('/api/t/student', { id: w.a }, w.t)).data;
+  assert.equal(file.missions[0].status, 'fertig');
+});
+
+test('Missionen: Wiederöffnen setzt den Schritt zurück, Löschen zählt als erledigt', async () => {
+  const w = await missionWorld();
+  await w.call('/api/t/mission/assign', { mission_id: w.mid, student_ids: [w.a] }, w.t);
+  let m = (await w.call('/api/home', {}, w.ta)).data.missions[0];
+  const a1 = m.steps[0].assignment_id;
+  await w.call('/api/t/assignment/status', { id: a1, status: 'erledigt' }, w.t);
+  await w.call('/api/t/assignment/status', { id: a1, status: 'offen' }, w.t);
+  m = (await w.call('/api/home', {}, w.ta)).data.missions[0];
+  assert.equal(m.steps[0].status, 'offen');
+  await w.call('/api/t/assignment/delete', { id: m.steps[1].assignment_id }, w.t);
+  await w.call('/api/t/assignment/delete', { id: a1 }, w.t);
+  m = (await w.call('/api/home', {}, w.ta)).data.missions[0];
+  assert.deepEqual(m.steps.map((x) => x.status), ['fertig', 'fertig', 'offen']);
+});
+
+test('Missionen: Instrument passt, keine doppelte Mission, vorhandene Hausaufgabe wird verknüpft', async () => {
+  const w = await missionWorld();
+  const g = (await w.call('/api/t/student/save', { first_name: 'Fiona', birth_year: 2010, instrument: 'Gitarre' }, w.t)).data.id;
+  const d = (await w.call('/api/t/student/save', { first_name: 'Andrei', birth_year: 2010, instrument: 'Schlagzeug und Gitarre' }, w.t)).data.id;
+  const gm = (await w.call('/api/t/mission/save', { title: 'Akkorde G C D', instrument: 'guitar' }, w.t)).data.id;
+  await w.call('/api/t/mission/step/add', { mission_id: gm, kind: 'text', free_text: 'G zu C wechseln, 1 Minute' }, w.t);
+  const r1 = (await w.call('/api/t/mission/assign', { mission_id: w.mid, student_ids: [g, d] }, w.t)).data;
+  assert.deepEqual(r1.assigned, ['Andrei']);
+  assert.match(r1.skipped[0], /Fiona/);
+  const r2 = (await w.call('/api/t/mission/assign', { mission_id: gm, student_ids: [g, d, w.a] }, w.t)).data;
+  assert.deepEqual(r2.assigned, ['Fiona', 'Andrei']);
+  const r3 = (await w.call('/api/t/mission/assign', { mission_id: w.mid, student_ids: [d] }, w.t)).data;
+  assert.match(r3.skipped[0], /läuft schon/);
+  // Baustein schon als normale Hausaufgabe offen: wird verknüpft, nicht doppelt angelegt
+  await w.call('/api/t/assignment/add', { student_id: w.b, part_id: w.p1 }, w.t);
+  await w.call('/api/t/mission/assign', { mission_id: w.mid, student_ids: [w.b] }, w.t);
+  const fb = (await w.call('/api/t/student', { id: w.b }, w.t)).data;
+  assert.equal(fb.assignments.filter((a) => a.part_id === w.p1).length, 1);
+  assert.equal(fb.missions[0].steps[0].assignment_id, fb.assignments.find((a) => a.part_id === w.p1).id);
+});
+
+test('Missionen: Schritte sortieren und löschen, Mission beenden, Schüler löschen räumt auf', async () => {
+  const w = await missionWorld();
+  assert.equal((await w.call('/api/t/mission/steps/reorder', { mission_id: w.mid, ids: [w.s3, w.s1] }, w.t)).status, 400);
+  await w.call('/api/t/mission/steps/reorder', { mission_id: w.mid, ids: [w.s2, w.s1, w.s3] }, w.t);
+  let list = (await w.call('/api/t/missions', {}, w.t)).data.missions;
+  assert.equal(list[0].steps[0].id, w.s2);
+  await w.call('/api/t/mission/step/delete', { id: w.s3 }, w.t);
+  list = (await w.call('/api/t/missions', {}, w.t)).data.missions;
+  assert.equal(list[0].steps.length, 2);
+  await w.call('/api/t/mission/assign', { mission_id: w.mid, student_ids: [w.a] }, w.t);
+  const sm = (await w.call('/api/t/student', { id: w.a }, w.t)).data.missions[0];
+  await w.call('/api/t/mission/cancel', { id: sm.id }, w.t);
+  const f = (await w.call('/api/t/student', { id: w.a }, w.t)).data;
+  assert.equal(f.missions.length, 0);
+  assert.ok(f.assignments.some((a) => a.part_id === w.p2 && a.status === 'offen'), 'offene Hausaufgabe bleibt');
+  await w.call('/api/t/mission/assign', { mission_id: w.mid, student_ids: [w.a] }, w.t);
+  await w.call('/api/t/student/delete', { id: w.a }, w.t);
+  const left = await w.env.DB.prepare('SELECT COUNT(*) AS n FROM student_missions').first();
+  assert.equal(left.n, 0);
+  await w.call('/api/t/mission/archive', { id: w.mid }, w.t);
+  assert.equal((await w.call('/api/t/missions', {}, w.t)).data.missions.length, 0);
+});
