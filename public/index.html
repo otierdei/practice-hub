@@ -246,8 +246,9 @@ details.card summary{cursor:pointer;font-family:var(--display);font-size:1.08rem
 </head>
 <body>
 <div id="app"><div class="wrap"><p class="muted">Lädt …</p></div></div>
-<script src="notation.js?v=113"></script>
-<script src="guitar.js?v=113"></script>
+<script src="notation.js?v=114"></script>
+<script src="guitar.js?v=114"></script>
+<script src="transpose.js?v=114"></script>
 <script>
 'use strict';
 // ---------- Grundlagen ----------
@@ -1668,7 +1669,18 @@ function songBlocksHTML(a) {
 }
 async function loadSongFor(a) { if (a && a.song_id) { // immer frisch, damit geänderte Bausteine und Videos sofort da sind
   try { S.song = await api('/api/song', { id: a.song_id }); } catch (e) { /* ohne Song weiter */ } } }
-function ytEmbed(url) { const id = ytId(url); return id ? `<div class="yt"><iframe src="https://www.youtube-nocookie.com/embed/${id}?rel=0&modestbranding=1&playsinline=1&enablejsapi=1&origin=${encodeURIComponent(location.origin)}" title="Video" allow="autoplay; encrypted-media; picture-in-picture; fullscreen" allowfullscreen loading="lazy"></iframe></div>` : ''; }
+function ytEmbed(url) { const id = ytId(url); return id ? `<div class="yt"><iframe src="https://www.youtube-nocookie.com/embed/${id}?rel=0&modestbranding=1&playsinline=1&enablejsapi=1&origin=${encodeURIComponent(location.origin)}" title="Video" allow="autoplay; encrypted-media; picture-in-picture; fullscreen" allowfullscreen loading="lazy"></iframe></div>${tpBar()}` : ''; }
+// Transpose für Gitarrenschüler am Laptop (Chrome): Ton des Tabs übernehmen und verschieben, siehe transpose.js
+function tpBar() {
+  if (songInstr() !== 'guitar' || !window.PhTranspose || !PhTranspose.supported()) return '';
+  const s = PhTranspose.semi(), on = PhTranspose.isOn();
+  return `<div class="tp-bar row" style="gap:8px;align-items:center;flex-wrap:wrap"><b class="small">Transpose</b>
+    <button type="button" class="iconbtn" data-act="tpStep" data-d="-1" aria-label="Einen Halbton tiefer">−</button><span class="tp-val" style="min-width:64px;text-align:center">${s > 0 ? '+' + s : s} HT</span><button type="button" class="iconbtn" data-act="tpStep" data-d="1" aria-label="Einen Halbton höher">+</button>
+    <button type="button" class="btn small${on ? '' : ' primary'}" data-act="tpToggle">${on ? 'Transpose aus' : 'Transpose an'}</button>
+    <span class="small muted">${on ? 'Läuft. Video normal abspielen.' : 'Chrome fragt einmal nach Freigabe: diesen Tab wählen und „Tab Audio teilen“ an lassen.'}</span></div>`;
+}
+function tpRefresh() { const html = tpBar(); document.querySelectorAll('.tp-bar').forEach((b) => { if (html) b.outerHTML = html; }); }
+if (window.PhTranspose) PhTranspose.onChange(tpRefresh);
 function videoView() {
   const d = S.preview ? S.preview.data : S.data; const a = d.assignments.find((x) => x.id === S.videoId); if (!a) return '';
   return `<div class="wrap" style="max-width:720px;align-items:stretch">
@@ -2235,6 +2247,12 @@ document.addEventListener('click', async (ev) => {
         Guitar.play(g, 'strum', g.bpm, Guitar.cursorFor(root && root.querySelector('.gt-strum'))); el.textContent = 'Stopp'; break;
       }
       case 'gtTempo': setBpm(Number(el.dataset.v)); document.querySelectorAll('[data-act="gtTempo"]').forEach((b) => b.setAttribute('aria-pressed', String(b === el))); break;
+      case 'tpStep': PhTranspose.setSemi(PhTranspose.semi() + Number(el.dataset.d)); break;
+      case 'tpToggle': {
+        if (PhTranspose.isOn()) { PhTranspose.stop(); break; }
+        try { await PhTranspose.start(); } catch (e) { toast(e && e.message === 'noaudio' ? 'Kein Ton geteilt. Bitte diesen Tab wählen und Tab Audio teilen anlassen.' : 'Transpose nicht gestartet. Freigabe abgebrochen oder nicht erlaubt.'); }
+        break;
+      }
       case 'gtPrev': {
         const was = S.gtPrev; document.querySelectorAll('[data-act=gtPrev]').forEach((b) => { b.textContent = b.textContent.replace(/^Stopp: /, 'Mitspielen: '); });
         if (Guitar.isPlaying()) Guitar.stop(); S.gtPrev = null;
