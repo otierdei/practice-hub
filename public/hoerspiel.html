@@ -1,0 +1,262 @@
+<!doctype html>
+<html lang="de">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="theme-color" content="#fbf3e4">
+<meta name="robots" content="noindex">
+<title>Welcher Beat? · Practice Hub</title>
+<link rel="icon" href="icon.svg" type="image/svg+xml">
+<style>
+@font-face{font-family:"Young Serif";src:url("fonts/young-serif.woff2") format("woff2");font-weight:400;font-display:swap}
+@font-face{font-family:"Figtree";src:url("fonts/figtree.woff2") format("woff2");font-weight:300 900;font-display:swap}
+:root{
+  --bg:#e5e5e0; --surface:#f6f6f3; --sunk:#ededE8; --ink:#23241f; --muted:#5c5d55; --line:#d3d0c6;
+  --accent:#4f5a2c; --accent-ink:#f6f6f3; --ring2:#8a6236; --track:#dcd9d0; --danger:#9b3a24; --good:#3d6b2f;
+  --display:"Young Serif", Georgia, serif; --body:"Figtree", -apple-system, "Segoe UI", system-ui, sans-serif; color-scheme:light;
+}
+@media (prefers-color-scheme: dark){:root{
+  --bg:#171814; --surface:#22231e; --sunk:#1c1d19; --ink:#ecebe4; --muted:#a6a798; --line:#393a31;
+  --accent:#b3c083; --accent-ink:#1b1c16; --ring2:#d1a46f; --track:#34352d; --danger:#e58f72; --good:#a9c98a; color-scheme:dark }}
+*{box-sizing:border-box}
+html,body{margin:0;background:var(--bg);color:var(--ink);font-family:var(--body);font-size:17px;line-height:1.45;-webkit-text-size-adjust:100%}
+body{padding:calc(env(safe-area-inset-top,0px) + 14px) 16px calc(env(safe-area-inset-bottom,0px) + 24px)}
+h1,h2{font-family:var(--display);font-weight:400;margin:0;line-height:1.15;text-wrap:balance}
+h1{font-size:clamp(1.8rem,7vw,2.4rem)} h2{font-size:1.35rem}
+p{margin:0;text-wrap:pretty}
+button{font:inherit;color:inherit;cursor:pointer;touch-action:manipulation}
+.wrap{max-width:560px;margin:0 auto;display:flex;flex-direction:column;gap:14px}
+.card{background:var(--surface);border:1px solid var(--line);border-radius:22px;padding:16px;display:flex;flex-direction:column;gap:12px}
+.row{display:flex;gap:10px;align-items:center;flex-wrap:wrap}.between{justify-content:space-between}
+.muted{color:var(--muted)}.small{font-size:.88rem}
+.btn{min-height:52px;padding:0 20px;border-radius:999px;border:1px solid var(--line);background:var(--surface);font-weight:600}
+.btn.primary{background:var(--accent);color:var(--accent-ink);border-color:transparent}
+.btn.block{width:100%}
+.btn:disabled{opacity:.45;cursor:default}
+.top{display:flex;justify-content:space-between;align-items:center;gap:10px}
+.top a{color:var(--muted);font-size:.9rem}
+.bar{height:10px;border-radius:99px;background:var(--track);overflow:hidden}.bar i{display:block;height:100%;background:var(--accent);transition:width .3s}
+.level{display:flex;align-items:center;gap:14px;width:100%;text-align:left;padding:14px;border-radius:18px;border:1px solid var(--line);background:var(--surface)}
+.level .n{width:42px;height:42px;border-radius:50%;display:grid;place-items:center;background:var(--sunk);font-weight:800;flex:none}
+.level.done .n{background:var(--accent);color:var(--accent-ink)}
+.level:disabled{opacity:.5}
+.level b{display:block}
+.kit{width:100%;height:auto;display:block;background:var(--sunk);border-radius:18px}
+.kit .p{fill:var(--surface);stroke:var(--ink);stroke-width:1.6;transition:fill .15s}
+.kit .stand{stroke:var(--muted);stroke-width:2;fill:none}
+.kit g[data-k].on .p{fill:var(--accent)}
+.kit g[data-k].on{filter:drop-shadow(0 0 6px var(--accent))}
+.kit g[data-k].bad .p{fill:var(--danger)}
+.kit.tap g[data-k]{cursor:pointer}
+.kit.tap g[data-k]:focus-visible .p{stroke:var(--ring2);stroke-width:3}
+.kit .hh-top{transition:transform .2s}
+.kit.open .hh-top{transform:translateY(-9px)}
+.kit .lbl{font:600 12px var(--body);fill:var(--ink);paint-order:stroke;stroke:var(--sunk);stroke-width:4px}
+.staff{color:var(--ink);background:var(--sunk);border-radius:14px;padding:6px 8px}
+.staff svg{display:block;width:100%;height:auto}
+.opts{display:grid;grid-template-columns:1fr 1fr;gap:10px}.opts.one{grid-template-columns:1fr}
+.opt{border:2px solid var(--line);background:var(--surface);border-radius:16px;padding:8px;min-height:56px;font-weight:600}
+.opt .staff{padding:2px 4px}
+.opt.right{border-color:var(--good);box-shadow:0 0 0 2px var(--good)}
+.opt.wrong{border-color:var(--danger);opacity:.7}
+.fb{border-radius:18px;padding:14px;display:flex;flex-direction:column;gap:10px}
+.fb.good{background:color-mix(in srgb,var(--good) 18%,var(--surface))}
+.fb.bad{background:color-mix(in srgb,var(--danger) 14%,var(--surface))}
+.big{font-family:var(--display);font-size:1.7rem;line-height:1.1}
+.tip{background:var(--sunk);border-radius:14px;padding:10px 12px}
+.seq{display:flex;gap:8px;justify-content:center}
+.seq span{width:34px;height:34px;border-radius:50%;display:grid;place-items:center;background:var(--sunk);font-weight:800}
+.seq span.ok{background:var(--accent);color:var(--accent-ink)}
+.seq span.now{outline:3px solid var(--ring2)}
+.cert{text-align:center;border:3px double var(--accent);align-items:center}
+.stars{font-size:1.6rem;letter-spacing:4px}
+input[type=text]{width:100%;min-height:52px;border-radius:14px;border:1px solid var(--line);background:var(--surface);padding:0 14px;font:inherit;color:inherit}
+@media (prefers-reduced-motion:reduce){*{transition:none!important}}
+.staff svg .hl{color:var(--ring2)}
+
+/* Kinder Design wie die Kinderansicht der App: Creme, kräftige Farben, dicke Ränder, immer hell */
+html:root{--bg:#fbf3e4;--surface:#ffffff;--sunk:#f6ead3;--ink:#23241f;--muted:#4a4b44;--line:#23241f;--accent:#2e86ab;--accent-ink:#ffffff;--ring2:#e4572e;--track:#ead9b8;--danger:#d64b26;--good:#2f8a5b;color-scheme:light}
+.card,.level,.opt,.staff,.kit,input[type=text]{border:3px solid #23241f}
+.btn{border:3px solid #23241f;font-weight:800}
+.btn.primary{background:#2e86ab;color:#fff;border:3px solid #23241f;box-shadow:0 5px 0 #23241f}
+.btn.primary:active{transform:translateY(3px);box-shadow:0 2px 0 #23241f}
+.level{box-shadow:0 4px 0 #23241f}
+.level .n{border:3px solid #23241f;background:#f2c14e;color:#23241f}
+.level.done .n{background:#8bc9a3;color:#23241f}
+.bar{height:14px;border:2px solid #23241f}.bar i{background:#8bc9a3}
+.seq span{border:2px solid #23241f;background:#fff}.seq span.ok{background:#8bc9a3;color:#23241f}
+.kit .p{stroke:#23241f;stroke-width:2.2}
+.kit g[data-k].on .p{fill:#f2c14e}.kit g[data-k].on{filter:drop-shadow(0 0 8px #f2c14e)}
+.kit g[data-k].bad .p{fill:#e4572e}
+.staff{background:#fff}
+.tip{background:#9cc5e0;border:3px solid #23241f}
+.opt.right{background:#8bc9a3;border-color:#23241f;box-shadow:0 0 0 3px #2f8a5b}
+.opt.wrong{background:#f6c3b3;opacity:1}
+.fb.good{background:#8bc9a3;border:3px solid #23241f}.fb.bad{background:#f6c3b3;border:3px solid #23241f}
+.cert{border:4px solid #23241f;background:#f2c14e}
+</style>
+</head>
+<body>
+<main class="wrap" id="app" aria-live="polite"></main>
+<script src="notation.js?v=115"></script>
+<script src="game-audio.js?v=2"></script>
+<script>
+'use strict';
+// Hörspiel "Welcher Beat?" (Otis Wunsch 19.11.2026, Kurs L20 Lernen durch Hören):
+// Einen Beat anhören und aus drei Notenbildern den richtigen wählen. 6 Stufen von Viertel Beats bis 16tel Bassdrum, dann Prüfung, Urkunde "Hörprofi".
+// Die Beats werden im Spiel erzeugt (keine Songausschnitte), die Falschantworten unterscheiden sich nur in ein bis zwei Schlägen.
+const Q = [0, 4, 8, 12], E = [0, 2, 4, 6, 8, 10, 12, 14], S16 = Array.from({ length: 16 }, (_, i) => i);
+const LEVELS = [
+  { id: 1, title: 'Viertel Beats', text: 'HiHat auf jedem Schlag. Wo spielt die Bassdrum, wo die Snare?', tip: 'Hör zuerst nur auf die Bassdrum: tief und dumpf. Dann auf die Snare: hell und knallig.', bpm: 80, gen: () => beat(Q, Q, [4, 12], { bdMin: 1, bdMax: 3 }) },
+  { id: 2, title: 'Achtel Beats', text: 'HiHat in Achteln. Die Bassdrum spielt auf den Schlägen.', tip: 'Zähl leise mit: 1 und 2 und 3 und 4 und. Auf welchen Zahlen kommt die Bassdrum?', bpm: 84, gen: () => beat(E, Q, [4, 12], { bdMin: 1, bdMax: 3 }) },
+  { id: 3, title: 'Bassdrum auf und', text: 'Jetzt kommt die Bassdrum auch zwischen den Schlägen.', tip: 'Ein Bassdrum Schlag auf "und" klingt, als ob er nachrutscht. Achte darauf, ob er vor oder nach der Snare kommt.', bpm: 84, gen: () => beat(E, E.filter((i) => i !== 4 && i !== 12), [4, 12], { bdMin: 2, bdMax: 4, needOff: true }) },
+  { id: 4, title: 'Offene HiHat und Becken', text: 'Eine HiHat geht auf, und manchmal kracht ein Becken auf der 1.', tip: 'Die offene HiHat zischt länger. Das Becken kracht laut und klingt lange nach.', bpm: 84, gen: () => beat(E, E.filter((i) => i !== 4 && i !== 12), [4, 12], { bdMin: 2, bdMax: 3, ho: true, cr: true }) },
+  { id: 5, title: '16tel HiHat', text: 'Die HiHat spielt doppelt so schnell. Bassdrum in Achteln.', tip: 'Lass dich von der schnellen HiHat nicht ablenken. Hör auf die tiefen Schläge.', bpm: 72, gen: () => beat(S16, E.filter((i) => i !== 4 && i !== 12), [4, 12], { bdMin: 2, bdMax: 4, needOff: true }) },
+  { id: 6, title: '16tel Bassdrum', text: 'Die Bassdrum spielt auch auf e und a.', tip: 'Zähl 1 e und a. Zwei Bassdrum Schläge direkt hintereinander klingen wie ein Doppelschlag.', bpm: 76, gen: () => beat(E, S16.filter((i) => i !== 4 && i !== 12), [4, 12], { bdMin: 2, bdMax: 4, need16: true }) },
+  { id: 7, title: 'Hörprüfung', text: '10 Beats gemischt. Mit 9 richtigen bist du Hörprofi.', exam: true },
+];
+const ROUNDS = 6, NEED = 5, EXAM = 10, EXAM_NEED = 9;
+const KEY = 'ph_hoerspiel';
+let P = load(), G = null;
+function load() { try { return Object.assign({ name: '', done: {}, cert: null }, JSON.parse(localStorage.getItem(KEY) || '{}')); } catch (e) { return { name: '', done: {}, cert: null }; } }
+function appLogin() { try { const t = JSON.parse(localStorage.getItem('ph_token') || 'null'), r = JSON.parse(localStorage.getItem('ph_role') || 'null'); return t && r === 'student' ? t : null; } catch (e) { return null; } }
+function save() {
+  try { localStorage.setItem(KEY, JSON.stringify(P)); } catch (e) {}
+  const t = appLogin(); if (!t) return;
+  fetch('/api/my/game', { method: 'POST', headers: { 'Content-Type': 'application/json', Authorization: 'Bearer ' + t }, body: JSON.stringify({ game: 'hoeren', done: Object.keys(P.done).map(Number), total: LEVELS.length, cert: P.cert }) }).catch(() => {});
+}
+if (!P.name) { try { const n = JSON.parse(localStorage.getItem('ph_name') || 'null'); if (n) P.name = String(n).split(' ')[0]; } catch (e) {} }
+const $ = (s) => document.querySelector(s);
+const esc = (t) => String(t).replace(/[&<>"]/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' })[c]);
+const shuffle = (a) => { a = a.slice(); for (let i = a.length - 1; i > 0; i--) { const j = Math.floor(Math.random() * (i + 1)); [a[i], a[j]] = [a[j], a[i]]; } return a; };
+const pick = (a) => a[Math.floor(Math.random() * a.length)];
+
+// ---------- Beats erzeugen ----------
+// b: { hh:[..], bd:[..], sn:[..], ho:[..], cr:[..] } in 16teln eines 4/4 Takts
+function beat(hh, bdPos, sn, o) {
+  for (let g = 0; g < 200; g++) {
+    const n = o.bdMin + Math.floor(Math.random() * (o.bdMax - o.bdMin + 1));
+    const bd = shuffle(bdPos.includes(0) ? bdPos.filter((i) => i !== 0) : bdPos).slice(0, n - (bdPos.includes(0) ? 1 : 0)).concat(bdPos.includes(0) ? [0] : []).sort((a, b) => a - b);
+    if (o.needOff && !bd.some((i) => i % 4 === 2)) continue;
+    if (o.need16 && !bd.some((i) => i % 2 === 1)) continue;
+    const b = { hh: hh.slice(), bd, sn: sn.filter((i) => !bd.includes(i)), ho: [], cr: [] };
+    if (o.ho) { const at = pick(E.filter((i) => i % 4 === 2)); b.hh = b.hh.filter((i) => i !== at); b.ho = [at]; }
+    if (o.cr && Math.random() < 0.5) { b.hh = b.hh.filter((i) => i !== 0); b.cr = [0]; }
+    return b;
+  }
+  return { hh: hh.slice(), bd: [0, 8], sn: [4, 12], ho: [], cr: [] };
+}
+const keyOf = (b) => ['hh', 'ho', 'cr', 'sn', 'bd'].map((k) => k + ':' + b[k].join(',')).join('|');
+// Falschantwort: ein bis zwei Schläge anders (Bassdrum verschieben, dazu oder weg, offene HiHat oder Becken versetzen)
+function variant(b, lv) {
+  const v = JSON.parse(JSON.stringify(b)), grid = lv.id === 6 ? S16.filter((i) => i !== 4 && i !== 12) : lv.id >= 3 ? E.filter((i) => i !== 4 && i !== 12) : Q;
+  const moves = shuffle(['move', 'add', 'drop'].concat(v.ho.length ? ['ho', 'ho'] : [], lv.id === 4 ? ['cr'] : []));
+  for (const m of moves.slice(0, Math.random() < 0.5 ? 1 : 2)) {
+    if (m === 'move' && v.bd.length) { const from = pick(v.bd), to = pick(grid.filter((i) => !v.bd.includes(i))); if (to != null) v.bd = v.bd.filter((i) => i !== from).concat(to); }
+    if (m === 'add') { const to = pick(grid.filter((i) => !v.bd.includes(i))); if (to != null) v.bd.push(to); }
+    if (m === 'drop' && v.bd.length > 1) v.bd = v.bd.filter((i) => i !== pick(v.bd));
+    if (m === 'ho') { const to = pick(E.filter((i) => i % 4 === 2 && !v.ho.includes(i))); v.hh = v.hh.concat(v.ho).filter((i) => i !== to); v.ho = [to]; }
+    if (m === 'cr') { if (v.cr.length) { v.cr = []; v.hh.push(0); } else { v.cr = [0]; v.hh = v.hh.filter((i) => i !== 0); } }
+  }
+  v.bd = [...new Set(v.bd)].sort((a, b) => a - b); v.sn = [4, 12].filter((i) => !v.bd.includes(i)); v.hh.sort((a, b) => a - b);
+  return v;
+}
+function question(lv) {
+  const right = lv.gen(), seen = new Set([keyOf(right)]), opts = [right];
+  for (let g = 0; opts.length < 3 && g < 100; g++) { const v = variant(right, lv); if (!seen.has(keyOf(v))) { seen.add(keyOf(v)); opts.push(v); } }
+  const order = shuffle([0, 1, 2].slice(0, opts.length));
+  return { lv, bpm: lv.bpm, opts: order.map((i) => opts[i]), right: order.indexOf(0) };
+}
+function toNotation(b, bpm) {
+  const n = DrumNotation.empty('4/4', 1, bpm);
+  for (const k of ['hh', 'ho', 'cr', 'sn', 'bd']) n.tracks[k] = b[k].slice().sort((a, c) => a - c);
+  return n;
+}
+const staff = (b, bpm, label) => `<div class="staff">${DrumNotation.render(toNotation(b, bpm), { barsPerLine: 1, label })}</div>`;
+
+// ---------- Abspielen: 1 Takt Klick vorweg, dann zweimal der Beat ----------
+let playing = null;
+function play(b, bpm) {
+  stopPlay(); try { DrumNotation.loadSamples(); } catch (e) {}
+  window.GameAudio && GameAudio.duck && GameAudio.duck(8);
+  let loops = 0, last = -1;
+  playing = true;
+  DrumNotation.play(toNotation(b, bpm), bpm, (i) => { if (i < 0) return; if (i < last && ++loops >= 2) { stopPlay(); } last = i; }, { countIn: 1 });
+}
+function stopPlay() { if (playing) { playing = null; try { DrumNotation.stop(); } catch (e) {} } }
+
+// ---------- Bildschirme ----------
+function topBar(title, back = true) { return `<div class="top">${back ? '<button class="btn" data-act="home" style="min-height:44px;padding:0 16px">Übersicht</button>' : '<a href="./">Zur Practice Hub App</a>'}<span class="small muted">${esc(title)}</span></div>`; }
+function render() { $('#app').innerHTML = G ? G.view() : homeView(); }
+function homeView() {
+  const next = LEVELS.find((l) => !P.done[l.id]);
+  return `${topBar('Welcher Beat?', false)}<h1>Welcher Beat?</h1>
+    <p class="muted">Hör dir einen Beat an und finde die passenden Noten. Erst langsam mit Vierteln, am Ende mit schnellen 16teln.</p>
+    <p class="small muted">${appLogin() ? 'Dein Lehrer sieht deinen Fortschritt in der App.' : 'Öffne das Spiel aus der Practice Hub App, dann sieht dein Lehrer deinen Fortschritt.'}</p>
+    <div class="card"><label for="nm" class="small muted">Dein Vorname (für die Urkunde)</label><input type="text" id="nm" maxlength="30" value="${esc(P.name)}" autocomplete="given-name"></div>
+    <div style="display:flex;flex-direction:column;gap:10px">${LEVELS.map((l, i) => { const open = i === 0 || P.done[LEVELS[i - 1].id];
+      return `<button class="level ${P.done[l.id] ? 'done' : ''}" data-act="level" data-id="${l.id}" ${open ? '' : 'disabled'}><span class="n">${P.done[l.id] ? '✓' : l.id}</span><span><b>${esc(l.title)}</b><span class="small muted">${esc(l.text)}</span></span></button>`; }).join('')}</div>
+    ${P.cert ? '<button class="btn primary block" data-act="cert">Meine Urkunde ansehen</button>' : next ? `<button class="btn primary block" data-act="level" data-id="${next.id}">${next.id === 1 ? 'Los geht’s' : 'Weiter mit Stufe ' + next.id}</button>` : ''}
+    ${Object.keys(P.done).length ? '<button class="btn block" data-act="reset">Von vorne anfangen</button>' : ''}`;
+}
+function runLevel(lv) {
+  const exam = !!lv.exam, total = exam ? EXAM : ROUNDS, need = exam ? EXAM_NEED : NEED;
+  const pool = LEVELS.filter((l) => !l.exam && l.id >= 2);
+  const R = { n: 0, ok: 0, wrong: 0, q: question(exam ? pick(pool) : lv), ans: null, heard: false };
+  const card = (i) => { const q = R.q, cls = R.ans == null ? '' : i === q.right ? ' right' : i === R.ans ? ' wrong' : '';
+    return `<button class="opt${cls}" data-act="pick" data-i="${i}" ${R.ans != null || !R.heard ? 'disabled' : ''} aria-label="Möglichkeit ${i + 1}"><span class="small">Möglichkeit ${i + 1}</span>${staff(q.opts[i], q.bpm, 'Möglichkeit ' + (i + 1))}</button>`; };
+  return {
+    view: () => {
+      const q = R.q, done = R.n >= total;
+      if (done) {
+        const pass = R.ok >= need;
+        return `${topBar(lv.title)}<div class="card" style="text-align:center;align-items:center"><p class="big">${R.ok} von ${total} richtig</p>
+          <p class="muted">${pass ? (exam ? 'Bestanden! Du bist Hörprofi.' : 'Super, Stufe geschafft.') : `Du brauchst ${need} richtige. Hör noch einmal genau hin.`}</p>
+          <button class="btn primary block" data-act="${pass ? (exam ? 'certNow' : 'finish') : 'again'}">${pass ? (exam ? 'Zur Urkunde' : 'Weiter') : 'Nochmal versuchen'}</button></div>`;
+      }
+      return `${topBar(lv.title + ' · ' + (R.n + 1) + ' von ' + total)}
+        <div class="bar" role="progressbar" aria-valuemin="0" aria-valuemax="${total}" aria-valuenow="${R.n}"><i style="width:${(R.n / total) * 100}%"></i></div>
+        ${R.n === 0 && !exam ? `<div class="tip"><b>Tipp:</b> ${esc(lv.tip)}</div>` : ''}
+        <div class="card"><p><b>Hör dir den Beat an.</b> Welche Noten passen?</p>
+          <button class="btn primary block" data-act="listen">${R.heard ? 'Nochmal anhören' : 'Beat anhören'}</button>
+          <p class="small muted">Erst ein Takt Klick, dann spielt der Beat zweimal. ${q.bpm} BPM.</p></div>
+        <div class="opts one">${q.opts.map((_, i) => card(i)).join('')}</div>
+        ${R.ans != null ? `<div class="fb ${R.ans === q.right ? 'good' : 'bad'}"><p class="big">${R.ans === q.right ? 'Richtig!' : 'Fast.'}</p><p>${R.ans === q.right ? 'Genau diesen Beat hast du gehört.' : `Richtig war Möglichkeit ${q.right + 1}. Hör sie dir nochmal an und vergleiche.`}</p>
+          <div class="row">${R.ans !== q.right ? '<button class="btn" data-act="listen">Richtigen Beat anhören</button>' : ''}<button class="btn primary" data-act="next">Weiter</button></div></div>` : ''}`;
+    },
+    act: (a, el) => {
+      if (a === 'listen') { R.heard = true; play(R.q.opts[R.q.right], R.q.bpm); return render(); }
+      if (a === 'pick') { if (R.ans != null) return; stopPlay(); R.ans = Number(el.dataset.i); if (R.ans === R.q.right) { R.ok++; window.GameAudio && GameAudio.ok(); } else { R.wrong++; window.GameAudio && GameAudio.bad(); } return render(); }
+      if (a === 'next') { stopPlay(); R.n++; R.ans = null; R.heard = false; if (R.n < total) R.q = question(exam ? pick(pool) : lv); window.scrollTo(0, 0); return render(); }
+      if (a === 'again') { G = runLevel(lv); return render(); }
+      if (a === 'finish') return finishLevel(lv.id, R.wrong);
+      if (a === 'certNow') { P.done[lv.id] = true; P.cert = P.cert || new Date().toISOString().slice(0, 10); save(); window.GameAudio && GameAudio.win(); return showCert(); }
+    },
+  };
+}
+function finishLevel(id, wrongs = 0) {
+  P.done[id] = true; save(); window.GameAudio && GameAudio.win(); const stars = wrongs === 0 ? 3 : wrongs === 1 ? 2 : 1, next = LEVELS.find((l) => l.id === id + 1);
+  G = { view: () => `${topBar('Geschafft')}<div class="card" style="text-align:center;align-items:center"><p class="stars" aria-label="${stars} von 3 Sternen">${'★'.repeat(stars)}${'☆'.repeat(3 - stars)}</p><p class="big">Stufe ${id} geschafft!</p>
+    ${next ? `<button class="btn primary block" data-act="level" data-id="${next.id}">Weiter mit ${esc(next.title)}</button>` : ''}<button class="btn block" data-act="home">Zur Übersicht</button></div>` };
+  window.scrollTo(0, 0); render();
+}
+function showCert() {
+  const demo = { hh: E.slice(), bd: [0, 6, 10], sn: [4, 12], ho: [], cr: [] };
+  G = { view: () => `${topBar('Urkunde')}<div class="card cert"><p class="small muted">Urkunde</p><h1>Hörprofi</h1><p class="big">${esc(P.name || 'Du')}</p><p>erkennt Beats am Klang: Viertel, Achtel und 16tel, Bassdrum auf und, offene HiHat und Becken.</p>${staff(demo, 84, 'Beispielbeat')}<p class="small">${esc(new Date(P.cert || Date.now()).toLocaleDateString('de-DE'))}</p></div><button class="btn block" data-act="home">Zur Übersicht</button>` };
+  window.scrollTo(0, 0); render();
+}
+function startLevel(id) { stopPlay(); G = runLevel(LEVELS.find((l) => l.id === id)); window.scrollTo(0, 0); render(); }
+document.addEventListener('click', (ev) => {
+  const el = ev.target.closest('[data-act]'); if (!el) return;
+  const act = el.dataset.act; try { DrumNotation.loadSamples(); } catch (e) {}
+  if (act === 'home') { stopPlay(); G = null; return render(); }
+  if (act === 'level') { const nm = $('#nm'); if (nm) { P.name = nm.value.trim(); save(); } return startLevel(Number(el.dataset.id)); }
+  if (act === 'cert') return showCert();
+  if (act === 'reset') { if (confirm('Wirklich von vorne anfangen? Dein Fortschritt wird gelöscht.')) { P = { name: P.name, done: {}, cert: null }; save(); render(); } return; }
+  if (G && G.act) G.act(act, el);
+});
+document.addEventListener('change', (ev) => { if (ev.target.id === 'nm') { P.name = ev.target.value.trim(); save(); } });
+render();
+</script>
+</body>
+</html>
