@@ -431,7 +431,7 @@ export function cleanNotation(n) {
   if (!o || typeof o !== 'object' || Array.isArray(o)) throw new HttpError(400, 'Noten sind beschädigt.');
   if (o.kind === 'guitar') return cleanGuitar(o);
   const sig = ['4/4', '3/4', '6/8', '12/8'].includes(o.sig) ? o.sig : '4/4';
-  const bars = int(o.bars, 1, 16) || 1;
+  const bars = int(o.bars, 1, 20) || 1;
   const steps = ({ '3/4': 12, '6/8': 12, '12/8': 24 }[sig] || 16) * bars;
   const tracks = {};
   for (const k of DRUMS) {
@@ -475,7 +475,13 @@ export function cleanNotation(n) {
     const [k, i] = String(key).split(':'); const n = Number(i);
     if (v && tracks[k] && tracks[k].includes(n)) flam[k + ':' + n] = 1;
   }
-  return JSON.stringify({ v: 2, sig, bars, bpm: int(o.bpm, 30, 300) || 80, tracks, stick, dyn, ...(Object.keys(flam).length ? { flam } : {}), marks, repeat, ...(trip.length ? { trip } : {}), ...(tup.length ? { tup, tupn } : {}) });
+  // Triolen Zusätze (20.11.2026): betont/leise (tdyn), Flam (tflam) je "Instrument:Gruppe:Platz", Sticking (tstick) je "Gruppe:Platz"
+  const tdyn = {}, tflam = {}, tstick = {}, tHas = (k, g, sl) => (tupn[k] || []).includes(g + ':' + sl);
+  for (const [key, v] of Object.entries(o.tdyn && typeof o.tdyn === 'object' ? o.tdyn : {})) { const [k, g, sl] = String(key).split(':'); if ((v === 'a' || v === 's') && tHas(k, Number(g), Number(sl))) tdyn[k + ':' + Number(g) + ':' + Number(sl)] = v; }
+  for (const [key, v] of Object.entries(o.tflam && typeof o.tflam === 'object' ? o.tflam : {})) { const [k, g, sl] = String(key).split(':'); if (v && tHas(k, Number(g), Number(sl))) tflam[k + ':' + Number(g) + ':' + Number(sl)] = 1; }
+  for (const [key, v] of Object.entries(o.tstick && typeof o.tstick === 'object' ? o.tstick : {})) { const [g, sl] = String(key).split(':').map(Number), t = tup.find((y) => y.g === g); if (t && Number.isInteger(sl) && sl >= 0 && sl < (t.t === '16' ? 6 : 3) && (v === 'R' || v === 'L' || v === 'K')) tstick[g + ':' + sl] = v; }
+  const tx = { ...(Object.keys(tdyn).length ? { tdyn } : {}), ...(Object.keys(tflam).length ? { tflam } : {}), ...(Object.keys(tstick).length ? { tstick } : {}) };
+  return JSON.stringify({ v: 2, sig, bars, bpm: int(o.bpm, 30, 300) || 80, tracks, stick, dyn, ...(Object.keys(flam).length ? { flam } : {}), marks, repeat, ...(trip.length ? { trip } : {}), ...(tup.length ? { tup, tupn, ...tx } : {}) });
 }
 // Gitarre: Akkorde, Schlagmuster, Tabs, Capo
 function cleanGuitar(o) {
@@ -681,7 +687,7 @@ async function route(env, req, path, body) {
   if (path === '/api/my/game') {
     // Lernspiele melden den Fortschritt, damit Oti ihn in der Schülerakte sieht
     if (who.role !== 'student') return { ok: false };
-    const game = ['noten', 'werte', 'hoeren', 'takt'].includes(body.game) ? body.game : null; if (!game) throw new HttpError(400, 'Unbekanntes Spiel.');
+    const game = ['noten', 'werte', 'hoeren', 'takt', 'form'].includes(body.game) ? body.game : null; if (!game) throw new HttpError(400, 'Unbekanntes Spiel.');
     const total = int(body.total, 1, 20) || 7;
     const done = [...new Set((Array.isArray(body.done) ? body.done : []).map(Number).filter((x) => Number.isInteger(x) && x >= 1 && x <= total))].sort((a, b) => a - b);
     const cert = isDate(body.cert) ? body.cert : null;

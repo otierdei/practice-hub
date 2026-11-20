@@ -20,7 +20,7 @@
   ];
   const BY = Object.fromEntries(ROWS.map((r) => [r.k, r]));
   const EXCLUSIVE = { hh: 'ho', ho: 'hh', sn: 'gh', gh: 'sn' };
-  const MAX_BARS = 16;
+  const MAX_BARS = 20;
   const SIGS = ['4/4', '3/4', '6/8', '12/8'];
   const EIGHTH = (sig) => sig === '6/8' || sig === '12/8'; // Achtel Takte: Tempo zählt Achtel, Gruppen zu drei Achteln
   const perBar = (sig) => ({ '3/4': 12, '6/8': 12, '12/8': 24 }[sig] || 16);

@@ -1,0 +1,281 @@
+<!doctype html>
+<html lang="de">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="theme-color" content="#fbf3e4">
+<meta name="robots" content="noindex">
+<title>Songform Spiel · Practice Hub</title>
+<link rel="icon" href="icon.svg" type="image/svg+xml">
+<style>
+@font-face{font-family:"Young Serif";src:url("fonts/young-serif.woff2") format("woff2");font-weight:400;font-display:swap}
+@font-face{font-family:"Figtree";src:url("fonts/figtree.woff2") format("woff2");font-weight:300 900;font-display:swap}
+:root{
+  --bg:#e5e5e0; --surface:#f6f6f3; --sunk:#ededE8; --ink:#23241f; --muted:#5c5d55; --line:#d3d0c6;
+  --accent:#4f5a2c; --accent-ink:#f6f6f3; --ring2:#8a6236; --track:#dcd9d0; --danger:#9b3a24; --good:#3d6b2f;
+  --display:"Young Serif", Georgia, serif; --body:"Figtree", -apple-system, "Segoe UI", system-ui, sans-serif; color-scheme:light;
+}
+@media (prefers-color-scheme: dark){:root{
+  --bg:#171814; --surface:#22231e; --sunk:#1c1d19; --ink:#ecebe4; --muted:#a6a798; --line:#393a31;
+  --accent:#b3c083; --accent-ink:#1b1c16; --ring2:#d1a46f; --track:#34352d; --danger:#e58f72; --good:#a9c98a; color-scheme:dark }}
+*{box-sizing:border-box}
+html,body{margin:0;background:var(--bg);color:var(--ink);font-family:var(--body);font-size:17px;line-height:1.45;-webkit-text-size-adjust:100%}
+body{padding:calc(env(safe-area-inset-top,0px) + 14px) 16px calc(env(safe-area-inset-bottom,0px) + 24px)}
+h1,h2{font-family:var(--display);font-weight:400;margin:0;line-height:1.15;text-wrap:balance}
+h1{font-size:clamp(1.8rem,7vw,2.4rem)} h2{font-size:1.35rem}
+p{margin:0;text-wrap:pretty}
+button{font:inherit;color:inherit;cursor:pointer;touch-action:manipulation}
+.wrap{max-width:560px;margin:0 auto;display:flex;flex-direction:column;gap:14px}
+.card{background:var(--surface);border:1px solid var(--line);border-radius:22px;padding:16px;display:flex;flex-direction:column;gap:12px}
+.row{display:flex;gap:10px;align-items:center;flex-wrap:wrap}.between{justify-content:space-between}
+.muted{color:var(--muted)}.small{font-size:.88rem}
+.btn{min-height:52px;padding:0 20px;border-radius:999px;border:1px solid var(--line);background:var(--surface);font-weight:600}
+.btn.primary{background:var(--accent);color:var(--accent-ink);border-color:transparent}
+.btn.block{width:100%}
+.btn:disabled{opacity:.45;cursor:default}
+.top{display:flex;justify-content:space-between;align-items:center;gap:10px}
+.top a{color:var(--muted);font-size:.9rem}
+.bar{height:10px;border-radius:99px;background:var(--track);overflow:hidden}.bar i{display:block;height:100%;background:var(--accent);transition:width .3s}
+.level{display:flex;align-items:center;gap:14px;width:100%;text-align:left;padding:14px;border-radius:18px;border:1px solid var(--line);background:var(--surface)}
+.level .n{width:42px;height:42px;border-radius:50%;display:grid;place-items:center;background:var(--sunk);font-weight:800;flex:none}
+.level.done .n{background:var(--accent);color:var(--accent-ink)}
+.level:disabled{opacity:.5}
+.level b{display:block}
+.kit{width:100%;height:auto;display:block;background:var(--sunk);border-radius:18px}
+.kit .p{fill:var(--surface);stroke:var(--ink);stroke-width:1.6;transition:fill .15s}
+.kit .stand{stroke:var(--muted);stroke-width:2;fill:none}
+.kit g[data-k].on .p{fill:var(--accent)}
+.kit g[data-k].on{filter:drop-shadow(0 0 6px var(--accent))}
+.kit g[data-k].bad .p{fill:var(--danger)}
+.kit.tap g[data-k]{cursor:pointer}
+.kit.tap g[data-k]:focus-visible .p{stroke:var(--ring2);stroke-width:3}
+.kit .hh-top{transition:transform .2s}
+.kit.open .hh-top{transform:translateY(-9px)}
+.kit .lbl{font:600 12px var(--body);fill:var(--ink);paint-order:stroke;stroke:var(--sunk);stroke-width:4px}
+.staff{color:var(--ink);background:var(--sunk);border-radius:14px;padding:6px 8px}
+.staff svg{display:block;width:100%;height:auto}
+.opts{display:grid;grid-template-columns:1fr 1fr;gap:10px}.opts.one{grid-template-columns:1fr}
+.opt{border:2px solid var(--line);background:var(--surface);border-radius:16px;padding:8px;min-height:56px;font-weight:600}
+.opt .staff{padding:2px 4px}
+.opt.right{border-color:var(--good);box-shadow:0 0 0 2px var(--good)}
+.opt.wrong{border-color:var(--danger);opacity:.7}
+.fb{border-radius:18px;padding:14px;display:flex;flex-direction:column;gap:10px}
+.fb.good{background:color-mix(in srgb,var(--good) 18%,var(--surface))}
+.fb.bad{background:color-mix(in srgb,var(--danger) 14%,var(--surface))}
+.big{font-family:var(--display);font-size:1.7rem;line-height:1.1}
+.tip{background:var(--sunk);border-radius:14px;padding:10px 12px}
+.seq{display:flex;gap:8px;justify-content:center}
+.seq span{width:34px;height:34px;border-radius:50%;display:grid;place-items:center;background:var(--sunk);font-weight:800}
+.seq span.ok{background:var(--accent);color:var(--accent-ink)}
+.seq span.now{outline:3px solid var(--ring2)}
+.cert{text-align:center;border:3px double var(--accent);align-items:center}
+.stars{font-size:1.6rem;letter-spacing:4px}
+input[type=text]{width:100%;min-height:52px;border-radius:14px;border:1px solid var(--line);background:var(--surface);padding:0 14px;font:inherit;color:inherit}
+@media (prefers-reduced-motion:reduce){*{transition:none!important}}
+.staff svg .hl{color:var(--ring2)}
+
+/* Kinder Design wie die Kinderansicht der App: Creme, kräftige Farben, dicke Ränder, immer hell */
+html:root{--bg:#fbf3e4;--surface:#ffffff;--sunk:#f6ead3;--ink:#23241f;--muted:#4a4b44;--line:#23241f;--accent:#2e86ab;--accent-ink:#ffffff;--ring2:#e4572e;--track:#ead9b8;--danger:#d64b26;--good:#2f8a5b;color-scheme:light}
+.card,.level,.opt,.staff,.kit,input[type=text]{border:3px solid #23241f}
+.btn{border:3px solid #23241f;font-weight:800}
+.btn.primary{background:#2e86ab;color:#fff;border:3px solid #23241f;box-shadow:0 5px 0 #23241f}
+.btn.primary:active{transform:translateY(3px);box-shadow:0 2px 0 #23241f}
+.level{box-shadow:0 4px 0 #23241f}
+.level .n{border:3px solid #23241f;background:#f2c14e;color:#23241f}
+.level.done .n{background:#8bc9a3;color:#23241f}
+.bar{height:14px;border:2px solid #23241f}.bar i{background:#8bc9a3}
+.seq span{border:2px solid #23241f;background:#fff}.seq span.ok{background:#8bc9a3;color:#23241f}
+.kit .p{stroke:#23241f;stroke-width:2.2}
+.kit g[data-k].on .p{fill:#f2c14e}.kit g[data-k].on{filter:drop-shadow(0 0 8px #f2c14e)}
+.kit g[data-k].bad .p{fill:#e4572e}
+.staff{background:#fff}
+.tip{background:#9cc5e0;border:3px solid #23241f}
+.opt.right{background:#8bc9a3;border-color:#23241f;box-shadow:0 0 0 3px #2f8a5b}
+.opt.wrong{background:#f6c3b3;opacity:1}
+.fb.good{background:#8bc9a3;border:3px solid #23241f}.fb.bad{background:#f6c3b3;border:3px solid #23241f}
+.cert{border:4px solid #23241f;background:#f2c14e}
+.form{margin:0;padding-left:1.6em;display:flex;flex-direction:column;gap:4px}.form li{padding:4px 8px;border-radius:8px;background:rgba(0,0,0,.04)}.form li.gap{background:#f2c14e;font-weight:700}.sheet{width:100%;border-collapse:collapse}.sheet th,.sheet td{text-align:left;padding:6px 8px;border-bottom:1px solid rgba(0,0,0,.12)}.sheet td:last-child,.sheet th:last-child{text-align:right;width:70px}
+</style>
+</head>
+<body>
+<main class="wrap" id="app" aria-live="polite"></main>
+<script src="notation.js?v=117"></script>
+<script src="game-audio.js?v=2"></script>
+<script>
+'use strict';
+// Songform Spiel (Otis Wunsch 19.11.2026, Kurs L16 Songform und Cheat Sheets): Teile am Groove erkennen,
+// das Fill vor einem neuen Teil hören, typische Abläufe ergänzen und ein Cheat Sheet lesen. Beats werden erzeugt.
+const PARTS = {
+  Strophe: { tip: 'Die Strophe ist ruhiger: HiHat geschlossen und eher leise, wenig Bassdrum. Hier wird die Geschichte erzählt.' },
+  Refrain: { tip: 'Der Refrain ist der Höhepunkt: Crash auf der 1, Ride oder offene HiHat, mehr Bassdrum, alles lauter.' },
+  Bridge: { tip: 'Die Bridge klingt anders als der Rest, oft mit Toms, die sich aufbauen. Danach kommt meist der letzte große Refrain.' },
+};
+const FORMS = [
+  { name: 'Typischer Worship Song', parts: ['Intro', 'Strophe 1', 'Refrain', 'Strophe 2', 'Refrain', 'Bridge', 'Refrain', 'Outro'], gaps: [0, 2, 5, 7] },
+  { name: 'Pop Song mit Pre Chorus', parts: ['Intro', 'Strophe 1', 'Pre Chorus', 'Refrain', 'Strophe 2', 'Pre Chorus', 'Refrain', 'Bridge', 'Refrain', 'Outro'], gaps: [0, 5, 7, 9] },
+  { name: 'Worship Song mit langer Bridge', parts: ['Intro', 'Strophe 1', 'Strophe 2', 'Refrain', 'Zwischenspiel', 'Strophe 3', 'Refrain', 'Bridge', 'Bridge', 'Refrain', 'Outro'], gaps: [0, 3, 7, 10] },
+];
+const GAP_OPTS = ['Intro', 'Strophe', 'Pre Chorus', 'Refrain', 'Bridge', 'Outro'];
+const base = (p) => p.replace(/ \d+$/, '');
+const WHY = { Intro: 'Am Anfang steht fast immer ein Intro.', Outro: 'Am Ende klingt der Song mit dem Outro aus.', Refrain: 'Nach der Strophe (oder dem Pre Chorus) kommt der Refrain, und nach der Bridge kommt meist der letzte große Refrain.', Bridge: 'Nach dem zweiten Refrain kommt oft die Bridge, bevor der letzte Refrain kommt.', 'Pre Chorus': 'Der Pre Chorus baut zwischen Strophe und Refrain Spannung auf.', Strophe: 'Nach dem Intro beginnt die Strophe.' };
+const LEVELS = [
+  { id: 1, title: 'Entdecken', text: 'Strophe, Refrain und Bridge: Wie klingt das Schlagzeug in jedem Teil?', learn: true },
+  { id: 2, title: 'Welcher Teil?', text: 'Hör dir einen Groove an. Strophe, Refrain oder Bridge?', type: 'part' },
+  { id: 3, title: 'Das Fill hören', text: 'Ein Fill kündigt den neuen Teil an. In welchem Takt kommt es?', type: 'fill' },
+  { id: 4, title: 'Der Ablauf', text: 'Welcher Teil fehlt im Songablauf?', type: 'gap' },
+  { id: 5, title: 'Cheat Sheet lesen', text: 'Lies den Ablauf mit Taktzahlen und beantworte die Frage.', type: 'sheet' },
+  { id: 6, title: 'Songform Prüfung', text: '10 Aufgaben gemischt. Mit 9 richtigen bist du Songform Profi.', exam: true },
+];
+const ROUNDS = 6, NEED = 5, EXAM = 10, EXAM_NEED = 9, BPM = 86;
+const KEY = 'ph_songform';
+let P = load(), G = null;
+function load() { try { return Object.assign({ name: '', done: {}, cert: null }, JSON.parse(localStorage.getItem(KEY) || '{}')); } catch (e) { return { name: '', done: {}, cert: null }; } }
+function appLogin() { try { const t = JSON.parse(localStorage.getItem('ph_token') || 'null'), r = JSON.parse(localStorage.getItem('ph_role') || 'null'); return t && r === 'student' ? t : null; } catch (e) { return null; } }
+function save() {
+  try { localStorage.setItem(KEY, JSON.stringify(P)); } catch (e) {}
+  const t = appLogin(); if (!t) return;
+  fetch('/api/my/game', { method: 'POST', headers: { 'Content-Type': 'application/json', Authorization: 'Bearer ' + t }, body: JSON.stringify({ game: 'form', done: Object.keys(P.done).map(Number), total: LEVELS.length, cert: P.cert }) }).catch(() => {});
+}
+if (!P.name) { try { const n = JSON.parse(localStorage.getItem('ph_name') || 'null'); if (n) P.name = String(n).split(' ')[0]; } catch (e) {} }
+const $ = (s) => document.querySelector(s);
+const esc = (t) => String(t).replace(/[&<>"]/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' })[c]);
+const shuffle = (a) => { a = a.slice(); for (let i = a.length - 1; i > 0; i--) { const j = Math.floor(Math.random() * (i + 1)); [a[i], a[j]] = [a[j], a[i]]; } return a; };
+const pick = (a) => a[Math.floor(Math.random() * a.length)];
+const E = [0, 2, 4, 6, 8, 10, 12, 14];
+
+// ---------- Grooves erzeugen (4/4, 16tel Raster) ----------
+function groove(part) {
+  if (part === 'Strophe') return { hh: E.slice(), bd: pick([[0, 8], [0, 10], [0, 6, 8]]), sn: [], ss: [4, 12], soft: true };
+  if (part === 'Refrain') return { cr: [0], rd: E.filter((i) => i), bd: pick([[0, 6, 8, 10], [0, 8, 10], [0, 3, 8, 10]]), sn: [4, 12], loud: true };
+  return { ft: E.slice(), bd: [0, 4, 8, 12], sn: pick([[12], [4, 12], []]), build: true };
+}
+function toNotation(bars) {
+  const n = DrumNotation.empty('4/4', bars.length, BPM); n.dyn = {};
+  bars.forEach((b, j) => { for (const k of ['cr', 'hh', 'rd', 'ft', 't1', 't2', 'ss', 'sn', 'bd']) for (const i of b[k] || []) { n.tracks[k].push(j * 16 + i); if (b.loud && k === 'sn') n.dyn['sn:' + (j * 16 + i)] = 'a'; } });
+  for (const k of Object.keys(n.tracks)) n.tracks[k].sort((a, c) => a - c);
+  return n;
+}
+function fillBar(b) { const f = JSON.parse(JSON.stringify(b)); for (const k of ['hh', 'rd', 'ft', 'ss', 'sn']) f[k] = (f[k] || []).filter((i) => i < 8); f.bd = (f.bd || []).filter((i) => i < 8); f.sn = (f.sn || []).concat([8, 9]); f.t1 = [10, 11]; f.t2 = [12, 13]; f.ft = (f.ft || []).concat([14, 15]); return f; }
+const staff = (n, label) => `<div class="staff">${DrumNotation.render(n, { barsPerLine: 2, label: label || 'Groove' })}</div>`;
+
+// ---------- Abspielen ----------
+let playing = null;
+function play(n, loops = 2) {
+  stopPlay(); try { DrumNotation.loadSamples(); } catch (e) {}
+  window.GameAudio && GameAudio.duck && GameAudio.duck(14);
+  let done = 0, last = -1; const tok = {}; playing = tok;
+  DrumNotation.play(n, n.bpm, (i) => { if (playing !== tok || i < 0) return; if (i < last && ++done >= loops) { stopPlay(); return; } last = i; }, { countIn: 1 });
+}
+function stopPlay() { if (playing) { playing = null; try { DrumNotation.stop(); } catch (e) {} } }
+
+// ---------- Fragen ----------
+function question(type) {
+  if (type === 'part') { const p = pick(Object.keys(PARTS)); return { type, n: toNotation([groove(p)]), opts: Object.keys(PARTS), right: p, why: PARTS[p].tip }; }
+  if (type === 'fill') {
+    const bar = pick([2, 3, 4]), g = groove('Strophe'), r = groove('Refrain'), bars = [1, 2, 3, 4].map((k) => (k < bar ? g : k === bar ? fillBar(g) : r));
+    const n = toNotation(bars);
+    return { type, n, opts: ['Takt 2', 'Takt 3', 'Takt 4'], right: 'Takt ' + bar, bars: bars.length, why: `Das Fill kam in Takt ${bar}.${bar < 4 ? ' Danach beginnt der Refrain mit einem Crash auf der 1.' : ' Danach würde der nächste Teil beginnen.'}` };
+  }
+  if (type === 'gap') {
+    const f = pick(FORMS), gi = pick(f.gaps), right = base(f.parts[gi]);
+    const opts = shuffle(GAP_OPTS.filter((o) => o !== right)).slice(0, 2).concat(right).sort(() => Math.random() - 0.5);
+    return { type, form: f, gi, opts, right, why: WHY[right] || '' };
+  }
+  // Cheat Sheet: Ablauf mit Taktzahlen
+  const f = pick(FORMS), len = { Intro: pick([4, 8]), Strophe: 8, 'Pre Chorus': 4, Refrain: 8, Bridge: pick([4, 8]), Zwischenspiel: 4, Outro: pick([4, 8]) };
+  const rows = f.parts.map((p) => [p, len[base(p)]]);
+  const firstR = rows.findIndex((r) => base(r[0]) === 'Refrain');
+  const asks = [
+    { q: 'Wie viele Takte spielst du bis zum ersten Refrain?', a: rows.slice(0, firstR).reduce((s, r) => s + r[1], 0), unit: 'Takte' },
+    { q: 'Wie oft spielst du den Refrain?', a: rows.filter((r) => base(r[0]) === 'Refrain').length, unit: 'Mal' },
+    { q: 'Wie viele Takte hat das Intro und die erste Strophe zusammen?', a: rows[0][1] + rows[1][1], unit: 'Takte' },
+  ];
+  const k = pick(asks), d = k.unit === 'Mal' ? [1, 2, -1] : [4, 8, -4];
+  const opts = shuffle([...new Set([k.a, ...d.map((x) => k.a + x)])].filter((x) => x > 0)).slice(0, 3);
+  if (!opts.includes(k.a)) opts[0] = k.a;
+  return { type: 'sheet', form: f, rows, ask: k.q, opts: shuffle(opts).map((x) => x + ' ' + k.unit), right: k.a + ' ' + k.unit, why: k.unit === 'Mal' ? 'Zähl im Cheat Sheet jede Zeile mit Refrain.' : 'Zähl die Taktzahlen der Zeilen davor zusammen.' };
+}
+
+// ---------- Bildschirme ----------
+function topBar(title, back = true) { return `<div class="top">${back ? '<button class="btn" data-act="home" style="min-height:44px;padding:0 16px">Übersicht</button>' : '<a href="./">Zur Practice Hub App</a>'}<span class="small muted">${esc(title)}</span></div>`; }
+function render() { $('#app').innerHTML = G ? G.view() : homeView(); }
+function homeView() {
+  const next = LEVELS.find((l) => !P.done[l.id]);
+  return `${topBar('Songform Spiel', false)}<h1>Songform Spiel</h1>
+    <p class="muted">Strophe, Refrain, Bridge: Erkenne die Teile eines Songs am Schlagzeug und lies den Ablauf wie ein Profi.</p>
+    <p class="small muted">${appLogin() ? 'Dein Lehrer sieht deinen Fortschritt in der App.' : 'Öffne das Spiel aus der Practice Hub App, dann sieht dein Lehrer deinen Fortschritt.'}</p>
+    <div class="card"><label for="nm" class="small muted">Dein Vorname (für die Urkunde)</label><input type="text" id="nm" maxlength="30" value="${esc(P.name)}" autocomplete="given-name"></div>
+    <div style="display:flex;flex-direction:column;gap:10px">${LEVELS.map((l, i) => { const open = i === 0 || P.done[LEVELS[i - 1].id];
+      return `<button class="level ${P.done[l.id] ? 'done' : ''}" data-act="level" data-id="${l.id}" ${open ? '' : 'disabled'}><span class="n">${P.done[l.id] ? '✓' : l.id}</span><span><b>${esc(l.title)}</b><span class="small muted">${esc(l.text)}</span></span></button>`; }).join('')}</div>
+    ${P.cert ? '<button class="btn primary block" data-act="cert">Meine Urkunde ansehen</button>' : next ? `<button class="btn primary block" data-act="level" data-id="${next.id}">${next.id === 1 ? 'Los geht’s' : 'Weiter mit Stufe ' + next.id}</button>` : ''}
+    ${Object.keys(P.done).length ? '<button class="btn block" data-act="reset">Von vorne anfangen</button>' : ''}`;
+}
+const formList = (f, gi) => `<ol class="form">${f.parts.map((p, i) => `<li${i === gi ? ' class="gap"' : ''}>${i === gi ? '?' : esc(p)}</li>`).join('')}</ol>`;
+const sheet = (rows) => `<table class="sheet"><thead><tr><th>Teil</th><th>Takte</th></tr></thead><tbody>${rows.map((r) => `<tr><td>${esc(r[0])}</td><td>${r[1]}</td></tr>`).join('')}</tbody></table>`;
+function learnRun(lv) {
+  const keys = Object.keys(PARTS), R = { i: 0, n: keys.map((p) => toNotation([groove(p)])) };
+  return {
+    view: () => `${topBar(lv.title + ' · ' + (R.i + 1) + ' von 3')}<div class="card"><h2>${esc(keys[R.i])}</h2><p>${esc(PARTS[keys[R.i]].tip)}</p>${staff(R.n[R.i], keys[R.i])}<button class="btn primary block" data-act="listen">Anhören</button></div>
+      ${R.i === 2 ? '<div class="tip"><b>Merke:</b> Vor einem neuen Teil spielt der Drummer meist ein Fill. Danach kommt oft ein Crash auf der 1.</div>' : ''}
+      <button class="btn block" data-act="next">${R.i < 2 ? 'Nächster Teil' : 'Stufe abschließen'}</button>`,
+    act: (a) => { if (a === 'listen') return play(R.n[R.i]); if (a === 'next') { stopPlay(); if (R.i < 2) { R.i++; window.scrollTo(0, 0); return render(); } return finishLevel(lv.id, 0); } },
+  };
+}
+function runLevel(lv) {
+  if (lv.learn) return learnRun(lv);
+  const exam = !!lv.exam, total = exam ? EXAM : ROUNDS, need = exam ? EXAM_NEED : NEED;
+  const nextQ = () => question(exam ? pick(['part', 'fill', 'gap', 'sheet']) : lv.type);
+  const R = { n: 0, ok: 0, wrong: 0, q: nextQ(), ans: null, heard: false };
+  return {
+    view: () => {
+      const q = R.q;
+      if (R.n >= total) { const pass = R.ok >= need;
+        return `${topBar(lv.title)}<div class="card" style="text-align:center;align-items:center"><p class="big">${R.ok} von ${total} richtig</p>
+          <p class="muted">${pass ? (exam ? 'Bestanden! Du bist Songform Profi.' : 'Super, Stufe geschafft.') : `Du brauchst ${need} richtige. Versuch es nochmal.`}</p>
+          <button class="btn primary block" data-act="${pass ? (exam ? 'certNow' : 'finish') : 'again'}">${pass ? (exam ? 'Zur Urkunde' : 'Weiter') : 'Nochmal versuchen'}</button></div>`; }
+      const audio = q.type === 'part' || q.type === 'fill';
+      const ask = q.type === 'part' ? 'Hör dir den Groove an. Welcher Teil ist das?' : q.type === 'fill' ? `Hör genau hin: ${q.bars} Takte. In welchem Takt kommt das Fill?` : q.type === 'gap' ? `${esc(q.form.name)}: Welcher Teil fehlt?` : esc(q.ask);
+      const btn = (o) => { const cls = R.ans == null ? '' : o === q.right ? ' right' : o === R.ans ? ' wrong' : ''; return `<button class="opt${cls}" data-act="pick" data-v="${esc(o)}" ${R.ans != null || (audio && !R.heard) ? 'disabled' : ''}>${esc(o)}</button>`; };
+      return `${topBar(lv.title + ' · ' + (R.n + 1) + ' von ' + total)}<div class="bar" role="progressbar" aria-valuemin="0" aria-valuemax="${total}" aria-valuenow="${R.n}"><i style="width:${(R.n / total) * 100}%"></i></div>
+        <div class="card"><p><b>${ask}</b></p>
+          ${q.type === 'gap' ? formList(q.form, q.gi) : q.type === 'sheet' ? sheet(q.rows) : ''}
+          ${audio ? `<button class="btn primary block" data-act="listen">${R.heard ? 'Nochmal anhören' : 'Anhören'}</button><p class="small muted">Erst ein Takt Klick, dann ${q.type === 'fill' ? 'spielt der Ausschnitt einmal' : 'spielt der Groove zweimal'}.</p>` : ''}</div>
+        <div class="opts">${q.opts.map(btn).join('')}</div>
+        ${R.ans != null ? `<div class="fb ${R.ans === q.right ? 'good' : 'bad'}"><p class="big">${R.ans === q.right ? 'Richtig!' : 'Fast.'}</p><p>${R.ans === q.right ? '' : 'Richtig ist: ' + esc(q.right) + '. '}${esc(q.why)}</p>${audio ? staff(q.n, 'Lösung') : ''}<button class="btn primary" data-act="next">Weiter</button></div>` : ''}`;
+    },
+    act: (a, el) => {
+      const q = R.q;
+      if (a === 'listen') { R.heard = true; play(q.n, q.type === 'fill' ? 1 : 2); return render(); }
+      if (a === 'pick') { if (R.ans != null) return; stopPlay(); R.ans = el.dataset.v; if (R.ans === q.right) { R.ok++; window.GameAudio && GameAudio.ok(); } else { R.wrong++; window.GameAudio && GameAudio.bad(); } return render(); }
+      if (a === 'next') { stopPlay(); R.n++; R.ans = null; R.heard = false; if (R.n < total) R.q = nextQ(); window.scrollTo(0, 0); return render(); }
+      if (a === 'again') { G = runLevel(lv); return render(); }
+      if (a === 'finish') return finishLevel(lv.id, R.wrong);
+      if (a === 'certNow') { P.done[lv.id] = true; P.cert = P.cert || new Date().toISOString().slice(0, 10); save(); window.GameAudio && GameAudio.win(); return showCert(); }
+    },
+  };
+}
+function finishLevel(id, wrongs = 0) {
+  P.done[id] = true; save(); window.GameAudio && GameAudio.win(); const stars = wrongs === 0 ? 3 : wrongs === 1 ? 2 : 1, next = LEVELS.find((l) => l.id === id + 1);
+  G = { view: () => `${topBar('Geschafft')}<div class="card" style="text-align:center;align-items:center"><p class="stars" aria-label="${stars} von 3 Sternen">${'★'.repeat(stars)}${'☆'.repeat(3 - stars)}</p><p class="big">Stufe ${id} geschafft!</p>
+    ${next ? `<button class="btn primary block" data-act="level" data-id="${next.id}">Weiter mit ${esc(next.title)}</button>` : ''}<button class="btn block" data-act="home">Zur Übersicht</button></div>` };
+  window.scrollTo(0, 0); render();
+}
+function showCert() {
+  G = { view: () => `${topBar('Urkunde')}<div class="card cert"><p class="small muted">Urkunde</p><h1>Songform Profi</h1><p class="big">${esc(P.name || 'Du')}</p><p>erkennt Strophe, Refrain und Bridge am Schlagzeug, hört das Fill vor dem neuen Teil und liest Cheat Sheets.</p>${formList(FORMS[0], -1)}<p class="small">${esc(new Date(P.cert || Date.now()).toLocaleDateString('de-DE'))}</p></div><button class="btn block" data-act="home">Zur Übersicht</button>` };
+  window.scrollTo(0, 0); render();
+}
+function startLevel(id) { stopPlay(); G = runLevel(LEVELS.find((l) => l.id === id)); window.scrollTo(0, 0); render(); }
+document.addEventListener('click', (ev) => {
+  const el = ev.target.closest('[data-act]'); if (!el) return;
+  const act = el.dataset.act; try { DrumNotation.loadSamples(); } catch (e) {}
+  if (act === 'home') { stopPlay(); G = null; return render(); }
+  if (act === 'level') { const nm = $('#nm'); if (nm) { P.name = nm.value.trim(); save(); } return startLevel(Number(el.dataset.id)); }
+  if (act === 'cert') return showCert();
+  if (act === 'reset') { if (confirm('Wirklich von vorne anfangen? Dein Fortschritt wird gelöscht.')) { P = { name: P.name, done: {}, cert: null }; save(); render(); } return; }
+  if (G && G.act) G.act(act, el);
+});
+document.addEventListener('change', (ev) => { if (ev.target.id === 'nm') { P.name = ev.target.value.trim(); save(); } });
+render();
+</script>
+</body>
+</html>

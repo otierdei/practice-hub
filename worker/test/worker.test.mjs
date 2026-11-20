@@ -1118,3 +1118,12 @@ test('Missionen: Schritte sortieren und löschen, Mission beenden, Schüler lös
   await w.call('/api/t/mission/archive', { id: w.mid }, w.t);
   assert.equal((await w.call('/api/t/missions', {}, w.t)).data.missions.length, 0);
 });
+
+test('Triolen Zusätze bleiben beim Speichern erhalten, 20 Takte erlaubt', async () => {
+  const w = await world();
+  const nt = { sig: '4/4', bars: 20, tracks: { bd: [0, 319, 320] }, tup: [{ g: 1, t: '16' }], tupn: { sn: ['1:0', '1:2', '1:4'] }, tdyn: { 'sn:1:0': 'a', 'sn:1:2': 's', 'sn:1:5': 'a' }, tflam: { 'sn:1:4': 1, 'sn:9:0': 1 }, tstick: { '1:0': 'R', '1:1': 'L', '1:7': 'R', '2:0': 'L' } };
+  const id = (await w.call('/api/t/exercise/save', { title: 'Triolen', notation: nt }, w.t)).data.id;
+  const n = JSON.parse((await w.call('/api/t/exercises', {}, w.t)).data.exercises.find((x) => x.id === id).notation);
+  assert.equal(n.bars, 20); assert.deepEqual(n.tracks.bd, [0, 319]);
+  assert.deepEqual(n.tdyn, { 'sn:1:0': 'a', 'sn:1:2': 's' }); assert.deepEqual(n.tflam, { 'sn:1:4': 1 }); assert.deepEqual(n.tstick, { '1:0': 'R', '1:1': 'L' });
+});
