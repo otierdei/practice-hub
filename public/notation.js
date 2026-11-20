@@ -188,7 +188,9 @@
   const yOf = (p) => LINE0 - p * 5;
   // Zeichnet die Takte [from, to) als eine Notenzeile
   function renderLine(n, from, to, opt) {
-    const sw = opt.stepWidth || 22, pb = perBar(n.sig), gs = groupSize(n.sig), first = from === 0;
+    // 16tel Triolen (6 Noten auf einem Schlag) brauchen mehr Platz, sonst berühren Vorschlag und Klammern die Nachbarnote
+    const t16 = (n.tup || []).some((t) => t.t === '16' && t.g * 4 >= from * perBar(n.sig) && t.g * 4 < to * perBar(n.sig));
+    const sw = (opt.stepWidth || 22) * (t16 ? 1.7 : 1), pb = perBar(n.sig), gs = groupSize(n.sig), first = from === 0;
     const x0 = first ? 58 : 26, steps = (to - from) * pb;
     const sticks = Object.entries(n.stick || {}).filter(([i]) => i >= from * pb && i < to * pb && !n.repeat.includes(Math.floor(i / pb)));
     const W = x0 + steps * sw + 14, H = 130, ink = 'currentColor', out = [];

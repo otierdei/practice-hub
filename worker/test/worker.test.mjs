@@ -903,12 +903,17 @@ test('Song Videos getrennt nach Schlagzeug und Gitarre', async () => {
   await w.call('/api/t/song/links/add', { song_id: sg, lines: 'Original | https://youtu.be/bbbbbbbbbbb', instrument: 'guitar' }, w.t);
   let d = (await w.call('/api/song', { id: sg }, w.t)).data;
   assert.deepEqual(d.links.map((l) => l.instrument).sort(), ['drums', 'guitar']);
+  // Farbmarken: Songliste kennt Gitarren (gv) und Schlagzeug Videos (dv)
+  const h = (await w.call('/api/songs', {}, w.t)).data.songs.find((x) => x.id === sg);
+  assert.equal(h.gv, true); assert.equal(h.dv, true);
   const dl = d.links.find((l) => l.instrument === 'drums');
   await w.call('/api/t/song/link/update', { id: dl.id, version: 'Easy', instrument: 'guitar' }, w.t);
   d = (await w.call('/api/song', { id: sg }, w.t)).data;
   assert.deepEqual(d.links.map((l) => l.instrument), ['guitar', 'guitar']);
   await w.call('/api/t/song/link/delete', { id: dl.id }, w.t);
   assert.equal((await w.call('/api/song', { id: sg }, w.t)).data.links.length, 1);
+  const h2 = (await w.call('/api/songs', {}, w.t)).data.songs.find((x) => x.id === sg);
+  assert.equal(h2.gv, true); assert.equal(h2.dv, false);
 });
 
 test('Gitarre: Tonleiter wird gespeichert und geprüft', async () => {
