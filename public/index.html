@@ -245,8 +245,8 @@ details.card summary{cursor:pointer;font-family:var(--display);font-size:1.08rem
 </head>
 <body>
 <div id="app"><div class="wrap"><p class="muted">Lädt …</p></div></div>
-<script src="notation.js?v=111"></script>
-<script src="guitar.js?v=111"></script>
+<script src="notation.js?v=112"></script>
+<script src="guitar.js?v=112"></script>
 <script>
 'use strict';
 // ---------- Grundlagen ----------
@@ -2547,7 +2547,11 @@ document.addEventListener('click', (ev) => {
   const id = (cell && cell.dataset.nt) || (actBtn && actBtn.dataset.ntId) || barBtn.dataset.ntId; const n = S.nt && S.nt[id]; if (!n) return;
   if (barBtn) { refreshEditor(id, true, Number(barBtn.dataset.ntBar)); return; }
   if (cell) {
-    if (cell.dataset.tup) { const [tg, sl] = cell.dataset.tup.split(':').map(Number); DrumNotation.tupToggle(n, cell.dataset.k, tg, sl); if (DrumNotation.tupHas(n, cell.dataset.k, tg, sl)) { try { DrumNotation.hit(cell.dataset.k); } catch (e) {} } refreshEditor(id, true, ntBar(id)); return; }
+    if (cell.dataset.tup) { const [tg, sl] = cell.dataset.tup.split(':').map(Number), tk = cell.dataset.k;
+      if (tk === 'stick') { DrumNotation.tupStick(n, tg, sl); refreshEditor(id, true, ntBar(id)); return; }
+      const tm = DrumNotation.editMode ? DrumNotation.editMode(id) : '';
+      if (tm) DrumNotation.tupSetDyn(n, tk, tg, sl, tm); else DrumNotation.tupToggle(n, tk, tg, sl);
+      if (DrumNotation.tupHas(n, tk, tg, sl)) { try { DrumNotation.hit(tk, 0, DrumNotation.tupDyn(n, tk, tg, sl)); } catch (e) {} } refreshEditor(id, true, ntBar(id)); return; }
     const k = cell.dataset.k, i = Number(cell.dataset.i), mode = k === 'stick' || !DrumNotation.editMode ? '' : DrumNotation.editMode(id);
     if (mode) DrumNotation.setDyn(n, k, i, mode); else DrumNotation.toggle(n, k, i);
     if (k !== 'stick' && DrumNotation.has(n, k, i)) { try { DrumNotation.hit(k, 0, DrumNotation.dynOf(n, k, i)); } catch (e) {} }
@@ -2643,9 +2647,9 @@ function refreshEditor(id, full, bar) {
   const sel = DrumNotation.selOf ? DrumNotation.selOf(id) : null;
   box.querySelector('.nt-staff').innerHTML = DrumNotation.render(n, { cursor: true, sel });
   // Betont, leise, Flam und Auswahl sofort im Raster zeigen, nicht erst nach dem nächsten Taktwechsel
-  if (DrumNotation.cellText) box.querySelectorAll('.nt-cell:not(.nt-stick)').forEach((c) => { const k = c.dataset.k, i = Number(c.dataset.i);
+  if (DrumNotation.cellText) box.querySelectorAll('.nt-cell:not(.nt-stick):not([data-tup])').forEach((c) => { const k = c.dataset.k, i = Number(c.dataset.i);
     c.dataset.dyn = DrumNotation.dynOf(n, k, i); c.dataset.flam = DrumNotation.flamOf(n, k, i) ? '1' : ''; c.textContent = DrumNotation.cellText(n, k, i); c.classList.toggle('nt-sel', !!sel && sel.k === k && sel.i === i); });
-  box.querySelectorAll('.nt-cell').forEach((c) => { c.setAttribute('aria-pressed', String(DrumNotation.has(n, c.dataset.k, Number(c.dataset.i)))); if (c.dataset.k === 'stick') c.textContent = (n.stick || {})[c.dataset.i] || ''; });
+  box.querySelectorAll('.nt-cell:not([data-tup])').forEach((c) => { c.setAttribute('aria-pressed', String(DrumNotation.has(n, c.dataset.k, Number(c.dataset.i)))); if (c.dataset.k === 'stick') c.textContent = (n.stick || {})[c.dataset.i] || ''; });
   if (DrumNotation.isPlaying()) DrumNotation.play(n, n.bpm, DrumNotation.cursorFor(box.querySelector('.nt-staff')));
 }
 document.addEventListener('input', (ev) => {

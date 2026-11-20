@@ -30,7 +30,7 @@
 
   function empty(sig = '4/4', bars = 1, bpm = 80) {
     const tracks = {}; ROWS.forEach((r) => { tracks[r.k] = []; });
-    return { v: 2, sig, bars, bpm, tracks, stick: {}, dyn: {}, flam: {}, marks: {}, repeat: [], trip: [], tup: [], tupn: {} };
+    return { v: 2, sig, bars, bpm, tracks, stick: {}, dyn: {}, flam: {}, marks: {}, repeat: [], trip: [], tup: [], tupn: {}, tdyn: {}, tflam: {}, tstick: {} };
   }
   function parse(s) {
     if (!s) return null;
@@ -51,6 +51,11 @@
         && !used.has(x.g) && !(x.t === 'q' && used.has(x.g + 1)) && (used.add(x.g), x.t === 'q' ? used.add(x.g + 1) : 0, true)) : [];
       n.tupn = {};
       for (const r of ROWS) { const l = ((o.tupn || {})[r.k] || []).filter((v) => { const [g, sl] = String(v).split(':').map(Number); const t = n.tup.find((x) => x.g === g); return t && Number.isInteger(sl) && sl >= 0 && sl < (t.t === '16' ? 6 : 3); }); if (l.length) n.tupn[r.k] = [...new Set(l.map(String))]; }
+      // Triolen Noten: Akzent/leise (tdyn), Flam (tflam) je "Instrument:Gruppe:Platz", Sticking (tstick) je "Gruppe:Platz"
+      n.tdyn = {}; n.tflam = {}; n.tstick = {};
+      for (const [key, v] of Object.entries(o.tdyn || {})) { const [k, g, sl] = key.split(':'); if ((v === 'a' || v === 's') && tupHas(n, k, Number(g), Number(sl))) n.tdyn[key] = v; }
+      for (const [key, v] of Object.entries(o.tflam || {})) { const [k, g, sl] = key.split(':'); if (v && tupHas(n, k, Number(g), Number(sl))) n.tflam[key] = 1; }
+      for (const [key, v] of Object.entries(o.tstick || {})) { const [g, sl] = key.split(':').map(Number); const t = n.tup.find((x) => x.g === g); if (t && Number.isInteger(sl) && sl >= 0 && sl < tupSlots(t) && (v === 'R' || v === 'L' || v === 'K')) n.tstick[g + ':' + sl] = v; }
       for (const t of n.tup) for (const r of ROWS) n.tracks[r.k] = n.tracks[r.k].filter((i) => { const gi = Math.floor(i / 4); return gi !== t.g && !(t.t === 'q' && gi === t.g + 1); });
       for (const [key, v] of Object.entries(o.dyn || {})) { const [k, i] = key.split(':'); if ((v === 'a' || v === 's') && (n.tracks[k] || []).includes(Number(i))) n.dyn[k + ':' + Number(i)] = v; }
       for (const [key, v] of Object.entries(o.flam || {})) { const [k, i] = key.split(':'); if (v && (n.tracks[k] || []).includes(Number(i))) n.flam[k + ':' + Number(i)] = 1; }
@@ -63,7 +68,24 @@
   const tupAt = (n, g) => (n.tup || []).find((t) => t.g === g || (t.t === 'q' && t.g + 1 === g)) || null;
   const tupSlots = (t) => (t.t === '16' ? 6 : 3);
   const tupHas = (n, k, g, sl) => ((n.tupn || {})[k] || []).includes(g + ':' + sl);
-  function tupToggle(n, k, g, sl) { n.tupn = n.tupn || {}; const l = n.tupn[k] || [], key = g + ':' + sl; n.tupn[k] = l.includes(key) ? l.filter((x) => x !== key) : l.concat(key); if (!n.tupn[k].length) delete n.tupn[k]; }
+  function tupToggle(n, k, g, sl) { n.tupn = n.tupn || {}; const l = n.tupn[k] || [], key = g + ':' + sl; n.tupn[k] = l.includes(key) ? l.filter((x) => x !== key) : l.concat(key); if (!n.tupn[k].length) delete n.tupn[k]; if (!tupHas(n, k, g, sl)) { if (n.tdyn) delete n.tdyn[k + ':' + key]; if (n.tflam) delete n.tflam[k + ':' + key]; } }
+  // Akzent, leise und Flam auch in Viertel und 16tel Triolen (Otis Wunsch 19.11.2026), gleiche Logik wie setDyn
+  const tupDyn = (n, k, g, sl) => (n.tdyn || {})[k + ':' + g + ':' + sl] || '';
+  const tupFlam = (n, k, g, sl) => !!(n.tflam || {})[k + ':' + g + ':' + sl];
+  function tupSetDyn(n, k, g, sl, v) {
+    const key = k + ':' + g + ':' + sl, on = tupHas(n, k, g, sl);
+    if (v === 'f') { n.tflam = n.tflam || {}; if (!on) { tupToggle(n, k, g, sl); n.tflam[key] = 1; } else if (n.tflam[key]) tupToggle(n, k, g, sl); else n.tflam[key] = 1; return; }
+    n.tdyn = n.tdyn || {};
+    if (!on) { tupToggle(n, k, g, sl); n.tdyn[key] = v; return; }
+    if (n.tdyn[key] === v) tupToggle(n, k, g, sl); else n.tdyn[key] = v;
+  }
+  function tupStick(n, g, sl) { n.tstick = n.tstick || {}; const key = g + ':' + sl, v = n.tstick[key]; if (!v) n.tstick[key] = 'R'; else if (v === 'R') n.tstick[key] = 'L'; else if (v === 'L') n.tstick[key] = 'K'; else delete n.tstick[key]; }
+  // Aufräumen: Triolen Zusätze ohne gültige Triole oder Note entfernen
+  function cleanTup(n) {
+    for (const key of Object.keys(n.tdyn || {})) { const [k, g, sl] = key.split(':'); if (!tupHas(n, k, Number(g), Number(sl))) delete n.tdyn[key]; }
+    for (const key of Object.keys(n.tflam || {})) { const [k, g, sl] = key.split(':'); if (!tupHas(n, k, Number(g), Number(sl))) delete n.tflam[key]; }
+    for (const key of Object.keys(n.tstick || {})) { const g = Number(key.split(':')[0]); if (!(n.tup || []).some((t) => t.g === g)) delete n.tstick[key]; }
+  }
   // Schlag g umstellen: '' normal, '8' 8tel Triole, '16' 16tel Triole, 'q' Viertel Triole (mit dem nächsten Schlag im selben Takt)
   function setTuplet(n, g, type) {
     const bpb = perBar(n.sig) / 4;
@@ -73,6 +95,7 @@
     const span = type === 'q' ? [g, g + 1] : [g];
     if (type === 'q' && (Math.floor((g + 1) / bpb) !== Math.floor(g / bpb) || g + 1 >= total(n) / 4)) return false;
     for (const gg of span) { const t = tupAt(n, gg); if (t) dropTup(t); n.trip = (n.trip || []).filter((x) => x !== gg); }
+    cleanTup(n);
     if (type === '8') { setTrip(n, g, true); return true; }
     if (type === '16' || type === 'q') { for (const gg of span) clearGroup(gg); n.tup.push({ g, t: type }); n.tup.sort((a, b) => a.g - b.g); }
     return true;
@@ -128,6 +151,7 @@
     n.trip = (n.trip || []).filter((g) => g * 4 < max);
     n.tup = (n.tup || []).filter((t) => (t.g + (t.t === 'q' ? 1 : 0)) * 4 < max);
     for (const k of Object.keys(n.tupn || {})) { n.tupn[k] = n.tupn[k].filter((v) => n.tup.some((t) => t.g === Number(v.split(':')[0]))); if (!n.tupn[k].length) delete n.tupn[k]; }
+    cleanTup(n);
     for (const k of Object.keys(n.marks)) if (Number(k) >= n.bars) delete n.marks[k];
   }
 
@@ -143,10 +167,14 @@
     const tipY = down ? Math.max(...notes.map((nt) => yOf(nt.bot) + 30)) : Math.min(...notes.map((nt) => yOf(nt.top) - 30));
     const beamed = tp.t === '16' && notes.length > 1;
     for (const nt of notes) {
-      for (const h of nt.hits) out.push(head(h, XS(nt.sl), ink));
+      for (const h of nt.hits) { const d = tupDyn(n, h.k, tp.g, nt.sl); out.push(head(d === 's' && !h.ghost ? { ...h, ghost: true } : h, XS(nt.sl), ink)); if (tupFlam(n, h.k, tp.g, nt.sl)) out.push(grace(h, XS(nt.sl) - (d === 's' ? 19 : 13), ink, down)); }
       const fromY = down ? yOf(nt.top) : yOf(nt.bot), toY = beamed || tp.t === 'q' ? tipY : (down ? yOf(nt.bot) + 30 : yOf(nt.top) - 30);
       out.push(`<line x1="${sx(nt)}" x2="${sx(nt)}" y1="${fromY}" y2="${toY}" stroke="${ink}" stroke-width="1.3"/>`);
       if (tp.t === '16' && !beamed) for (let f = 0; f < 2; f++) { const fy = toY + (down ? -f * 7 : f * 7); out.push(`<path d="M${sx(nt)} ${fy} q 9 ${down ? -6 : 6} 7 ${down ? -15 : 15}" fill="none" stroke="${ink}" stroke-width="2"/>`); }
+    }
+    for (const nt of notes) if (nt.hits.some((h) => tupDyn(n, h.k, tp.g, nt.sl) === 'a')) {
+      const ay = down ? Math.max(tipY, yOf(nt.bot) + 30) + 12 : Math.min(tipY, yOf(nt.top) - 30) - 6, x = XS(nt.sl);
+      out.push(`<path d="M${x - 5} ${ay - 4} L${x + 5} ${ay} L${x - 5} ${ay + 4}" fill="none" stroke="${ink}" stroke-width="1.6"/>`);
     }
     if (beamed) { const a = sx(notes[0]), b = sx(notes[notes.length - 1]); out.push(`<rect x="${a - 0.6}" y="${tipY - (down ? 4 : 0)}" width="${b - a + 1.2}" height="4" fill="${ink}"/><rect x="${a - 0.6}" y="${tipY + (down ? -11 : 7)}" width="${b - a + 1.2}" height="4" fill="${ink}"/>`); }
     if (down && notes.length < 2) return out.join(''); // einzelne Fußnote: Kennzeichnung steht in der Oberstimme
@@ -243,9 +271,14 @@
     }
     if (opt.cursor) out.push(`<rect class="nt-cursor" x="0" y="20" width="${sw - 2}" height="${H - 26}" rx="4" fill="var(--ring, #5f6b3a)" opacity="0"/>`);
     // Platz oben für Akzente der Oberstimme
-    const top = Object.entries(n.dyn || {}).some(([key, v]) => { const [k, i] = key.split(':'); return v === 'a' && !(BY[k] && BY[k].down) && Number(i) >= from * pb && Number(i) < to * pb; }) ? 14 : 0;
+    const inLine = (g) => g * 4 >= from * pb && g * 4 < to * pb && !n.repeat.includes(Math.floor((g * 4) / pb));
+    const top = Object.entries(n.dyn || {}).some(([key, v]) => { const [k, i] = key.split(':'); return v === 'a' && !(BY[k] && BY[k].down) && Number(i) >= from * pb && Number(i) < to * pb; })
+      || Object.entries(n.tdyn || {}).some(([key, v]) => { const [k, g] = key.split(':'); return v === 'a' && !(BY[k] && BY[k].down) && inLine(Number(g)); }) ? 14 : 0;
+    // Sticking in Viertel und 16tel Triolen: x wie in tupGlyphs
+    const tsticks = Object.entries(n.tstick || {}).map(([key, v]) => { const [g, sl] = key.split(':').map(Number), tp = (n.tup || []).find((t) => t.g === g); return tp && inLine(g) ? [xOf(g * 4) + (sl * (tp.t === 'q' ? 2 : 1) * gs * sw) / tupSlots(tp), v] : null; }).filter(Boolean);
     // Sticking über den Noten (Otis Wunsch 18.11.2026), eine feste Zeile ganz oben, über Akzenten und Halsen
-    const sTop = sticks.length ? 18 : 0;
+    const sTop = sticks.length || tsticks.length ? 18 : 0;
+    for (const [x, v] of tsticks) out.push(`<text class="nt-stick-txt" x="${x}" y="${-top - 5}" text-anchor="middle" font-size="12" font-weight="700" font-family="sans-serif" fill="${ink}">${v}</text>`);
     for (const [i, v] of sticks) out.push(`<text class="nt-stick-txt" x="${xOf(Number(i))}" y="${-top - 5}" text-anchor="middle" font-size="12" font-weight="700" font-family="sans-serif" fill="${ink}">${v}</text>`);
     return `<svg class="nt-svg" viewBox="0 ${-top - sTop} ${W} ${H + top + sTop}" width="${W}" height="${H + top + sTop}" role="img" aria-label="${esc(opt.label || 'Schlagzeug Noten')}${from ? ', ab Takt ' + (from + 1) : ''}" data-x0="${x0}" data-sw="${sw}" data-from="${from * pb}" data-to="${to * pb}">${out.join('')}</svg>`;
   }
@@ -389,7 +422,7 @@
       // Viertel und 16tel Triolen: am Anfang der Gruppe alle Schläge mit genauen Zeiten einplanen
       if (groupSize(n.sig) === 4 && i % 4 === 0) {
         const tp = tupAt(n, Math.floor(src / 4));
-        if (tp && tp.g === Math.floor(src / 4)) { const sd = ((60 / P.bpm) * (tp.t === 'q' ? 2 : 1)) / tupSlots(tp); for (const r of ROWS) if (!P.mute.has(r.k)) for (let sl = 0; sl < tupSlots(tp); sl++) if (tupHas(n, r.k, tp.g, sl)) hit(r.k, P.next + sl * sd); }
+        if (tp && tp.g === Math.floor(src / 4)) { const sd = ((60 / P.bpm) * (tp.t === 'q' ? 2 : 1)) / tupSlots(tp); for (const r of ROWS) if (!P.mute.has(r.k)) for (let sl = 0; sl < tupSlots(tp); sl++) if (tupHas(n, r.k, tp.g, sl)) { const t0 = P.next + sl * sd; if (tupFlam(n, r.k, tp.g, sl)) hit(r.k, Math.max(ctx.currentTime + 0.005, t0 - 0.03), 's'); hit(r.k, t0, tupDyn(n, r.k, tp.g, sl)); } }
       }
       if (CLICK.on) {
         const spb = EIGHTH(n.sig) ? 2 : 4, j = i % pb, beats = pb / spb, acc = CLICK.accents && CLICK.accents.length === beats ? CLICK.accents : null;
@@ -427,10 +460,12 @@
   }
   // Sticking automatisch: alle Schritte mit einem Handschlag (nicht Bassdrum, nicht HiHat Fuß) der Reihe nach mit dem Muster füllen
   function autoStick(n, pattern) {
-    n.stick = {}; if (!pattern) return n;
+    n.stick = {}; n.tstick = {}; if (!pattern) return n;
     const hands = ROWS.filter((r) => r.k !== 'bd' && r.k !== 'hf').map((r) => r.k);
-    const steps = [...new Set(hands.flatMap((k) => n.tracks[k] || []))].sort((a, b) => a - b);
-    steps.forEach((i, j) => { n.stick[i] = pattern[j % pattern.length]; });
+    // Zeitposition in Sechzehnteln, damit Triolen Noten in der richtigen Reihenfolge mitgezählt werden
+    const ev = [...new Set(hands.flatMap((k) => n.tracks[k] || []))].map((i) => ({ at: isTrip(n, i) ? Math.floor(i / 4) * 4 + (i % 4) * 4 / 3 : i, set: (v) => { n.stick[i] = v; } }));
+    for (const tp of n.tup || []) { const w = (tp.t === 'q' ? 8 : 4) / tupSlots(tp); for (let sl = 0; sl < tupSlots(tp); sl++) if (hands.some((k) => tupHas(n, k, tp.g, sl))) ev.push({ at: tp.g * 4 + sl * w, set: (v) => { n.tstick[tp.g + ':' + sl] = v; } }); }
+    ev.sort((a, b) => a.at - b.at).forEach((e, j) => e.set(pattern[j % pattern.length]));
     return n;
   }
   const usedKeys = (n) => ROWS.filter((r) => n.tracks[r.k].length || ((n.tupn || {})[r.k] || []).length).map((r) => r.k);
@@ -450,11 +485,11 @@
     const stickRow = `<tr class="nt-stickrow"><th scope="row">Sticking</th>${span((j) => {
       const i = from + j, v = (n.stick || {})[i] || '';
       return `<td class="${Math.floor(j / gs) % 2 ? 'nt-alt' : ''}"><button type="button" class="nt-cell nt-stick" data-nt="${id}" data-k="stick" data-i="${i}" aria-pressed="${!!v}" aria-label="Sticking auf ${esc(lbl(j))}: ${v || 'keins'}" ${rep || off(j) ? 'disabled' : ''}>${v}</button></td>`;
-    }, (tp, j, c) => `<td colspan="${c}"></td>`)}</tr>`;
+    }, (tp, j, c) => `<td colspan="${c}" class="nt-tupcell"><div class="nt-tuprow">${Array.from({ length: tupSlots(tp) }, (_, sl) => { const v = (n.tstick || {})[tp.g + ':' + sl] || ''; return `<button type="button" class="nt-cell nt-stick" data-nt="${id}" data-k="stick" data-tup="${tp.g}:${sl}" aria-pressed="${!!v}" aria-label="Sticking ${tp.t === 'q' ? 'Viertel' : '16tel'} Triole Note ${sl + 1}: ${v || 'keins'}" ${rep ? 'disabled' : ''}>${v}</button>`; }).join('')}</div></td>`)}</tr>`;
     const rows = stickRow + ROWS.map((r) => `<tr><th scope="row">${r.n}</th>${span((j) => {
       const i = from + j;
       return `<td class="${Math.floor(j / gs) % 2 ? 'nt-alt' : ''}"><button type="button" class="nt-cell${EDSEL[id] && EDSEL[id].k === r.k && EDSEL[id].i === i ? ' nt-sel' : ''}" data-nt="${id}" data-k="${r.k}" data-i="${i}" aria-pressed="${has(n, r.k, i)}" data-dyn="${dynOf(n, r.k, i)}" data-flam="${flamOf(n, r.k, i) ? 1 : ''}" aria-label="${r.n} auf ${esc(lbl(j))}, Takt ${curBar + 1}${dynOf(n, r.k, i) === 'a' ? ', betont' : dynOf(n, r.k, i) === 's' ? ', leise' : ''}${flamOf(n, r.k, i) ? ', Flam' : ''}" ${rep || off(j) ? 'disabled' : ''}>${flamOf(n, r.k, i) ? 'fl' : ''}${dynOf(n, r.k, i) === 'a' ? '&gt;' : dynOf(n, r.k, i) === 's' ? '( )' : ''}</button></td>`;
-    }, (tp, j, c) => `<td colspan="${c}" class="nt-tupcell"><div class="nt-tuprow">${Array.from({ length: tupSlots(tp) }, (_, sl) => `<button type="button" class="nt-cell" data-nt="${id}" data-k="${r.k}" data-tup="${tp.g}:${sl}" aria-pressed="${tupHas(n, r.k, tp.g, sl)}" aria-label="${r.n}, ${tp.t === 'q' ? 'Viertel' : '16tel'} Triole Note ${sl + 1}" ${rep ? 'disabled' : ''}></button>`).join('')}</div></td>`)}</tr>`).join('');
+    }, (tp, j, c) => `<td colspan="${c}" class="nt-tupcell"><div class="nt-tuprow">${Array.from({ length: tupSlots(tp) }, (_, sl) => `<button type="button" class="nt-cell" data-nt="${id}" data-k="${r.k}" data-tup="${tp.g}:${sl}" aria-pressed="${tupHas(n, r.k, tp.g, sl)}" data-dyn="${tupDyn(n, r.k, tp.g, sl)}" data-flam="${tupFlam(n, r.k, tp.g, sl) ? 1 : ''}" aria-label="${r.n}, ${tp.t === 'q' ? 'Viertel' : '16tel'} Triole Note ${sl + 1}${tupDyn(n, r.k, tp.g, sl) === 'a' ? ', betont' : tupDyn(n, r.k, tp.g, sl) === 's' ? ', leise' : ''}${tupFlam(n, r.k, tp.g, sl) ? ', Flam' : ''}" ${rep ? 'disabled' : ''}>${tupFlam(n, r.k, tp.g, sl) ? 'fl' : ''}${tupDyn(n, r.k, tp.g, sl) === 'a' ? '&gt;' : tupDyn(n, r.k, tp.g, sl) === 's' ? '( )' : ''}</button>`).join('')}</div></td>`)}</tr>`).join('');
     const tabs = Array.from({ length: n.bars }, (_, b) => `<button type="button" class="nt-bartab" data-nt-bar="${b}" data-nt-id="${id}" aria-pressed="${b === curBar}">${b + 1}${n.repeat.includes(b) ? ' %' : ''}${n.marks[b] ? ' · ' + esc(n.marks[b]) : ''}</button>`).join('');
     return `<div class="nt-editor" id="${id}" data-bar="${curBar}">
       <div class="row" style="gap:10px">
@@ -479,5 +514,5 @@
 
   // Samples schon beim ersten Tippen irgendwo in der App vorladen
   if (typeof document !== 'undefined') document.addEventListener('pointerdown', () => { try { audio(); loadSamples(); } catch (e) { /* ohne Audio */ } }, { once: true, capture: true });
-  window.DrumNotation = { setTrip, isTrip, setTuplet, tupleType, tupToggle, tupHas, tupAt, SIGS, ROWS, MAX_BARS, empty, parse, render, toggle, has, play, stop, setTempo, setMute, setTrainer, hit, editorHTML, cursorFor, total, perBar, setBars, usedKeys, isPlaying: () => P.playing, setDyn, dynOf, flamOf, cellText, select: (id, k, i) => { if (k == null) delete EDSEL[id]; else EDSEL[id] = { k, i }; }, selOf: (id) => EDSEL[id] || null, editMode: (id, m) => { if (m !== undefined) EDMODE[id] = m; return EDMODE[id] || ''; }, resetModes: () => { for (const k of Object.keys(EDMODE)) delete EDMODE[k]; for (const k of Object.keys(EDSEL)) delete EDSEL[k]; }, samplesReady: () => samplesReady, autoStick, audio, click, setClick, loadSamples: () => { audio(); return loadSamples(); } };
+  window.DrumNotation = { tupDyn, tupFlam, tupSetDyn, tupStick, setTrip, isTrip, setTuplet, tupleType, tupToggle, tupHas, tupAt, SIGS, ROWS, MAX_BARS, empty, parse, render, toggle, has, play, stop, setTempo, setMute, setTrainer, hit, editorHTML, cursorFor, total, perBar, setBars, usedKeys, isPlaying: () => P.playing, setDyn, dynOf, flamOf, cellText, select: (id, k, i) => { if (k == null) delete EDSEL[id]; else EDSEL[id] = { k, i }; }, selOf: (id) => EDSEL[id] || null, editMode: (id, m) => { if (m !== undefined) EDMODE[id] = m; return EDMODE[id] || ''; }, resetModes: () => { for (const k of Object.keys(EDMODE)) delete EDMODE[k]; for (const k of Object.keys(EDSEL)) delete EDSEL[k]; }, samplesReady: () => samplesReady, autoStick, audio, click, setClick, loadSamples: () => { audio(); return loadSamples(); } };
 })();
