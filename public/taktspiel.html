@@ -1,0 +1,274 @@
+<!doctype html>
+<html lang="de">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="theme-color" content="#fbf3e4">
+<meta name="robots" content="noindex">
+<title>Taktspiel · Practice Hub</title>
+<link rel="icon" href="icon.svg" type="image/svg+xml">
+<style>
+@font-face{font-family:"Young Serif";src:url("fonts/young-serif.woff2") format("woff2");font-weight:400;font-display:swap}
+@font-face{font-family:"Figtree";src:url("fonts/figtree.woff2") format("woff2");font-weight:300 900;font-display:swap}
+:root{
+  --bg:#e5e5e0; --surface:#f6f6f3; --sunk:#ededE8; --ink:#23241f; --muted:#5c5d55; --line:#d3d0c6;
+  --accent:#4f5a2c; --accent-ink:#f6f6f3; --ring2:#8a6236; --track:#dcd9d0; --danger:#9b3a24; --good:#3d6b2f;
+  --display:"Young Serif", Georgia, serif; --body:"Figtree", -apple-system, "Segoe UI", system-ui, sans-serif; color-scheme:light;
+}
+@media (prefers-color-scheme: dark){:root{
+  --bg:#171814; --surface:#22231e; --sunk:#1c1d19; --ink:#ecebe4; --muted:#a6a798; --line:#393a31;
+  --accent:#b3c083; --accent-ink:#1b1c16; --ring2:#d1a46f; --track:#34352d; --danger:#e58f72; --good:#a9c98a; color-scheme:dark }}
+*{box-sizing:border-box}
+html,body{margin:0;background:var(--bg);color:var(--ink);font-family:var(--body);font-size:17px;line-height:1.45;-webkit-text-size-adjust:100%}
+body{padding:calc(env(safe-area-inset-top,0px) + 14px) 16px calc(env(safe-area-inset-bottom,0px) + 24px)}
+h1,h2{font-family:var(--display);font-weight:400;margin:0;line-height:1.15;text-wrap:balance}
+h1{font-size:clamp(1.8rem,7vw,2.4rem)} h2{font-size:1.35rem}
+p{margin:0;text-wrap:pretty}
+button{font:inherit;color:inherit;cursor:pointer;touch-action:manipulation}
+.wrap{max-width:560px;margin:0 auto;display:flex;flex-direction:column;gap:14px}
+.card{background:var(--surface);border:1px solid var(--line);border-radius:22px;padding:16px;display:flex;flex-direction:column;gap:12px}
+.row{display:flex;gap:10px;align-items:center;flex-wrap:wrap}.between{justify-content:space-between}
+.muted{color:var(--muted)}.small{font-size:.88rem}
+.btn{min-height:52px;padding:0 20px;border-radius:999px;border:1px solid var(--line);background:var(--surface);font-weight:600}
+.btn.primary{background:var(--accent);color:var(--accent-ink);border-color:transparent}
+.btn.block{width:100%}
+.btn:disabled{opacity:.45;cursor:default}
+.top{display:flex;justify-content:space-between;align-items:center;gap:10px}
+.top a{color:var(--muted);font-size:.9rem}
+.bar{height:10px;border-radius:99px;background:var(--track);overflow:hidden}.bar i{display:block;height:100%;background:var(--accent);transition:width .3s}
+.level{display:flex;align-items:center;gap:14px;width:100%;text-align:left;padding:14px;border-radius:18px;border:1px solid var(--line);background:var(--surface)}
+.level .n{width:42px;height:42px;border-radius:50%;display:grid;place-items:center;background:var(--sunk);font-weight:800;flex:none}
+.level.done .n{background:var(--accent);color:var(--accent-ink)}
+.level:disabled{opacity:.5}
+.level b{display:block}
+.kit{width:100%;height:auto;display:block;background:var(--sunk);border-radius:18px}
+.kit .p{fill:var(--surface);stroke:var(--ink);stroke-width:1.6;transition:fill .15s}
+.kit .stand{stroke:var(--muted);stroke-width:2;fill:none}
+.kit g[data-k].on .p{fill:var(--accent)}
+.kit g[data-k].on{filter:drop-shadow(0 0 6px var(--accent))}
+.kit g[data-k].bad .p{fill:var(--danger)}
+.kit.tap g[data-k]{cursor:pointer}
+.kit.tap g[data-k]:focus-visible .p{stroke:var(--ring2);stroke-width:3}
+.kit .hh-top{transition:transform .2s}
+.kit.open .hh-top{transform:translateY(-9px)}
+.kit .lbl{font:600 12px var(--body);fill:var(--ink);paint-order:stroke;stroke:var(--sunk);stroke-width:4px}
+.staff{color:var(--ink);background:var(--sunk);border-radius:14px;padding:6px 8px}
+.staff svg{display:block;width:100%;height:auto}
+.opts{display:grid;grid-template-columns:1fr 1fr;gap:10px}.opts.one{grid-template-columns:1fr}
+.opt{border:2px solid var(--line);background:var(--surface);border-radius:16px;padding:8px;min-height:56px;font-weight:600}
+.opt .staff{padding:2px 4px}
+.opt.right{border-color:var(--good);box-shadow:0 0 0 2px var(--good)}
+.opt.wrong{border-color:var(--danger);opacity:.7}
+.fb{border-radius:18px;padding:14px;display:flex;flex-direction:column;gap:10px}
+.fb.good{background:color-mix(in srgb,var(--good) 18%,var(--surface))}
+.fb.bad{background:color-mix(in srgb,var(--danger) 14%,var(--surface))}
+.big{font-family:var(--display);font-size:1.7rem;line-height:1.1}
+.tip{background:var(--sunk);border-radius:14px;padding:10px 12px}
+.seq{display:flex;gap:8px;justify-content:center}
+.seq span{width:34px;height:34px;border-radius:50%;display:grid;place-items:center;background:var(--sunk);font-weight:800}
+.seq span.ok{background:var(--accent);color:var(--accent-ink)}
+.seq span.now{outline:3px solid var(--ring2)}
+.cert{text-align:center;border:3px double var(--accent);align-items:center}
+.stars{font-size:1.6rem;letter-spacing:4px}
+input[type=text]{width:100%;min-height:52px;border-radius:14px;border:1px solid var(--line);background:var(--surface);padding:0 14px;font:inherit;color:inherit}
+@media (prefers-reduced-motion:reduce){*{transition:none!important}}
+.staff svg .hl{color:var(--ring2)}
+
+/* Kinder Design wie die Kinderansicht der App: Creme, kräftige Farben, dicke Ränder, immer hell */
+html:root{--bg:#fbf3e4;--surface:#ffffff;--sunk:#f6ead3;--ink:#23241f;--muted:#4a4b44;--line:#23241f;--accent:#2e86ab;--accent-ink:#ffffff;--ring2:#e4572e;--track:#ead9b8;--danger:#d64b26;--good:#2f8a5b;color-scheme:light}
+.card,.level,.opt,.staff,.kit,input[type=text]{border:3px solid #23241f}
+.btn{border:3px solid #23241f;font-weight:800}
+.btn.primary{background:#2e86ab;color:#fff;border:3px solid #23241f;box-shadow:0 5px 0 #23241f}
+.btn.primary:active{transform:translateY(3px);box-shadow:0 2px 0 #23241f}
+.level{box-shadow:0 4px 0 #23241f}
+.level .n{border:3px solid #23241f;background:#f2c14e;color:#23241f}
+.level.done .n{background:#8bc9a3;color:#23241f}
+.bar{height:14px;border:2px solid #23241f}.bar i{background:#8bc9a3}
+.seq span{border:2px solid #23241f;background:#fff}.seq span.ok{background:#8bc9a3;color:#23241f}
+.kit .p{stroke:#23241f;stroke-width:2.2}
+.kit g[data-k].on .p{fill:#f2c14e}.kit g[data-k].on{filter:drop-shadow(0 0 8px #f2c14e)}
+.kit g[data-k].bad .p{fill:#e4572e}
+.staff{background:#fff}
+.tip{background:#9cc5e0;border:3px solid #23241f}
+.opt.right{background:#8bc9a3;border-color:#23241f;box-shadow:0 0 0 3px #2f8a5b}
+.opt.wrong{background:#f6c3b3;opacity:1}
+.fb.good{background:#8bc9a3;border:3px solid #23241f}.fb.bad{background:#f6c3b3;border:3px solid #23241f}
+.cert{border:4px solid #23241f;background:#f2c14e}
+.nosig svg text[font-family^="Georgia"]{display:none}
+</style>
+</head>
+<body>
+<main class="wrap" id="app" aria-live="polite"></main>
+<script src="notation.js?v=116"></script>
+<script src="game-audio.js?v=2"></script>
+<script>
+'use strict';
+// Taktspiel (Otis Wunsch 19.11.2026, Kurs Level 2b): 4/4, 3/4 und 6/8 hören, sehen, zählen und die 1 mitklopfen.
+// Beats werden im Spiel erzeugt (keine Songausschnitte). Betonte HiHat auf jedem Grundschlag, Bassdrum auf der 1.
+const METERS = {
+  '4/4': { name: '4/4 Takt', count: '1 2 3 4', feel: 'Vier Schläge pro Takt. Der häufigste Takt in Pop, Rock und Worship.', bpm: 84, beats: [0, 4, 8, 12] },
+  '3/4': { name: '3/4 Takt', count: '1 2 3', feel: 'Drei Schläge pro Takt, wie ein Walzer: schwer, leicht, leicht.', bpm: 96, beats: [0, 4, 8] },
+  '6/8': { name: '6/8 Takt', count: '1 2 3 4 5 6', feel: 'Sechs Achtel in zwei Gruppen zu drei. Es schaukelt: EINS zwei drei VIER fünf sechs.', bpm: 150, beats: [0, 6] },
+};
+const SIGS = Object.keys(METERS);
+const COUNTS = ['1 2 3 4', '1 2 3', '1 2 3 4 5 6', '1 2 3 4 5', '1 und 2 und'];
+const LEVELS = [
+  { id: 1, title: 'Entdecken', text: 'Lerne die drei Takte kennen: wie sie klingen, aussehen und gezählt werden.', learn: true },
+  { id: 2, title: 'Hör den Takt', text: 'Hör dir einen Beat an. Ist es 4/4, 3/4 oder 6/8?', type: 'hear' },
+  { id: 3, title: 'Lies den Takt', text: 'Du siehst Noten ohne Taktangabe. Welcher Takt ist es?', type: 'see' },
+  { id: 4, title: 'Zählen', text: 'Wie zählt man diesen Takt?', type: 'count' },
+  { id: 5, title: 'Klopf die 1', text: 'Der Beat läuft. Tippe immer genau auf die 1.', type: 'tap' },
+  { id: 6, title: 'Taktprüfung', text: '10 Aufgaben gemischt. Mit 9 richtigen bist du Taktprofi.', exam: true },
+];
+const ROUNDS = 6, NEED = 5, EXAM = 10, EXAM_NEED = 9, TAP_BARS = 4, TAP_TOL = 200;
+const KEY = 'ph_taktspiel';
+let P = load(), G = null;
+function load() { try { return Object.assign({ name: '', done: {}, cert: null }, JSON.parse(localStorage.getItem(KEY) || '{}')); } catch (e) { return { name: '', done: {}, cert: null }; } }
+function appLogin() { try { const t = JSON.parse(localStorage.getItem('ph_token') || 'null'), r = JSON.parse(localStorage.getItem('ph_role') || 'null'); return t && r === 'student' ? t : null; } catch (e) { return null; } }
+function save() {
+  try { localStorage.setItem(KEY, JSON.stringify(P)); } catch (e) {}
+  const t = appLogin(); if (!t) return;
+  fetch('/api/my/game', { method: 'POST', headers: { 'Content-Type': 'application/json', Authorization: 'Bearer ' + t }, body: JSON.stringify({ game: 'takt', done: Object.keys(P.done).map(Number), total: LEVELS.length, cert: P.cert }) }).catch(() => {});
+}
+if (!P.name) { try { const n = JSON.parse(localStorage.getItem('ph_name') || 'null'); if (n) P.name = String(n).split(' ')[0]; } catch (e) {} }
+const $ = (s) => document.querySelector(s);
+const esc = (t) => String(t).replace(/[&<>"]/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' })[c]);
+const shuffle = (a) => { a = a.slice(); for (let i = a.length - 1; i > 0; i--) { const j = Math.floor(Math.random() * (i + 1)); [a[i], a[j]] = [a[j], a[i]]; } return a; };
+const pick = (a) => a[Math.floor(Math.random() * a.length)];
+
+// ---------- Beats erzeugen ----------
+// Ein Takt Muster in 16teln: HiHat in Achteln, betont auf jedem Grundschlag; Bassdrum auf der 1; Snare je nach Takt.
+function makeBeat(sig, bars = 2) {
+  const m = METERS[sig], per = sig === '4/4' ? 16 : 12, n = DrumNotation.empty(sig, bars, m.bpm);
+  const one = { hh: [], bd: [0], sn: [] };
+  for (let i = 0; i < per; i += 2) one.hh.push(i);
+  if (sig === '4/4') { one.sn = [4, 12]; one.bd = pick([[0, 8], [0, 8, 10], [0, 6, 8], [0]]); }
+  if (sig === '3/4') { one.sn = pick([[4, 8], [8]]); one.bd = pick([[0], [0, 6]]).filter((i) => !one.sn.includes(i)); }
+  if (sig === '6/8') { one.sn = [6]; one.bd = pick([[0], [0, 4], [0, 10]]); }
+  n.dyn = {};
+  for (let b = 0; b < bars; b++) for (const k of ['hh', 'bd', 'sn']) for (const i of one[k]) { n.tracks[k].push(b * per + i); }
+  for (let b = 0; b < bars; b++) for (const i of m.beats) n.dyn['hh:' + (b * per + i)] = 'a';
+  return n;
+}
+// Notenbild ohne Taktangabe (für "Lies den Takt"): Taktzeichen im SVG ausblenden
+const staff = (n, opt = {}) => `<div class="staff${opt.hideSig ? ' nosig' : ''}">${DrumNotation.render(n, { barsPerLine: 1, label: opt.label || 'Beat' })}</div>`;
+
+// ---------- Abspielen ----------
+let playing = null;
+function play(n, loops = 2, onBar) {
+  stopPlay(); try { DrumNotation.loadSamples(); } catch (e) {}
+  window.GameAudio && GameAudio.duck && GameAudio.duck(10);
+  let done = 0, last = -1; const tok = {}; playing = tok;
+  DrumNotation.play(n, n.bpm, (i) => { if (playing !== tok || i < 0) return; if (i < last && ++done >= loops) { stopPlay(); return; } if (onBar && i % (n.sig === '4/4' ? 16 : 12) === 0) onBar(i, performance.now()); last = i; }, { countIn: 1 });
+}
+function stopPlay() { if (playing) { playing = null; try { DrumNotation.stop(); } catch (e) {} } }
+
+// ---------- Fragen ----------
+function question(type) {
+  const sig = pick(SIGS), n = makeBeat(sig);
+  if (type === 'count') return { type, sig, n, opts: shuffle(COUNTS.filter((c) => c !== METERS[sig].count)).slice(0, 2).concat(METERS[sig].count).sort(() => Math.random() - 0.5), right: METERS[sig].count };
+  if (type === 'tap') { const t = makeBeat(sig, TAP_BARS); return { type, sig, n: t }; }
+  return { type, sig, n, opts: SIGS.slice(), right: sig };
+}
+
+// ---------- Bildschirme ----------
+function topBar(title, back = true) { return `<div class="top">${back ? '<button class="btn" data-act="home" style="min-height:44px;padding:0 16px">Übersicht</button>' : '<a href="./">Zur Practice Hub App</a>'}<span class="small muted">${esc(title)}</span></div>`; }
+function render() { $('#app').innerHTML = G ? G.view() : homeView(); }
+function homeView() {
+  const next = LEVELS.find((l) => !P.done[l.id]);
+  return `${topBar('Taktspiel', false)}<h1>Taktspiel</h1>
+    <p class="muted">4/4, 3/4 oder 6/8? Hör hin, lies die Noten, zähl mit und klopf die 1.</p>
+    <p class="small muted">${appLogin() ? 'Dein Lehrer sieht deinen Fortschritt in der App.' : 'Öffne das Spiel aus der Practice Hub App, dann sieht dein Lehrer deinen Fortschritt.'}</p>
+    <div class="card"><label for="nm" class="small muted">Dein Vorname (für die Urkunde)</label><input type="text" id="nm" maxlength="30" value="${esc(P.name)}" autocomplete="given-name"></div>
+    <div style="display:flex;flex-direction:column;gap:10px">${LEVELS.map((l, i) => { const open = i === 0 || P.done[LEVELS[i - 1].id];
+      return `<button class="level ${P.done[l.id] ? 'done' : ''}" data-act="level" data-id="${l.id}" ${open ? '' : 'disabled'}><span class="n">${P.done[l.id] ? '✓' : l.id}</span><span><b>${esc(l.title)}</b><span class="small muted">${esc(l.text)}</span></span></button>`; }).join('')}</div>
+    ${P.cert ? '<button class="btn primary block" data-act="cert">Meine Urkunde ansehen</button>' : next ? `<button class="btn primary block" data-act="level" data-id="${next.id}">${next.id === 1 ? 'Los geht’s' : 'Weiter mit Stufe ' + next.id}</button>` : ''}
+    ${Object.keys(P.done).length ? '<button class="btn block" data-act="reset">Von vorne anfangen</button>' : ''}`;
+}
+function learnRun(lv) {
+  const R = { i: 0, beats: SIGS.map((s) => makeBeat(s)) };
+  return {
+    view: () => { const sig = SIGS[R.i], m = METERS[sig];
+      return `${topBar(lv.title + ' · ' + (R.i + 1) + ' von 3')}<div class="card"><h2>${esc(m.name)}</h2><p>${esc(m.feel)}</p>${staff(R.beats[R.i], { label: m.name })}
+        <div class="tip"><b>Zählen:</b> ${esc(m.count)}. Die betonten HiHat Schläge sind die Zählzeiten, die Bassdrum spielt immer auf der 1.</div>
+        <button class="btn primary block" data-act="listen">Anhören</button></div>
+        <button class="btn block" data-act="next">${R.i < 2 ? 'Nächster Takt' : 'Stufe abschließen'}</button>`; },
+    act: (a) => {
+      if (a === 'listen') return play(R.beats[R.i]);
+      if (a === 'next') { stopPlay(); if (R.i < 2) { R.i++; window.scrollTo(0, 0); return render(); } return finishLevel(lv.id, 0); }
+    },
+  };
+}
+function runLevel(lv) {
+  if (lv.learn) return learnRun(lv);
+  const exam = !!lv.exam, total = exam ? EXAM : ROUNDS, need = exam ? EXAM_NEED : NEED;
+  const nextQ = () => question(exam ? pick(['hear', 'see', 'count', 'tap']) : lv.type);
+  const R = { n: 0, ok: 0, wrong: 0, q: nextQ(), ans: null, heard: false, taps: [], bars: [], tapDone: false };
+  const resetTap = () => { R.taps = []; R.bars = []; R.tapDone = false; };
+  function scoreTap() {
+    const bars = R.bars.slice(-TAP_BARS); let hit = 0; const used = new Set();
+    for (const b of bars) { const j = R.taps.findIndex((t, k) => !used.has(k) && Math.abs(t - b) <= TAP_TOL); if (j >= 0) { used.add(j); hit++; } }
+    return { hit, extra: R.taps.length - used.size, total: bars.length };
+  }
+  return {
+    view: () => {
+      const q = R.q;
+      if (R.n >= total) { const pass = R.ok >= need;
+        return `${topBar(lv.title)}<div class="card" style="text-align:center;align-items:center"><p class="big">${R.ok} von ${total} richtig</p>
+          <p class="muted">${pass ? (exam ? 'Bestanden! Du bist Taktprofi.' : 'Super, Stufe geschafft.') : `Du brauchst ${need} richtige. Versuch es nochmal.`}</p>
+          <button class="btn primary block" data-act="${pass ? (exam ? 'certNow' : 'finish') : 'again'}">${pass ? (exam ? 'Zur Urkunde' : 'Weiter') : 'Nochmal versuchen'}</button></div>`; }
+      const head = `${topBar(lv.title + ' · ' + (R.n + 1) + ' von ' + total)}<div class="bar" role="progressbar" aria-valuemin="0" aria-valuemax="${total}" aria-valuenow="${R.n}"><i style="width:${(R.n / total) * 100}%"></i></div>`;
+      if (q.type === 'tap') {
+        const sc = R.tapDone ? scoreTap() : null, ok = sc && sc.hit >= 3 && sc.extra <= 2;
+        return `${head}<div class="card"><p><b>Klopf die 1.</b> Das ist ein ${esc(METERS[q.sig].name)} (${esc(METERS[q.sig].count)}). Nach einem Takt Klick läuft der Beat ${TAP_BARS} Takte. Tippe auf den großen Knopf, immer wenn die 1 kommt.</p>
+          <button class="btn primary block" data-act="tapStart" ${playing || R.tapDone ? 'disabled' : ''}>${R.tapDone ? 'Fertig' : playing ? 'Läuft …' : 'Start'}</button>
+          <button class="btn block" data-act="tap" style="min-height:120px;font-size:1.6rem" ${playing ? '' : 'disabled'}>Die 1</button></div>
+          ${sc ? `<div class="fb ${ok ? 'good' : 'bad'}"><p class="big">${ok ? 'Richtig!' : 'Fast.'}</p><p>${sc.hit} von ${sc.total} Einsen getroffen${sc.extra ? ', ' + sc.extra + ' Mal daneben getippt' : ''}. ${ok ? '' : 'Zähl laut mit und tippe nur auf die betonte 1 mit der Bassdrum.'}</p><button class="btn primary" data-act="next">Weiter</button></div>` : ''}`;
+      }
+      const label = q.type === 'count' ? 'Wie zählt man diesen Takt?' : q.type === 'see' ? 'Welcher Takt ist das?' : 'Hör dir den Beat an. Welcher Takt ist das?';
+      const btn = (o) => { const cls = R.ans == null ? '' : o === q.right ? ' right' : o === R.ans ? ' wrong' : ''; return `<button class="opt${cls}" data-act="pick" data-v="${esc(o)}" ${R.ans != null || (q.type === 'hear' && !R.heard) ? 'disabled' : ''}>${esc(q.type === 'count' ? o : METERS[o].name)}</button>`; };
+      return `${head}<div class="card"><p><b>${label}</b></p>
+        ${q.type !== 'hear' ? staff(q.n, { hideSig: q.type === 'see' }) : ''}
+        ${q.type === 'hear' || R.ans != null ? `<button class="btn ${q.type === 'hear' ? 'primary ' : ''}block" data-act="listen">${q.type === 'hear' && !R.heard ? 'Beat anhören' : 'Anhören'}</button>` : ''}</div>
+        <div class="opts ${q.type === 'count' ? 'one' : ''}">${q.opts.map(btn).join('')}</div>
+        ${R.ans != null ? `<div class="fb ${R.ans === q.right ? 'good' : 'bad'}"><p class="big">${R.ans === q.right ? 'Richtig!' : 'Fast.'}</p><p>Das ist ein ${esc(METERS[q.sig].name)}. ${esc(METERS[q.sig].feel)}</p>${q.type === 'hear' ? staff(q.n) : ''}<button class="btn primary" data-act="next">Weiter</button></div>` : ''}`;
+    },
+    act: (a, el) => {
+      const q = R.q;
+      if (a === 'listen') { R.heard = true; play(q.n); return render(); }
+      if (a === 'pick') { if (R.ans != null) return; R.ans = el.dataset.v; if (R.ans === q.right) { R.ok++; window.GameAudio && GameAudio.ok(); } else { R.wrong++; window.GameAudio && GameAudio.bad(); } return render(); }
+      if (a === 'tapStart') { resetTap(); play(q.n, 1, (i, t) => { R.bars.push(t); }); const check = setInterval(() => { if (!playing) { clearInterval(check); R.tapDone = true; const sc = scoreTap(); if (sc.hit >= 3 && sc.extra <= 2) { R.ok++; window.GameAudio && GameAudio.ok(); } else { R.wrong++; window.GameAudio && GameAudio.bad(); } render(); } }, 200); return render(); }
+      if (a === 'tap') { if (playing) R.taps.push(performance.now()); el.animate && el.animate([{ transform: 'scale(.96)' }, { transform: 'scale(1)' }], 120); return; }
+      if (a === 'next') { stopPlay(); R.n++; R.ans = null; R.heard = false; resetTap(); if (R.n < total) R.q = nextQ(); window.scrollTo(0, 0); return render(); }
+      if (a === 'again') { G = runLevel(lv); return render(); }
+      if (a === 'finish') return finishLevel(lv.id, R.wrong);
+      if (a === 'certNow') { P.done[lv.id] = true; P.cert = P.cert || new Date().toISOString().slice(0, 10); save(); window.GameAudio && GameAudio.win(); return showCert(); }
+    },
+  };
+}
+function finishLevel(id, wrongs = 0) {
+  P.done[id] = true; save(); window.GameAudio && GameAudio.win(); const stars = wrongs === 0 ? 3 : wrongs === 1 ? 2 : 1, next = LEVELS.find((l) => l.id === id + 1);
+  G = { view: () => `${topBar('Geschafft')}<div class="card" style="text-align:center;align-items:center"><p class="stars" aria-label="${stars} von 3 Sternen">${'★'.repeat(stars)}${'☆'.repeat(3 - stars)}</p><p class="big">Stufe ${id} geschafft!</p>
+    ${next ? `<button class="btn primary block" data-act="level" data-id="${next.id}">Weiter mit ${esc(next.title)}</button>` : ''}<button class="btn block" data-act="home">Zur Übersicht</button></div>` };
+  window.scrollTo(0, 0); render();
+}
+function showCert() {
+  G = { view: () => `${topBar('Urkunde')}<div class="card cert"><p class="small muted">Urkunde</p><h1>Taktprofi</h1><p class="big">${esc(P.name || 'Du')}</p><p>erkennt 4/4, 3/4 und 6/8 am Klang und an den Noten, zählt sie richtig und findet die 1.</p>${staff(makeBeat('6/8', 1), { label: '6/8 Beat' })}<p class="small">${esc(new Date(P.cert || Date.now()).toLocaleDateString('de-DE'))}</p></div><button class="btn block" data-act="home">Zur Übersicht</button>` };
+  window.scrollTo(0, 0); render();
+}
+function startLevel(id) { stopPlay(); G = runLevel(LEVELS.find((l) => l.id === id)); window.scrollTo(0, 0); render(); }
+document.addEventListener('pointerdown', (ev) => { const el = ev.target.closest('[data-act=tap]'); if (el && G && G.act) { ev.preventDefault(); G.act('tap', el); } });
+document.addEventListener('click', (ev) => {
+  const el = ev.target.closest('[data-act]'); if (!el) return;
+  const act = el.dataset.act; if (act === 'tap') return; try { DrumNotation.loadSamples(); } catch (e) {}
+  if (act === 'home') { stopPlay(); G = null; return render(); }
+  if (act === 'level') { const nm = $('#nm'); if (nm) { P.name = nm.value.trim(); save(); } return startLevel(Number(el.dataset.id)); }
+  if (act === 'cert') return showCert();
+  if (act === 'reset') { if (confirm('Wirklich von vorne anfangen? Dein Fortschritt wird gelöscht.')) { P = { name: P.name, done: {}, cert: null }; save(); render(); } return; }
+  if (G && G.act) G.act(act, el);
+});
+document.addEventListener('change', (ev) => { if (ev.target.id === 'nm') { P.name = ev.target.value.trim(); save(); } });
+render();
+</script>
+</body>
+</html>
