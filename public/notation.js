@@ -395,7 +395,17 @@
     stop(); audio();
     Object.assign(P, { n, bpm: bpm || n.bpm || 80, onStep, playing: true, step: 0, queue: [], mute: new Set(opts.mute || []), trainer: opts.trainer || null, onTempo: opts.onTempo || null });
     const token = P.token = (P.token || 0) + 1;
-    const go = () => { if (!P.playing || P.token !== token) return; P.next = ctx.currentTime + 0.08; P.timer = setInterval(schedule, 25); requestAnimationFrame(draw); };
+    const go = () => {
+      if (!P.playing || P.token !== token) return; P.next = ctx.currentTime + 0.08;
+      // 1 Takt Metronom Vorlauf (Otis Wunsch 19.11.2026): nur vor dem ersten Durchlauf, danach Schleife ohne Pause ab Takt 1.
+      // opts.countIn: Faktor (1 normal, 2 bei doppelt ausgeschriebenen Bausteinen), damit der Vorlauf einen echten Takt dauert
+      if (opts.countIn) {
+        const f = Number(opts.countIn) || 1, eighth = EIGHTH(n.sig), beats = perBar(n.sig) / (eighth ? 2 : 4), beat = (60 / P.bpm) * f / (eighth ? 2 : 1);
+        for (let b = 0; b < beats; b++) click(P.next + b * beat, b === 0 ? 2 : 1, CLICK.sound || 'klick', CLICK.vol == null ? 0.8 : CLICK.vol);
+        P.next += beats * beat;
+      }
+      P.timer = setInterval(schedule, 25); requestAnimationFrame(draw);
+    };
     // Erst starten, wenn die Samples da sind (höchstens 2 Sekunden warten), sonst klingt der erste Schlag synthetisch
     if (samplesReady) go(); else Promise.race([loadSamples(), new Promise((ok) => setTimeout(ok, 2000))]).then(go);
   }

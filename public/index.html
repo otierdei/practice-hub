@@ -1465,7 +1465,7 @@ function songView() {
           ${S.nt && S.nt.pe ? DrumNotation.editorHTML(S.nt.pe, 'pe') : '<button type="button" class="btn small" data-act="peNew">Noten schreiben</button>'}
           <p class="small muted">Änderungen gelten überall: im Song und bei allen Schülern, die diesen Baustein als Hausaufgabe haben.</p>
           <div class="row"><button class="btn primary" type="submit">Speichern</button><button class="btn" type="button" data-act="partEditOff">Abbrechen</button></div></form>` : ''}
-        ${S.partEdit === p.id ? '' : p.notation ? `<div id="pn_${p.id}">${notationPreview(p.notation, p.title)}</div><div class="ctl-row">${playBtn('partPlay', `data-id="${p.id}"`, false, false, true)}${beatClickChip(false, true)}${S.role === 'student' ? `<button class="btn small primary" data-act="partPractice" data-id="${p.id}">Üben</button>` : ''}</div>` : S.role === 'student' ? `<div class="ctl-row"><button class="btn small primary" data-act="partPractice" data-id="${p.id}">Üben</button></div>` : ''}
+        ${S.partEdit === p.id ? '' : p.notation ? `<div id="pn_${p.id}">${notationPreview(p.notation, p.title)}</div><div class="ctl-row">${playBtn('partPlay', `data-id="${p.id}"`, false, false, true)}${beatClickChip(false, true)}${countInChip()}${S.role === 'student' ? `<button class="btn small primary" data-act="partPractice" data-id="${p.id}">Üben</button>` : ''}</div>` : S.role === 'student' ? `<div class="ctl-row"><button class="btn small primary" data-act="partPractice" data-id="${p.id}">Üben</button></div>` : ''}
         ${p.url && !ytId(p.url) ? `<a class="btn small" href="${esc(p.url)}" target="_blank" rel="noopener">Link öffnen</a>` : ''}</section>`).join('')}</div>${teacher && partsFor(d, songCurVersion(d)).length > 1 ? '<p class="small muted">Reihenfolge ändern: am Griff ⋮⋮ links ziehen. Gilt auch bei den Schülern.</p>' : ''}` : `<div class="empty">${teacher ? 'Noch keine Bausteine. Leg unten den ersten an, z. B. Groove Vers.' : 'Oti hat für diesen Song noch keine Videos.'}</div>`}
       ${!teacher && (S.role === 'student' || S.preview) && stuData() ? myBeatsSection(stuData(), d.song.id) : ''}
       ${teacher ? `<form id="partForm" class="card col"><b>Baustein hinzufügen</b>
@@ -1652,7 +1652,7 @@ function songBlocksHTML(a) {
     ${d.guitar && (isGuitarOnly((stuData() || {}).student) || isDual((stuData() || {}).student)) ? `<section class="col" style="gap:10px"><h3>Gitarre</h3>${songGuitarHTML(d)}</section>` : ''}
     ${!isGuitarOnly((stuData() || {}).student) && partsFor(d, ver).length ? `<section class="col" style="gap:10px"><h3>Bausteine${ver ? ' · ' + esc(ver) : ''}</h3>${partsFor(d, ver).map((p) => `<section class="card col" style="gap:8px"><b>${esc(p.title)}</b>${p.notes ? `<span class="small muted">${esc(p.notes)}</span>` : ''}
       ${ytId(p.url) ? ytEmbed(p.url) : ''}
-      ${p.notation ? `<div id="pn_${p.id}">${notationPreview(p.notation, p.title)}</div><div class="ctl-row">${playBtn('partPlay', `data-id="${p.id}"`, false, false, true)}${beatClickChip(false, true)}${student ? `<button class="btn small primary" data-act="partPractice" data-id="${p.id}">Üben</button>` : ''}</div>` : ''}</section>`).join('')}</section>` : ''}`;
+      ${p.notation ? `<div id="pn_${p.id}">${notationPreview(p.notation, p.title)}</div><div class="ctl-row">${playBtn('partPlay', `data-id="${p.id}"`, false, false, true)}${beatClickChip(false, true)}${countInChip()}${student ? `<button class="btn small primary" data-act="partPractice" data-id="${p.id}">Üben</button>` : ''}</div>` : ''}</section>`).join('')}</section>` : ''}`;
 }
 async function loadSongFor(a) { if (a && a.song_id) { // immer frisch, damit geänderte Bausteine und Videos sofort da sind
   try { S.song = await api('/api/song', { id: a.song_id }); } catch (e) { /* ohne Song weiter */ } } }
@@ -1768,7 +1768,7 @@ function practiceView() {
       ${Guitar.parse(a.notation).chords.length >= 2 ? `<div id="chgBox">${chgBoxHTML(Guitar.parse(a.notation).chords.join(' '))}</div>` : ''}
       <div class="gt-count" id="gtCount" aria-live="assertive"></div><p class="small muted">Mitspielen: 4 Klicks zum Einzählen, dann läuft die Übung mit Klick in Schleife, bis du Stopp drückst. Tempo stellst du oben ein.</p><div class="row">${Guitar.parse(a.notation).strum.cells.some(Boolean) ? `<button class="btn" data-act="gtPlay" data-mode="strum" style="flex:1">${Guitar.isPlaying() ? 'Stopp' : 'Mitspielen: Schlagmuster'}</button>` : ''}${Guitar.parse(a.notation).scale ? `<button class="btn" data-act="gtPlay" data-mode="scale" style="flex:1">Mitspielen: Tonleiter</button>` : ''}${Guitar.parse(a.notation).tab.notes.length ? `<button class="btn" data-act="gtPlay" data-mode="tab" style="flex:1">Mitspielen: Tabs</button>` : ''}</div>` : ''}
     ${a && DrumNotation.parse(a.notation) ? `<div class="nt-staff" id="practiceStaff">${DrumNotation.render(DrumNotation.parse(a.notation), { cursor: true, label: 'Noten: ' + (a.title || '') })}</div>
-      <div class="ctl-row">${playBtn('beatPlay', '', DrumNotation.isPlaying(), false, true)}${beatClickChip(false, true)}</div>
+      <div class="ctl-row">${playBtn('beatPlay', '', DrumNotation.isPlaying(), false, true)}${beatClickChip(false, true)}${a.part_id || (store.get('run', null) || {}).part ? countInChip() : ''}</div>
       ${metronomeCard(a)}
       <div class="col" style="gap:8px"><span class="small muted">Stumm schalten und selbst spielen:</span>
         <div class="row" style="gap:6px">${DrumNotation.usedKeys(DrumNotation.parse(a.notation)).map((k) => `<button type="button" class="chip" data-act="beatMute" data-k="${k}" aria-pressed="${(S.beatMute || []).includes(k)}">${DrumNotation.ROWS.find((r) => r.k === k).n}</button>`).join('')}</div>
@@ -1803,7 +1803,7 @@ document.addEventListener('change', (ev) => {
 // Metronom Einstellungen (wie die Tempo App): Taktart, Betonung pro Schlag, Unterteilung, Klang, Lautstärke, Klick im Beat
 const MET_SIGS = ['2/4', '3/4', '4/4', '5/4', '6/8', '7/8', '9/8', '12/8'];
 function metSet() {
-  const s = Object.assign({ sig: '4/4', accents: null, sub: 2, sound: 'klick', vol: 0.8, beatClick: false }, store.get('metset', {}));
+  const s = Object.assign({ sig: '4/4', accents: null, sub: 2, sound: 'klick', vol: 0.8, beatClick: false, countIn: false }, store.get('metset', {}));
   const n = Number(s.sig.split('/')[0]); if (!Array.isArray(s.accents) || s.accents.length !== n) s.accents = Array.from({ length: n }, (_, i) => (i === 0 ? 2 : 1));
   return s;
 }
@@ -1881,6 +1881,9 @@ function syncMetIcons() {
 }
 setInterval(syncMetIcons, 250);
 // Klick beim Abspielen eines Beats ein und aus
+// 1 Takt Metronom Vorlauf bei Bausteinen (Otis Wunsch 19.11.2026), standardmäßig aus, gilt für das Gerät
+function countInChip() { const on = !!metSet().countIn; return `<button type="button" class="chip" data-act="countIn" aria-pressed="${on}">1 Takt Vorlauf</button>`; }
+const countInOpt = (f) => (metSet().countIn ? f || 1 : 0);
 function beatClickChip(small, large) { const on = metSet().beatClick; return `<button type="button" class="met-btn${small ? ' sm' : ''}${large ? ' lg' : ''}" data-act="beatClick" aria-pressed="${on}" aria-label="Metronom im Beat ${on ? 'an' : 'aus'}" title="Metronom im Beat ${on ? 'an' : 'aus'}">${ICON_MET}</button>`; }
 // Automatik des Metronoms gilt auch für Beats: alle X Takte (bei mehrtaktigen Beats umgerechnet in Durchläufe) schneller
 function metTrainer(n, f = 1) { const m = metAuto(); return m.on && n ? { every: Math.max(1, Math.round(m.bars / n.bars)), add: m.add * f, max: m.max * f } : null; }
@@ -2257,7 +2260,7 @@ document.addEventListener('click', async (ev) => {
         const r = store.get('run'); const a = runTask(r);
         metStop(); { const mb = document.querySelector('[data-act="metronome"]'); if (mb) { mb.setAttribute('aria-pressed', 'false'); mb.setAttribute('aria-label', 'Metronom starten'); } const ms = $('#metState'); if (ms) ms.textContent = 'Tippen zum Starten'; }
         { const rr = store.get('run', null), f = (rr && rr.part && rr.part.factor) || 1; S.playFactor = f; const pn = DrumNotation.parse(a.notation);
-          playBeat(pn, $('#practiceStaff'), MET.bpm * f, { mute: S.beatMute || [], trainer: metTrainer(pn, f), onTempo: (b) => setBpm(b / f) }); } setPlay(el, true); break;
+          playBeat(pn, $('#practiceStaff'), MET.bpm * f, { mute: S.beatMute || [], trainer: metTrainer(pn, f), onTempo: (b) => setBpm(b / f), countIn: a.part_id || (rr && rr.part) ? countInOpt(f) : 0 }); } setPlay(el, true); break;
       }
       case 'beatMute': { const k = el.dataset.k; S.beatMute = (S.beatMute || []).includes(k) ? S.beatMute.filter((x) => x !== k) : (S.beatMute || []).concat(k); el.setAttribute('aria-pressed', String(S.beatMute.includes(k))); DrumNotation.setMute(S.beatMute); break; }
       case 'archiveExercise': await api('/api/t/exercise/archive', { id }); S.exercises = (await api('/api/t/exercises')).exercises; closeOverlay(); toast('Entfernt'); break;
@@ -2467,8 +2470,8 @@ document.addEventListener('click', async (ev) => {
         // Steht ein Metronom in der Ansicht, spielt der Baustein in dessen Tempo. Doppelt ausgeschriebene Bausteine (z. B. 32tel als 16tel) laufen mit Faktor 2.
         if ($('#bpmVal')) {
           const f = partFactor(n, S.song.song.bpm), m = metAuto(); S.playFactor = f;
-          playBeat(n, $('#pn_' + id), MET.bpm * f, { onTempo: (b) => setBpm(b / f), trainer: m.on ? { every: Math.max(1, Math.round(m.bars / n.bars)), add: m.add * f, max: m.max * f } : null });
-        } else { S.playFactor = 1; playBeat(n, $('#pn_' + id), partBpm(n, S.song)); }
+          playBeat(n, $('#pn_' + id), MET.bpm * f, { onTempo: (b) => setBpm(b / f), trainer: m.on ? { every: Math.max(1, Math.round(m.bars / n.bars)), add: m.add * f, max: m.max * f } : null, countIn: countInOpt(f) });
+        } else { S.playFactor = 1; playBeat(n, $('#pn_' + id), partBpm(n, S.song), { countIn: countInOpt(partFactor(n, S.song.song.bpm)) }); }
         break;
       }
       case 'backToSong': openOverlay(songView); break;
@@ -2524,6 +2527,7 @@ document.addEventListener('click', async (ev) => {
       case 'metAcc': { const s = metSet(), k = Number(el.dataset.i); s.accents[k] = (s.accents[k] + 2) % 3; saveMetSet(s); el.className = 'met-dot acc' + s.accents[k]; el.setAttribute('aria-label', 'Schlag ' + (k + 1) + ': ' + ['stumm', 'normal', 'betont'][s.accents[k]]); break; }
       case 'metSub': { const s = metSet(); s.sub = Number(el.dataset.v); saveMetSet(s); document.querySelectorAll('[data-act=metSub]').forEach((b) => b.setAttribute('aria-pressed', String(b === el))); break; }
       case 'trkReset': TRK.ms = 0; TRK.bars = 0; TRK.since = MET.playing || DrumNotation.isPlaying() ? performance.now() : 0; { const k = $('#trk'); if (k) k.textContent = trkText(); } break;
+      case 'countIn': { const s = metSet(); s.countIn = !s.countIn; saveMetSet(s); document.querySelectorAll('[data-act=countIn]').forEach((b) => b.setAttribute('aria-pressed', String(s.countIn))); break; }
       case 'beatClick': { const s = metSet(); s.beatClick = !s.beatClick; saveMetSet(s); document.querySelectorAll('[data-act=beatClick]').forEach((b) => { b.setAttribute('aria-pressed', String(s.beatClick)); b.setAttribute('aria-label', 'Metronom im Beat ' + (s.beatClick ? 'an' : 'aus')); b.title = b.getAttribute('aria-label'); }); syncMetIcons(); toast('Metronom im Beat ' + (s.beatClick ? 'an' : 'aus')); break; }
       case 'metronome': if (MET.playing) metStop(); else { DrumNotation.stop(); S.prevPlaying = null; resetPlays('[data-act="partPlay"],[data-act="beatPlay"],[data-act="asgPlay"]'); metStart(); } el.setAttribute('aria-pressed', String(MET.playing)); el.setAttribute('aria-label', MET.playing ? 'Metronom stoppen' : 'Metronom starten'); { const ms = $('#metState'); if (ms) ms.textContent = MET.playing ? 'Läuft, tippen zum Stoppen' : 'Tippen zum Starten'; } syncMetIcons(); break;
       case 'endPractice': { closeAskEnd(); const r = store.get('run'); if (r.runningSince) { r.accumulated += Date.now() - r.runningSince; r.runningSince = null; store.set('run', r); } metStop(); clearInterval(tickTimer); S.feeling = null; openOverlay(finishForm); break; }
