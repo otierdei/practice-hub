@@ -150,6 +150,45 @@ const missions = (s, who) => missionApi({ s, who, now, uid, str, int, HttpError,
 
 // ---------- Lesen für Schüler und Eltern ----------
 // Läuft gerade eine Stunde bei Oti? Dann ist der Schüler im Unterrichtsmodus.
+// ---------- Neu seit dem letzten Besuch (Otis Wunsch 21.11.2026) ----------
+// Was Schüler selbst schreiben: Notiz nach dem Üben, eigenes Ziel (neu oder erreicht), Beat (neu oder bearbeitet).
+// Gesehen merkt sich der Server pro Schüler, damit iPhone und Mac gleich zählen. Ohne Eintrag: die letzten 7 Tage.
+export async function teacherNews(s) {
+  const floor = new Date(Date.now() - 30 * DAY).toISOString(), fresh = new Date(Date.now() - 7 * DAY).toISOString();
+  const seen = Object.fromEntries((await s.all('SELECT student_id, seen_at FROM news_seen')).map((r) => [r.student_id, r.seen_at]));
+  const studs = await s.all("SELECT id, first_name FROM students WHERE status != 'archiviert'");
+  const since = (id) => { const x = seen[id] || fresh; return x > floor ? x : floor; };
+  const ok = new Map(studs.map((x) => [x.id, x]));
+  const items = [];
+  const notes = await s.all(`SELECT ps.id, ps.student_id, ps.note, ps.created_at, ps.seconds, COALESCE(e.title, a.free_text) AS title
+    FROM practice_sessions ps LEFT JOIN assignments a ON a.id = ps.assignment_id LEFT JOIN exercises e ON e.id = COALESCE(ps.exercise_id, a.exercise_id)
+    WHERE ps.created_at > ? AND ps.note IS NOT NULL AND TRIM(ps.note) != '' ORDER BY ps.created_at DESC LIMIT 300`, floor);
+  for (const n of notes) items.push({ kind: 'note', id: n.id, student_id: n.student_id, at: n.created_at, title: n.title || '', text: n.note, minutes: Math.round((n.seconds || 0) / 60) });
+  const goals = await s.all(`SELECT g.id, g.student_id, g.title, g.status, g.created_at, g.reached_at FROM goals g
+    WHERE (g.created_at > ? OR g.reached_at > ?) AND g.id IN (SELECT entity_id FROM log WHERE entity = 'goals' AND action = 'create' AND by_role = 'student') LIMIT 300`, floor, floor);
+  for (const g of goals) {
+    if (g.created_at > floor) items.push({ kind: 'goal', id: g.id, student_id: g.student_id, at: g.created_at, text: g.title });
+    if (g.status === 'erreicht' && g.reached_at && g.reached_at > floor) items.push({ kind: 'goal_done', id: g.id, student_id: g.student_id, at: g.reached_at, text: g.title });
+  }
+  const beats = await s.all(`SELECT b.id, b.student_id, b.title, b.created_at, b.updated_at, sg.title AS song FROM student_beats b LEFT JOIN songs sg ON sg.id = b.song_id
+    WHERE b.updated_at > ? ORDER BY b.updated_at DESC LIMIT 300`, floor);
+  for (const b of beats) items.push({ kind: b.updated_at > b.created_at ? 'beat_edit' : 'beat', id: b.id, student_id: b.student_id, at: b.updated_at, text: b.title, song: b.song || '' });
+  const groups = new Map();
+  for (const it of items.sort((a, b) => (a.at < b.at ? 1 : -1))) {
+    const st = ok.get(it.student_id); if (!st || it.at <= since(it.student_id)) continue;
+    if (!groups.has(st.id)) groups.set(st.id, { student_id: st.id, first_name: st.first_name, items: [] });
+    const g = groups.get(st.id); if (g.items.length < 20) g.items.push(it);
+  }
+  return [...groups.values()];
+}
+// Pop-up an Oti. Ein Tag pro Schüler: eine neue Meldung ersetzt die alte, statt dass sich fünf stapeln. Fehler dürfen das Speichern nie stören.
+async function notifyTeacher(s, studentId, body) {
+  try {
+    const st = await s.first('SELECT first_name FROM students WHERE id = ?', studentId);
+    await pushTeacher(s, { title: (st ? st.first_name : 'Schüler') + ' hat etwas geschrieben', body, tag: 'neu-' + studentId, url: './#s=' + studentId, ts: Date.now() });
+  } catch (e) { console.log('Push:', e && e.message); }
+}
+
 async function lessonLive(s, studentId) {
   const t = now(); const w = await s.first('SELECT until FROM lesson_windows WHERE student_id = ? AND started_at <= ? AND until > ? ORDER BY until DESC LIMIT 1', studentId, t, t);
   return w ? w.until : null;
@@ -221,6 +260,11 @@ async function addSession(s, who, b) {
       [id, clientId, who.studentId, assignmentId, exerciseId, started, ended, b.local_date, secs, int(b.bpm_reached, 20, 400), int(b.feeling, 1, 5), str(b.note, 500), now()]],
     logRow(who, 'session', 'practice_sessions', id, `${Math.round(secs / 60)} min geübt`),
   ]);
+  const note = str(b.note, 500);
+  if (note && note.trim()) {
+    const ex = exerciseId ? await s.first('SELECT title FROM exercises WHERE id = ?', exerciseId) : assignmentId ? await s.first('SELECT COALESCE(e.title, a.free_text) AS title FROM assignments a LEFT JOIN exercises e ON e.id = a.exercise_id WHERE a.id = ?', assignmentId) : null;
+    await notifyTeacher(s, who.studentId, 'Notiz' + (ex && ex.title ? ' zu ' + ex.title : '') + ': ' + note.trim().slice(0, 140));
+  }
   return secs < seconds ? { id, trimmed: seconds - secs } : { id };
 }
 
@@ -246,7 +290,7 @@ async function teacherOverview(s) {
     st.has_parent = hasParent.has(st.id);
   }
   const cancellations = await s.all('SELECT student_id, date, kind FROM cancellations WHERE date >= ?', new Date(Date.now() - 14 * DAY).toISOString().slice(0, 10));
-  return { students, cancellations };
+  return { students, cancellations, news: await teacherNews(s) };
 }
 
 async function teacherStudent(s, id) {
@@ -315,6 +359,7 @@ async function deleteStudent(s, who, id) {
 function deleteStudentStatements(id) {
   return [
     ...missionDeleteStudentStatements(id),
+    ['DELETE FROM news_seen WHERE student_id = ?', [id]],
     ['DELETE FROM assignment_songs WHERE assignment_id IN (SELECT id FROM assignments WHERE student_id = ?)', [id]],
     ['DELETE FROM assignment_checks WHERE assignment_id IN (SELECT id FROM assignments WHERE student_id = ?)', [id]],
     ['DELETE FROM assignment_order WHERE assignment_id IN (SELECT id FROM assignments WHERE student_id = ?)', [id]],
@@ -712,11 +757,9 @@ async function route(env, req, path, body) {
     const n = (await s.first('SELECT COUNT(*) AS n FROM student_beats WHERE student_id = ?', who.studentId)).n;
     if (n >= 100) throw new HttpError(400, 'Du hast schon 100 Beats. Lösch erst einen alten.');
     const id = uid(); await s.run('INSERT INTO student_beats (id, student_id, song_id, title, notation, created_at, updated_at) VALUES (?, ?, ?, ?, ?, ?, ?)', id, who.studentId, songId, title, nt, t, t);
-    // Nur neue Vorschläge melden, Bearbeitungen nicht. Fehler beim Push dürfen das Speichern nie stören.
-    try {
-      const st = await s.first('SELECT first_name FROM students WHERE id = ?', who.studentId), sg = songId ? await s.first('SELECT title FROM songs WHERE id = ?', songId) : null;
-      await pushTeacher(s, { title: 'Neuer Beat Vorschlag', body: (st ? st.first_name : 'Schüler') + ': ' + title + (sg ? ' (Baustein zu ' + sg.title + ')' : ''), tag: 'beat-' + id, url: './#s=' + who.studentId, ts: Date.now() });
-    } catch (e) { console.log('Push:', e && e.message); }
+    // Nur neue Vorschläge melden, Bearbeitungen nicht (die stehen in "Neu seit deinem letzten Besuch").
+    const sg = songId ? await s.first('SELECT title FROM songs WHERE id = ?', songId) : null;
+    await notifyTeacher(s, who.studentId, 'Neuer Beat Vorschlag: ' + title + (sg ? ' (Baustein zu ' + sg.title + ')' : ''));
     return { id };
   }
   if (path === '/api/goal/add' || path === '/api/goal/toggle') {
@@ -729,6 +772,7 @@ async function route(env, req, path, body) {
       if (n >= 20) throw new HttpError(400, 'Höchstens 20 offene Ziele.');
       const id = uid();
       await s.batch([['INSERT INTO goals (id, student_id, title, status, created_at) VALUES (?, ?, ?, ?, ?)', [id, who.studentId, title, 'offen', now()]], logRow(who, 'create', 'goals', id, 'Eigenes Ziel: ' + title)]);
+      await notifyTeacher(s, who.studentId, 'Neues Ziel: ' + title);
       return { id };
     }
     const g = await s.first('SELECT id, status FROM goals WHERE id = ? AND student_id = ?', String(body.id || ''), who.studentId);
@@ -978,6 +1022,14 @@ async function route(env, req, path, body) {
       if (!name && !color) await s.batch([['DELETE FROM student_app WHERE student_id = ?', [st.id]]]);
       else await s.batch([['INSERT INTO student_app (student_id, app_name, color) VALUES (?, ?, ?) ON CONFLICT(student_id) DO UPDATE SET app_name = excluded.app_name, color = excluded.color', [st.id, name, color]]]);
       return { ok: true, app: name || color ? { app_name: name, color } : null };
+    }
+    case '/api/t/news': return { news: await teacherNews(s) };
+    case '/api/t/news/seen': {
+      // Ohne student_id: alles gesehen. Mit student_id: nur dieser Schüler.
+      const t = now(), id = str(body.student_id, 64);
+      const ids = id ? [id] : (await s.all("SELECT id FROM students WHERE status != 'archiviert'")).map((r) => r.id);
+      if (ids.length) await s.batch(ids.map((x) => ['INSERT INTO news_seen (student_id, seen_at) VALUES (?, ?) ON CONFLICT(student_id) DO UPDATE SET seen_at = excluded.seen_at', [x, t]]));
+      return { ok: true };
     }
     case '/api/t/push/key': return { publicKey: (await vapidKeys(s)).publicKey };
     case '/api/t/push/subscribe': {

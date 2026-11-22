@@ -246,9 +246,9 @@ details.card summary{cursor:pointer;font-family:var(--display);font-size:1.08rem
 </head>
 <body>
 <div id="app"><div class="wrap"><p class="muted">Lädt …</p></div></div>
-<script src="notation.js?v=117"></script>
-<script src="guitar.js?v=117"></script>
-<script src="transpose.js?v=117"></script>
+<script src="notation.js?v=118"></script>
+<script src="guitar.js?v=118"></script>
+<script src="transpose.js?v=118"></script>
 <script>
 'use strict';
 // ---------- Grundlagen ----------
@@ -370,7 +370,7 @@ async function pushOn() {
 }
 async function pushOff() { const reg = await navigator.serviceWorker.getRegistration(); const sub = reg && await reg.pushManager.getSubscription(); if (sub) { try { await api('/api/t/push/unsubscribe', { endpoint: sub.endpoint }); } catch (e) {} await sub.unsubscribe(); } S.pushState = 'aus'; render(); toast('Benachrichtigungen aus'); }
 // Antippen der Meldung öffnet die Akte des Schülers (#s=ID)
-async function openFromHash() { const m = /[#&]s=([A-Za-z0-9-]+)/.exec(location.hash); if (!m || S.role !== 'teacher') return; history.replaceState(null, '', location.pathname + location.search); try { await openStudent(m[1]); } catch (e) {} }
+async function openFromHash() { const m = /[#&]s=([A-Za-z0-9-]+)/.exec(location.hash); if (!m || S.role !== 'teacher') return; history.replaceState(null, '', location.pathname + location.search); newsSeen(m[1]); try { await openStudent(m[1]); } catch (e) {} }
 if ('serviceWorker' in navigator) navigator.serviceWorker.addEventListener('message', (e) => { if (e.data && e.data.type === 'open' && S.role === 'teacher') { const m = /[#&]s=([A-Za-z0-9-]+)/.exec(e.data.url || ''); if (m) openStudent(m[1]); } });
 async function boot() {
   const m = /[#&]c=([A-Za-z0-9-]+)/.exec(location.hash);
@@ -532,6 +532,35 @@ function libListHTML(ex) {
 function libRefresh() { const ex = S.exercises || []; const l = $('#libList'), c = $('#libCats'); if (l) l.innerHTML = libListHTML(ex); if (c) c.innerHTML = libCatsHTML(ex); }
 document.addEventListener('input', (ev) => { if (ev.target.id === 'libQ') { S.libQ = ev.target.value; libRefresh(); } });
 document.addEventListener('toggle', (ev) => { const m = ev.target.dataset && ev.target.dataset.lib; if (m == null || S.libQ || S.libCat) return; S.libOpen = (S.libOpen || []).filter((x) => x !== m).concat(ev.target.open ? [m] : []); }, true);
+// Neu seit deinem letzten Besuch (Otis Wunsch 21.11.2026): was Schüler selbst geschrieben haben. Antippen öffnet den Schüler und hakt ihn als gesehen ab.
+const NEWS_KIND = { note: 'Notiz', goal: 'Neues Ziel', goal_done: 'Ziel erreicht', beat: 'Neuer Beat', beat_edit: 'Beat bearbeitet' };
+function newsLine(it) {
+  const head = NEWS_KIND[it.kind] || 'Neu';
+  const extra = it.kind === 'note' ? (it.title ? ' zu ' + it.title : '') + (it.minutes ? ' (' + it.minutes + ' min geübt)' : '') : (it.kind === 'beat' || it.kind === 'beat_edit') && it.song ? ' (Baustein zu ' + it.song + ')' : '';
+  const body = it.kind === 'note' ? '„' + it.text + '“' : it.text;
+  return `<span class="col" style="gap:0"><span class="small muted">${esc(head + extra)} · ${esc(fmtDate(it.at))}, ${esc(new Date(it.at).toLocaleTimeString('de-DE', { hour: '2-digit', minute: '2-digit' }))}</span><span>${esc(body)}</span></span>`;
+}
+function newsCard() {
+  const g = (S.data && S.data.news) || [];
+  if (!g.length) return '';
+  const n = g.reduce((t, x) => t + x.items.length, 0);
+  return `<section class="card" aria-label="Neu seit deinem letzten Besuch" id="newsCard">
+    <div class="row between"><h3>Neu seit deinem letzten Besuch <span class="pill">${n}</span></h3><button class="btn small" data-act="newsSeen">Alles gesehen</button></div>
+    <div class="list">${g.map((x) => `<div class="item" style="align-items:flex-start"><button class="link t" data-act="newsOpen" data-id="${x.student_id}" style="text-align:left">
+      <b>${esc(x.first_name)}</b><span class="col" style="gap:8px;margin-top:4px">${x.items.map(newsLine).join('')}</span></button></div>`).join('')}</div>
+  </section>`;
+}
+async function newsSeen(id) {
+  if (S.data && S.data.news) S.data.news = id ? S.data.news.filter((x) => x.student_id !== id) : [];
+  try { await api('/api/t/news/seen', id ? { student_id: id } : {}); } catch (e) {}
+}
+// Beim Zurückkommen in die App (iPhone lädt die Seite dann nicht neu) Heute frisch holen, höchstens einmal pro Minute
+let newsAt = 0;
+document.addEventListener('visibilitychange', async () => {
+  if (document.visibilityState !== 'visible' || S.role !== 'teacher' || S.overlay || S.tab !== 'heute' || Date.now() - newsAt < 60000) return;
+  newsAt = Date.now();
+  try { S.data = await api('/api/home'); render(); } catch (e) {}
+});
 function teacherView() {
   const t = S.tab;
   let html = '';
@@ -539,6 +568,7 @@ function teacherView() {
     const cur = currentStudent(), list = todayStudents();
     const n = nowMinutes();
     html = `<div class="row between"><h1>Heute</h1><span class="pill">${esc(new Date().toLocaleDateString('de-DE', { weekday: 'long', day: 'numeric', month: 'long' }))}</span></div>
+    ${newsCard()}
     ${cur ? `<section class="card" aria-label="Gerade dran">
       <div class="row between"><div class="col" style="gap:2px"><span class="muted small">${(() => { const tt = toMin(cur.lesson_time); return n >= tt - 10 ? 'Gerade dran' : 'Als Nächstes'; })()}</span><h2 style="font-size:1.8rem">${esc(cur.first_name)}</h2></div>
       <span class="pill">${esc(cur.lesson_time || '')} · ${cur.lesson_minutes || 45} min</span></div>
@@ -2214,6 +2244,8 @@ document.addEventListener('click', async (ev) => {
       case 'mbLeaveStay': { const d = document.getElementById('mbLeave'); if (d) d.remove(); break; }
       case 'close': if (S.overlay === myBeatView && S.mbSnap && mbState() !== S.mbSnap) { mbAskLeave(); break; } S.mbSnap = null; S.newLink = null; if (S.overlay === myBeatView && S.myBeat && S.myBeat.teacher) { DrumNotation.stop(); openOverlay(studentFileView); break; } if (S.overlay === myBeatView && S.myBeatBack) { DrumNotation.stop(); backToPracticeFromBeat(); break; } closeOverlay(); break;
       case 'student': S.newLink = null; S.allLessons = false; openStudent(id); break;
+      case 'newsOpen': newsSeen(id); S.newLink = null; S.allLessons = false; openStudent(id); break;
+      case 'newsSeen': await newsSeen(); render(); toast('Alles gesehen'); break;
       case 'allLessons': S.allLessons = true; render(); break;
       case 'lesson': openLesson(id); break;
       case 'newStudent': openOverlay(() => studentForm()); break;

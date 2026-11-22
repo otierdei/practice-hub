@@ -187,4 +187,10 @@ CREATE TABLE IF NOT EXISTS cancellations (
   created_at TEXT NOT NULL,
   UNIQUE (student_id, date)
 );
+
+-- Neu seit dem letzten Besuch (Otis Wunsch 21.11.2026): wann Oti die Neuigkeiten eines Schülers zuletzt gesehen hat
+CREATE TABLE IF NOT EXISTS news_seen (
+  student_id TEXT PRIMARY KEY,
+  seen_at TEXT NOT NULL
+);
 `;

@@ -1127,3 +1127,40 @@ test('Triolen Zusätze bleiben beim Speichern erhalten, 20 Takte erlaubt', async
   assert.equal(n.bars, 20); assert.deepEqual(n.tracks.bd, [0, 319]);
   assert.deepEqual(n.tdyn, { 'sn:1:0': 'a', 'sn:1:2': 's' }); assert.deepEqual(n.tflam, { 'sn:1:4': 1 }); assert.deepEqual(n.tstick, { '1:0': 'R', '1:1': 'L' });
 });
+
+test('Neu seit dem letzten Besuch: Notizen, eigene Ziele, Beats; Gesehen pro Schüler; Push gebündelt', async () => {
+  const w = await world();
+  const kp = await crypto.subtle.generateKey({ name: 'ECDH', namedCurve: 'P-256' }, true, ['deriveBits']);
+  const b64 = (u) => Buffer.from(u).toString('base64url');
+  const keys = { p256dh: b64(new Uint8Array(await crypto.subtle.exportKey('raw', kp.publicKey))), auth: b64(crypto.getRandomValues(new Uint8Array(16))) };
+  const sent = []; const real = globalThis.fetch;
+  globalThis.fetch = async (u, o) => { sent.push({ u: String(u), h: o && o.headers }); return new Response(null, { status: 201 }); };
+  try {
+    await w.call('/api/t/push/subscribe', { endpoint: 'https://push.example/neu', keys }, w.t);
+    const start = new Date(Date.now() - 600000).toISOString(), end = new Date(Date.now() - 60000).toISOString(), day = end.slice(0, 10);
+    const base = { started_at: start, ended_at: end, local_date: day, seconds: 540 };
+    await w.call('/api/session/add', { ...base, client_id: 'n0' }, w.ta);
+    assert.equal(sent.length, 0, 'ohne Notiz kein Push');
+    await w.call('/api/session/add', { ...base, client_id: 'n1', exercise_id: w.ex, note: 'Takt 3 klappt nicht' }, w.ta);
+    assert.equal(sent.length, 1, 'Notiz meldet'); assert.equal(sent[0].h.Topic, 'neu-' + w.a, 'ein Tag pro Schüler, neue Meldung ersetzt alte');
+    await w.call('/api/goal/add', { title: 'Fill auf 100' }, w.tb); assert.equal(sent.length, 2, 'eigenes Ziel meldet');
+    const nt = { sig: '4/4', bars: 1, tracks: { bd: [0], sn: [4] } };
+    const bid = (await w.call('/api/my/beat/save', { title: 'Mein Fill', notation: nt }, w.tb)).data.id; assert.equal(sent.length, 3, 'neuer Beat meldet');
+    let news = (await w.call('/api/home', {}, w.t)).data.news;
+    const A = news.find((g) => g.student_id === w.a), B = news.find((g) => g.student_id === w.b);
+    assert.equal(A.items.length, 1); assert.equal(A.items[0].kind, 'note'); assert.equal(A.items[0].text, 'Takt 3 klappt nicht'); assert.equal(A.items[0].title, 'Paradiddle Groove');
+    assert.deepEqual(B.items.map((x) => x.kind).sort(), ['beat', 'goal']);
+    assert.ok(!JSON.stringify(news).includes('Groove auf 96'), 'Ziele von Oti zählen nicht');
+    assert.equal((await w.call('/api/t/news', {}, w.ta)).status, 403, 'Schüler sieht keine Neuigkeiten');
+    await w.call('/api/t/news/seen', { student_id: w.a }, w.t);
+    news = (await w.call('/api/t/news', {}, w.t)).data.news;
+    assert.ok(!news.find((g) => g.student_id === w.a), 'Anna gesehen'); assert.ok(news.find((g) => g.student_id === w.b), 'Ben noch neu');
+    await w.call('/api/t/news/seen', {}, w.t);
+    assert.equal((await w.call('/api/t/news', {}, w.t)).data.news.length, 0, 'alles gesehen');
+    await new Promise((r) => setTimeout(r, 5));
+    await w.call('/api/my/beat/save', { id: bid, title: 'Mein Fill 2', notation: nt }, w.tb);
+    assert.equal(sent.length, 3, 'Bearbeiten ohne Push');
+    news = (await w.call('/api/t/news', {}, w.t)).data.news;
+    assert.equal(news[0].items[0].kind, 'beat_edit', 'Bearbeitung steht trotzdem in der Karte');
+  } finally { globalThis.fetch = real; }
+});
