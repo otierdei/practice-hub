@@ -537,6 +537,34 @@ let n = 0; const ok = (m) => console.log('ok ' + (++n) + ' ' + m);
   await t.evaluate(() => { S.lesson = null; closeOverlay(); });
   ok('Gitarrenschüler: keine Beats, Gitarren Übung aufgeben, Akkordwechsel Trainer, Gitarre zum Song');
 
+  // Roadmap (23.11.2026): iReal Import im Song, Player mit Schlagzeug, Gitarre, Capo, Nashville, Abspielen, Loop; Playlist Import
+  await t.evaluate(async () => { closeOverlay(); const r = await api('/api/t/song/create', { title: 'Blues - Simple' }); S.songs = await api('/api/songs'); await openSong(r.id); });
+  await t.locator('#rm_link').fill('irealb://Blues%20-%20Simple%3DExercise%3D%3DShuffle%3DA%3D4%3D1r34LbKcu7X7EZL7XyQKyX7AZL%20lcKQyX7ZDL%20x%20ZL%20x%20ZL%20lcQKcl%20A44T%5ByQ%7CD7XyQ%7CA7XyQKcl%20%20Z%20%3D%3D90%3D6===');
+  await t.click('#rmImportForm button[type=submit]'); await t.getByText('Roadmap übernommen').first().waitFor();
+  assert.match(await t.textContent('.rm-cheat'), /Blues/);
+  await t.click('[data-act=rmOpen]'); await t.locator('.rm-bar').first().waitFor();
+  assert.equal(await t.locator('.rm-bar').count(), 12, '12 Takte Blues');
+  await t.click('[data-act=rmView][data-v=guitar]'); assert.match(await t.textContent('.rm-grid'), /A7/);
+  await t.click('#rmOpts summary');
+  await t.click('[data-act=rmSemi][data-v="-1"]'); await t.click('[data-act=rmSemi][data-v="-1"]'); assert.match(await t.textContent('.rm-grid'), /G7/, 'zwei Halbtöne tiefer');
+  await t.click('[data-act=rmSemi][data-v="0"]');
+  const capoBtn = t.locator('[data-act=rmCapo]').nth(1); await capoBtn.click(); assert.ok(await t.locator('.gt-chord').count() > 0 || await t.locator('.rm-shapes svg').count() > 0, 'Griffbilder');
+  await t.click('[data-act=rmView][data-v=nash]'); assert.match(await t.textContent('.rm-grid'), /17/, 'Nashville 1 7');
+  await t.click('[data-act=rmView][data-v=drums]');
+  await t.click('[data-act=rmBpm][data-v="5"]'); assert.equal(await t.textContent('#rmBpm'), '95');
+  await t.click('[data-act=rmCountIn][data-v="0"]');
+  await t.click('[data-act=rmPlay]'); await t.locator('.rm-bar.on').first().waitFor({ timeout: 4000 });
+  await t.click('[data-act=rmPlay]'); assert.equal(await t.locator('.rm-bar.on').count(), 0, 'Stopp setzt Cursor zurück');
+  await t.click('[data-act=rmLoop][data-v="0"]'); assert.equal(await t.locator('.rm-sec.loop').count(), 1);
+  await t.click('[data-act=rmTrainer]'); assert.equal(await t.getAttribute('[data-act=rmTrainer]', 'aria-pressed'), 'true');
+  await t.click('[data-act=rmClose]'); await t.locator('[data-act=rmOpen]').waitFor();
+  await t.evaluate(() => closeOverlay()); await t.click('[data-tab=songs]'); await t.click('[data-act=songLang][data-v=unterricht]');
+  await t.locator('#rmPlBox summary').click(); await t.locator('#rmpl_link').fill('irealb://Blues%20-%20Simple%3DExercise%3D%3DShuffle%3DA%3D4%3D1r34LbKcu7X7EZL7XyQKyX7AZL%20lcKQyX7ZDL%20x%20ZL%20x%20ZL%20lcQKcl%20A44T%5ByQ%7CD7XyQ%7CA7XyQKcl%20%20Z%20%3D%3D90%3D6==='); await t.selectOption('#rmpl_kind', 'jazz');
+  await t.click('#rmPlForm button[type=submit]'); await t.getByText(/1 von 1 Songs übernommen/).first().waitFor();
+  assert.ok(await t.evaluate(() => S.songs.songs.some((x) => x.title === 'Blues - Simple' && x.kind === 'jazz' && x.rm)), 'Kategorie Jazz und Roadmap');
+  await t.click('[data-act=songKind][data-v=jazz]'); assert.match(await t.textContent('#songList'), /Blues - Simple/);
+  ok('Roadmap: iReal Import, Player (Schlagzeug, Gitarre, Capo, Nashville, Abspielen, Loop), Playlist als Jazz Einstieg');
+
   // Kurs: Lektion hinzufügen und bearbeiten, Level anlegen
   await t.evaluate(() => closeOverlay()); await t.click('[data-tab=bibliothek]'); await t.click('[data-act=course][data-course=drums]');
   if (await t.locator('[data-act=clAdd]').count() === 0) { await t.fill('#lv_name', 'E2E Level'); await t.click('#levelAddForm button[type=submit]'); await t.getByText('Level angelegt').first().waitFor(); }

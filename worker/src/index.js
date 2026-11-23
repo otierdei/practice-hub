@@ -873,7 +873,7 @@ async function route(env, req, path, body) {
       const cur = await s.first('SELECT state, kind FROM song_teaching WHERE song_id = ?', song.id) || {};
       const state = body.state === undefined ? cur.state || null : ({ on: 'on', hidden: 'hidden', off: null })[body.state];
       if (body.state !== undefined && state === undefined) throw new HttpError(400, 'Unbekannter Status.');
-      const kind = body.kind === undefined ? cur.kind || null : (['worship', 'andere'].includes(body.kind) ? body.kind : null);
+      const kind = body.kind === undefined ? cur.kind || null : (['worship', 'andere', 'jazz'].includes(body.kind) ? body.kind : null);
       await s.run('INSERT INTO song_teaching (song_id, state, kind, updated_at) VALUES (?, ?, ?, ?) ON CONFLICT(song_id) DO UPDATE SET state = excluded.state, kind = excluded.kind, updated_at = excluded.updated_at', song.id, state, kind, now());
       return { ok: true, state, kind };
     }

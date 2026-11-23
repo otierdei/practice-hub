@@ -242,13 +242,34 @@ html,body,button,a,input,select,textarea,label,summary,svg,.nt-cell{touch-action
 .nt-sr{position:absolute;width:1px;height:1px;overflow:hidden;clip:rect(0 0 0 0)}
 details.card summary{cursor:pointer;font-family:var(--display);font-size:1.08rem}
 @media (prefers-reduced-motion: reduce){*{transition:none!important;animation:none!important}}
+.rm-cheat{font-family:'Young Serif',serif;font-size:1.15rem;letter-spacing:.04em;margin:0}
+.rm-sec{display:flex;flex-direction:column;gap:8px;padding:10px;border-radius:16px;border:1px solid transparent}
+.rm-sec.loop{border-color:var(--accent);background:var(--sunk)}
+.rm-head{display:flex;align-items:center;gap:8px;flex-wrap:wrap}.rm-head b{font-size:1rem}
+.rm-pass{font-size:.8rem;color:var(--accent);font-weight:600}
+.rm-grid{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:5px}
+.rm-wrap{padding-bottom:150px}
+.rm-dock{position:fixed;left:0;right:0;bottom:0;z-index:20;background:var(--surface);border-top:1px solid var(--line);padding:10px 12px calc(10px + env(safe-area-inset-bottom));display:flex;flex-direction:column;gap:8px}
+.rm-dock-in{display:flex;align-items:center;gap:10px;max-width:640px;margin:0 auto;width:100%}
+.rm-bar{min-height:58px;border:1px solid var(--line);border-radius:12px;background:var(--surface);color:var(--ink);display:flex;flex-direction:column;align-items:flex-start;justify-content:center;gap:3px;padding:6px 8px;text-align:left;cursor:pointer;touch-action:manipulation;font:inherit}
+.rm-bar.on{background:var(--accent);color:var(--accent-ink);border-color:transparent}
+.rm-bar.on .rm-sub,.rm-bar.on .rm-note,.rm-bar.on .rm-beat{color:var(--accent-ink);opacity:.85}
+.rm-ch{font-weight:700;font-size:1.05rem;line-height:1.15;word-break:break-word}.rm-ch.many{font-size:.9rem}.rm-ch.empty{opacity:.35}
+.rm-sub{font-size:.78rem;color:var(--muted);display:flex;flex-wrap:wrap;gap:2px 8px}.rm-mark{font-weight:600;white-space:nowrap}
+.rm-beat{color:var(--muted);letter-spacing:.2em;font-size:.85rem}.rm-note{font-size:.72rem;color:var(--muted)}
+.rm-count{min-width:44px;height:44px;border-radius:50%;display:inline-grid;place-items:center;font-size:1.4rem;font-weight:700;margin-left:auto}
+.rm-count.on{background:var(--accent);color:var(--accent-ink)}
+.rm-shapes{display:flex;flex-wrap:wrap;gap:10px}
+.rm-opts summary .small{font-family:var(--body);font-size:.85rem;margin-left:6px}.rm-opts{padding:12px 16px}
+@media (max-width:480px){.rm-bar{padding:5px 5px;min-height:52px;border-radius:10px}.rm-ch{font-size:.92rem}.rm-ch.many{font-size:.74rem}.rm-sub{font-size:.66rem}.rm-mark{white-space:normal}.rm-sec{padding:8px 6px}}
 </style>
 </head>
 <body>
 <div id="app"><div class="wrap"><p class="muted">Lädt …</p></div></div>
-<script src="notation.js?v=122"></script>
-<script src="guitar.js?v=122"></script>
-<script src="transpose.js?v=122"></script>
+<script src="notation.js?v=123"></script>
+<script src="guitar.js?v=123"></script>
+<script src="roadmap.js?v=123"></script>
+<script src="transpose.js?v=123"></script>
 <script>
 'use strict';
 // ---------- Grundlagen ----------
@@ -1413,7 +1434,7 @@ document.addEventListener('input', (ev) => { if (ev.target.id !== 'ms_song') ret
 const ICON_NOTE = '<svg viewBox="0 0 24 24" width="30" height="30" aria-hidden="true"><path d="M9 18V5l11-2v13" stroke="currentColor" stroke-width="2" fill="none"/><circle cx="6" cy="18" r="3" fill="currentColor"/><circle cx="17" cy="16" r="3" fill="currentColor"/></svg>';
 function fmtSunday(d) { return new Date(d + 'T12:00:00').toLocaleDateString('de-DE', { weekday: 'long', day: 'numeric', month: 'long' }); }
 function driveUrl(id) { return 'https://drive.google.com/file/d/' + encodeURIComponent(id) + '/view'; }
-function songMeta(x) { return [x.keys && x.keys.length ? x.keys.join(' / ') : '', x.bpm ? x.bpm + ' BPM' : '', x.parts ? x.parts + ' Video' + (x.parts > 1 ? 's' : '') : ''].filter(Boolean).join(' · '); }
+function songMeta(x) { return [x.keys && x.keys.length ? x.keys.join(' / ') : '', x.bpm ? x.bpm + ' BPM' : '', x.parts ? x.parts + ' Video' + (x.parts > 1 ? 's' : '') : '', x.rm ? 'Roadmap' : ''].filter(Boolean).join(' · '); }
 // Farbmarken für Gitarrenschüler (Otis Wunsch 19.11.2026): A nur Gitarrenvideo, B nur Schlagzeugvideo, C beides
 const VID_MARK = { g: ['vm-g', 'Gitarrenvideo'], d: ['vm-d', 'Nur Schlagzeugvideo'], b: ['vm-b', 'Gitarren und Schlagzeugvideo'] };
 const vidKind = (x) => (x.gv && x.dv ? 'b' : x.gv ? 'g' : x.dv ? 'd' : '');
@@ -1447,9 +1468,9 @@ function songsTab(teacher) {
     <section class="col"><h2>Alle Songs <span class="muted small">(${sg.songs.length})</span></h2>${vidLegend()}
       <input id="songQ" type="search" placeholder="Song suchen" value="${esc(S.songQ || '')}" autocomplete="off">
       <div class="row" style="gap:6px">${[['', 'Alle'], ['de', 'Deutsch'], ['en', 'Englisch'], ['unterricht', 'Unterricht']].map(([v, l]) => `<button class="chip" data-act="songLang" data-v="${v}" aria-pressed="${(S.songLang || '') === v}">${l}</button>`).join('')}<button class="chip" data-act="songVideos" aria-pressed="${!!S.songVideos}">Mit Videos</button></div>
-      ${S.songLang === 'unterricht' ? `<div class="row" style="gap:6px">${[['', 'Alle Unterrichtssongs'], ['worship', 'Worship'], ['andere', 'Andere']].map(([v, l]) => `<button class="chip" data-act="songKind" data-v="${v}" aria-pressed="${(S.songKind || '') === v}">${l} <span class="muted">${sg.songs.filter((x) => x.teach && (!v || x.kind === v)).length}</span></button>`).join('')}</div>` : ''}
+      ${S.songLang === 'unterricht' ? `<div class="row" style="gap:6px">${[['', 'Alle Unterrichtssongs'], ['worship', 'Worship'], ['jazz', 'Jazz Einstieg'], ['andere', 'Andere']].map(([v, l]) => `<button class="chip" data-act="songKind" data-v="${v}" aria-pressed="${(S.songKind || '') === v}">${l} <span class="muted">${sg.songs.filter((x) => x.teach && (!v || x.kind === v)).length}</span></button>`).join('')}</div>` : ''}
       <section class="card"><div class="list" id="songList">${songResults()}</div></section>
-      ${teacher && S.songLang === 'unterricht' ? songSuggestBox() : ''}</section>`;
+      ${teacher && S.songLang === 'unterricht' ? songSuggestBox() + rmPlaylistBox() : ''}</section>`;
 }
 // Vorschläge aus Stundennotizen: Songs, die in Notizen vorkommen, aber noch nicht im Reiter Unterricht stehen
 function songSuggestBox() {
@@ -1466,7 +1487,7 @@ function songTeachRow(x) {
   if (!x) return '';
   return `<div class="row small" style="gap:6px;align-items:center;flex-wrap:wrap"><span class="muted">Unterricht:</span>
     <button class="chip" data-act="songTeach" data-v="${x.pinned ? 'off' : 'on'}" aria-pressed="${!!x.teach}" ${x.teach && !x.pinned ? 'disabled title="Aufgegeben oder selbst angelegt, steht automatisch im Unterricht"' : ''}>${x.teach ? 'Im Unterricht ✓' : 'Zum Unterricht'}</button>
-    ${[['worship', 'Worship'], ['andere', 'Andere']].map(([v, l]) => `<button class="chip" data-act="songKindSet" data-v="${v}" aria-pressed="${x.kind === v}">${l}</button>`).join('')}</div>`;
+    ${RM_KINDS.map(([v, l]) => `<button class="chip" data-act="songKindSet" data-v="${v}" aria-pressed="${x.kind === v}">${l}</button>`).join('')}</div>`;
 }
 // ---------- Gitarre zum Song: Tonart, Capo, Akkorde, Schlagmuster, Akkordblatt ----------
 function songGuitarHTML(d) {
@@ -1486,6 +1507,123 @@ function songGuitarSection(d, teacher) {
   return `<section class="col" style="gap:10px"><div class="row between"><h2>Gitarre</h2>${teacher ? `<button class="btn small" data-act="songGtEdit" data-v="1">${d.guitar ? 'Bearbeiten' : 'Akkorde hinzufügen'}</button>` : ''}</div>
     ${d.guitar ? songGuitarHTML(d) : '<p class="small muted">Noch keine Akkorde für Gitarrenschüler.</p>'}</section>`;
 }
+// ===== Song Roadmap (23.11.2026): ein Chart für Schlagzeug und Gitarre, Idee aus iReal Pro =====
+const RM_KINDS = [['worship', 'Worship'], ['jazz', 'Jazz Einstieg'], ['andere', 'Andere']];
+function rmState(d) {
+  const sid = d.song.id;
+  if (!S.rm || S.rm.song !== sid) S.rm = { song: sid, view: songInstr() === 'guitar' ? 'guitar' : 'drums', semi: 0, capo: 0, bpm: (d.roadmap && d.roadmap.bpm) || d.song.bpm || 80, countIn: 1, feel: null, loop: null, trainer: false, cur: -1, count: 0 };
+  return S.rm;
+}
+function rmKey(d) { const r = rmState(d), k = d.roadmap.key || ''; return k ? Roadmap.transposeKey(k, r.semi) : ''; }
+function rmChord(d, c) {
+  const r = rmState(d), key = rmKey(d);
+  if (c === 'N.C.' || c === '%') return c;
+  const sounding = Roadmap.transposeChord(c, r.semi, Roadmap.useFlats(key));
+  if (r.view === 'nash') return key ? Roadmap.nashville(sounding, key) : sounding;
+  if (r.view === 'guitar' && r.capo) return Roadmap.shapeChord(sounding, r.capo, Roadmap.transposeKey(key, -r.capo));
+  return sounding;
+}
+const RM_MARK_ICON = { hit: '●', fill: '≈', stop: '■', crash: '✱', build: '↗', cue: '▸' };
+document.addEventListener('toggle', (ev) => { if (ev.target && ev.target.id === 'rmOpts' && S.rm) S.rm.opts = ev.target.open; }, true);
+function songRoadmapSection(d, teacher) {
+  const rm = d.roadmap;
+  if (!rm && !teacher) return '';
+  const imp = teacher ? `<details class="card"${rm ? '' : ' open'}><summary><b>${rm ? 'Roadmap aus iReal Pro ersetzen' : 'Roadmap aus iReal Pro'}</b></summary>
+      <form id="rmImportForm" class="col" style="gap:8px;margin-top:8px"><p class="small muted">In iReal Pro: Song teilen, „iReal Pro Format“ oder einen Forum Link kopieren und hier einfügen. Übernommen werden nur Form und Akkorde.</p>
+      <textarea id="rm_link" rows="3" placeholder="irealb://…" aria-label="iReal Pro Link"></textarea><button class="btn small primary" type="submit">Übernehmen</button></form>
+      ${rm ? `<button class="btn small danger" data-act="rmDelete" style="margin-top:8px">${S.rmDel === d.song.id ? 'Wirklich entfernen?' : 'Roadmap entfernen'}</button>` : ''}</details>` : '';
+  if (!rm) return `<section class="col" style="gap:10px"><h2>Roadmap</h2><p class="small muted">Noch keine Roadmap. Eine Roadmap zeigt Form, Akkorde und Drum Marken Takt für Takt, für Schlagzeug und Gitarre.</p>${imp}</section>`;
+  const meta = [rm.key ? 'Tonart ' + rm.key : '', rm.sig, rm.bpm ? rm.bpm + ' BPM' : '', rm.style || '', Roadmap.totalBars(rm) + ' Takte'].filter(Boolean).join(' · ');
+  return `<section class="col" style="gap:10px"><div class="row between"><h2>Roadmap</h2><button class="btn small primary" data-act="rmOpen">Roadmap öffnen</button></div>
+    <p class="small muted" style="margin:0">${esc(meta)}</p><p class="rm-cheat" aria-label="Ablauf">${esc(Roadmap.cheatSheet(rm))}</p>${imp}</section>`;
+}
+function roadmapView() {
+  const d = S.song; if (!d || !d.roadmap) return '';
+  const rm = d.roadmap, r = rmState(d), key = rmKey(d), playing = Roadmap.isPlaying();
+  const bars = Roadmap.expand(rm); const cur = bars[r.cur] || null;
+  const caps = r.view === 'guitar' && key ? Roadmap.capoOptions(key) : [];
+  const chip = (act, v, on, label, extra = '') => `<button type="button" class="chip" data-act="${act}" data-v="${v}" aria-pressed="${!!on}" ${extra}>${label}</button>`;
+  const grid = rm.order.map((o, oi) => {
+    const sec = Roadmap.section(rm, o.s); if (!sec) return '';
+    const head = [Roadmap.label(sec), o.x > 1 ? o.x + '×' : '', o.feel && o.feel !== 'n' ? Roadmap.FEELS[o.feel] : '', o.dyn ? Roadmap.DYNS[o.dyn] : ''].filter(Boolean).join(' · ');
+    const pass = cur && cur.order === oi && o.x > 1 ? ` <span class="rm-pass">${cur.pass + 1}/${o.x}</span>` : '';
+    const cells = sec.bars.map((b, bi) => {
+      const on = cur && cur.order === oi && cur.bar === bi;
+      const first = bars.find((x) => x.order === oi && x.bar === bi && x.pass === 0);
+      const ch = (b.c || []).map((c) => rmChord(d, c));
+      const marks = (b.m || []).map((m) => `<span class="rm-mark" title="${esc(Roadmap.MARKS[m])}">${RM_MARK_ICON[m] || ''} ${esc(Roadmap.MARKS[m])}</span>`).join('');
+      const chords = ch.length ? `<span class="rm-ch${ch.length > 2 ? ' many' : ''}">${ch.map(esc).join(' ')}</span>` : '<span class="rm-ch empty">·</span>';
+      const body = r.view === 'drums' ? `${marks || '<span class="rm-beat">/ / / /</span>'}<span class="rm-sub">${ch.map(esc).join(' ')}</span>` : `${chords}${marks ? `<span class="rm-sub">${marks}</span>` : ''}`;
+      return `<button type="button" class="rm-bar${on ? ' on' : ''}" data-act="rmFrom" data-v="${first ? first.i : 0}" aria-label="Takt ${bi + 1} ${esc(Roadmap.label(sec))}${ch.length ? ': ' + esc(ch.join(' ')) : ''}">${body}${b.t ? `<span class="rm-note">${esc(b.t)}</span>` : ''}</button>`;
+    }).join('');
+    return `<section class="rm-sec${r.loop === oi ? ' loop' : ''}"><div class="rm-head"><b>${esc(head)}</b>${pass}${o.note ? `<span class="small muted">${esc(o.note)}</span>` : ''}
+      <button type="button" class="chip" data-act="rmLoop" data-v="${oi}" aria-pressed="${r.loop === oi}">${r.loop === oi ? 'Loop an' : 'Loop'}</button></div><div class="rm-grid">${cells}</div></section>`;
+  }).join('');
+  const shapes = r.view === 'guitar' ? [...new Set(bars.flatMap((b) => b.chords).filter((c) => c && c !== 'N.C.' && c !== '%').map((c) => rmChord(d, c)))] : [];
+  return `<div class="wrap rm-wrap" style="max-width:900px;align-items:stretch">
+    <div class="row between"><button class="btn small" data-act="rmClose">Zurück</button><span class="small muted">${esc(Roadmap.cheatSheet(rm))}</span></div>
+    <div class="col" style="gap:2px"><h1>${esc(d.song.title)}</h1><span class="muted small">${esc([key ? 'Tonart ' + key : '', rm.sig, rm.style || ''].filter(Boolean).join(' · '))}</span></div>
+    <div class="row" style="gap:6px">${chip('rmView', 'drums', r.view === 'drums', 'Schlagzeug')}${chip('rmView', 'guitar', r.view === 'guitar', 'Gitarre')}${chip('rmView', 'nash', r.view === 'nash', 'Nashville')}</div>
+    <details class="card rm-opts" id="rmOpts" ${r.opts ? 'open' : ''}><summary><b>Einstellungen</b> <span class="small muted">${esc([r.view !== 'drums' && key ? 'Tonart ' + key : '', r.capo ? 'Capo ' + r.capo : '', r.countIn ? r.countIn + ' Takt' + (r.countIn > 1 ? 'e' : '') + ' einzählen' : 'ohne Einzählen', r.feel ? Roadmap.FEELS[r.feel] : ''].filter(Boolean).join(' · '))}</span></summary>
+      <div class="col" style="gap:10px;margin-top:10px">
+      ${r.view !== 'drums' && rm.key ? `<div class="row" style="gap:8px;align-items:center"><span class="small muted">Tonart</span><button class="btn small" data-act="rmSemi" data-v="-1" aria-label="Halbton tiefer">−</button><b style="min-width:3ch;text-align:center">${esc(key)}</b><button class="btn small" data-act="rmSemi" data-v="1" aria-label="Halbton höher">+</button>${r.semi ? `<button class="chip" data-act="rmSemi" data-v="0">Original ${esc(rm.key)}</button>` : ''}</div>` : ''}
+      ${caps.length ? `<div class="row" style="gap:6px;align-items:center"><span class="small muted">Capo</span>${chip('rmCapo', 0, !r.capo, 'ohne')}${caps.filter((c) => c.capo).map((c) => chip('rmCapo', c.capo, r.capo === c.capo, `${c.capo} · ${esc(c.shape)} Griffe`)).join('')}</div>` : ''}
+      <div class="row" style="gap:6px;align-items:center"><span class="small muted">Einzählen</span>${chip('rmCountIn', 0, !r.countIn, 'aus')}${chip('rmCountIn', 1, r.countIn === 1, '1 Takt')}${chip('rmCountIn', 2, r.countIn === 2, '2 Takte')}</div>
+      <div class="row" style="gap:6px;align-items:center"><span class="small muted">Gefühl</span>${chip('rmFeel', '', !r.feel, 'wie im Chart')}${chip('rmFeel', 'h', r.feel === 'h', 'Halftime')}${chip('rmFeel', 'd', r.feel === 'd', 'Doubletime')}</div>
+      <p class="small muted" style="margin:0">Takt antippen startet dort. „Loop“ an einem Teil wiederholt ihn.</p></div></details>
+    <div class="rm-legend small muted">${r.view === 'drums' ? Object.entries(Roadmap.MARKS).map(([k, v]) => `${RM_MARK_ICON[k]} ${v}`).join(' · ') : r.view === 'nash' ? 'Zahlen relativ zur Tonart ' + esc(key) : r.capo ? `Griffe mit Capo im ${r.capo}. Bund, klingt in ${esc(key)}` : ''}</div>
+    <div class="col" style="gap:14px">${grid}</div>
+    ${shapes.length ? `<section class="col" style="gap:8px"><h2>Griffe</h2><div class="rm-shapes">${shapes.map((c) => Guitar.chordSVG(c, 0.8)).join('')}</div></section>` : ''}
+    <div class="rm-dock"><div class="rm-dock-in">${playBtn('rmPlay', '', playing, false, true)}
+      <button class="btn small" data-act="rmBpm" data-v="-5" aria-label="5 BPM langsamer">−5</button><div class="col" style="align-items:center;gap:0;min-width:48px"><b id="rmBpm" style="font-size:1.3rem">${r.bpm}</b><span class="small muted">BPM</span></div><button class="btn small" data-act="rmBpm" data-v="5" aria-label="5 BPM schneller">+5</button>
+      <span id="rmCount" class="rm-count${r.count ? ' on' : ''}" aria-live="polite">${r.count || ''}</span></div>
+      ${r.loop != null ? `<div class="row" style="gap:6px;justify-content:center">${chip('rmTrainer', '', r.trainer, 'Tempo üben: +5 pro Runde bis ' + rmTarget(d))}${chip('rmLoop', r.loop, true, 'Loop beenden')}</div>` : ''}</div>
+  </div>`;
+}
+function rmRefreshBars() {
+  const d = S.song; if (!d || !d.roadmap || S.overlay !== roadmapView) return;
+  const sh = $('.sheet'); const y = sh ? sh.scrollTop : 0; openOverlay(roadmapView); const sh2 = $('.sheet'); if (sh2) sh2.scrollTop = y;
+  const on = document.querySelector('.rm-bar.on'); if (on && sh2) { const rr = on.getBoundingClientRect(); if (rr.top < 80 || rr.bottom > window.innerHeight - 40) on.scrollIntoView({ block: 'center', behavior: 'smooth' }); }
+}
+function rmPlay() {
+  const d = S.song, r = rmState(d), rm = d.roadmap;
+  stopSound(); const ctx = DrumNotation.audio(); const s = metSet();
+  Roadmap.play(rm, { ctx, bpm: r.bpm, from: r.cur >= 0 && r.loop == null ? r.cur : null, loop: r.loop, countIn: r.countIn, feel: r.feel,
+    trainer: r.trainer && r.loop != null ? { add: 5, max: rmTarget(d) } : null,
+    click: (t, lvl) => DrumNotation.click(t, lvl >= 2 ? 2 : lvl >= 1 ? 1 : 0.5, s.sound, s.vol),
+    onCount: (n) => { r.count = n; const c = $('#rmCount'); if (c) { c.textContent = n; c.classList.add('on'); } },
+    onBar: (i) => { r.count = 0; r.cur = i; rmRefreshBars(); },
+    onTempo: (b) => { r.bpm = b; const el = $('#rmBpm'); if (el) el.textContent = b; toast(b + ' BPM'); },
+    onEnd: () => { r.cur = -1; rmRefreshBars(); } });
+  trkStart();
+}
+// Ziel für Tempo üben: Original Tempo; wer schon dort ist, übt 20 BPM darüber
+function rmTarget(d) { const r = rmState(d), orig = (d.roadmap && d.roadmap.bpm) || d.song.bpm || 0; return orig > r.bpm ? orig : Math.min(300, r.bpm + 20); }
+function rmStop() { if (Roadmap.isPlaying()) { Roadmap.stop(); trkStop(); } if (S.rm) S.rm.count = 0; }
+// iReal Playlist auf einmal übernehmen (Lehrer, Songs Reiter): legt Songs an, setzt Kategorie, Tempo und Roadmap
+function rmPlaylistBox() {
+  return `<details class="card" id="rmPlBox"><summary><b>iReal Pro Playlist übernehmen</b></summary>
+    <form id="rmPlForm" class="col" style="gap:8px;margin-top:8px"><p class="small muted">Playlist in iReal Pro exportieren (iReal Pro Format) oder einen Forum Link kopieren und hier einfügen. Songs, die es schon gibt, bekommen nur die Roadmap.</p>
+    <textarea id="rmpl_link" rows="3" placeholder="irealb://…" aria-label="iReal Pro Playlist Link"></textarea>
+    <div class="field" style="max-width:240px"><label for="rmpl_kind">Kategorie</label><select id="rmpl_kind">${RM_KINDS.map(([v, l]) => `<option value="${v}" ${v === 'jazz' ? 'selected' : ''}>${l}</option>`).join('')}</select></div>
+    <button class="btn small primary" type="submit">Übernehmen</button></form></details>`;
+}
+async function rmImportPlaylist(link, kind) {
+  const list = Roadmap.fromIreal(link); if (!list.length) throw new Error('Kein iReal Pro Link gefunden.');
+  const all = (S.songs || (S.songs = await api('/api/songs'))).songs; let made = 0, done = 0; const bad = [];
+  for (const it of list) {
+    const ex = all.find((x) => slugify(x.title) === slugify(it.title));
+    try {
+      const id = ex ? ex.id : (await api('/api/t/song/create', { title: it.title })).id; if (!ex) made++;
+      await api('/api/t/song/roadmap', { song_id: id, roadmap: it.roadmap });
+      await api('/api/t/song/teaching', { song_id: id, state: 'on', kind });
+      if (it.roadmap.bpm && !(ex && ex.bpm)) await api('/api/t/song/bpm', { song_id: id, bpm: it.roadmap.bpm, source: 'iReal Pro' });
+      done++;
+    } catch (e) { bad.push(it.title + ': ' + e.message); }
+  }
+  S.songs = await api('/api/songs');
+  return { total: list.length, done, made, bad };
+}
 function songView() {
   const d = S.song; if (!d) return '';
   const x = S.songs && S.songs.songs.find((y) => y.id === d.song.id);
@@ -1500,6 +1638,7 @@ function songView() {
     ${songAfterHTML(d)}
     ${teacher ? songTeachRow(x) : ''}
     ${songLinksSection(d, teacher)}
+    ${songRoadmapSection(d, teacher)}
     ${songGuitarSection(d, teacher)}
     ${teacher && d.playedBy && d.playedBy.length ? `<p class="small muted">Gespielt von: ${d.playedBy.map(esc).join(', ')}</p>` : ''}
     <section class="col${songInstr() === 'guitar' ? ' hidden' : ''}"><h2>Bausteine${songCurVersion(d) && songVersions(d).length > 1 ? ' · ' + esc(songCurVersion(d)) : ''}</h2>
@@ -2007,7 +2146,7 @@ function pauseRun(r, reason, upTo) {
   const end = Math.max(r.runningSince, Math.min(upTo || Date.now(), Date.now()));
   r.accumulated += end - r.runningSince; r.runningSince = null; r.paused = reason; store.set('run', r); releaseWake();
 }
-function stopSound() { try { metStop(); } catch (e) {} try { DrumNotation.stop(); } catch (e) {} try { if (window.Guitar && Guitar.isPlaying()) Guitar.stop(); } catch (e) {} }
+function stopSound() { try { if (window.Roadmap && Roadmap.isPlaying()) rmStop(); } catch (e) {} try { metStop(); } catch (e) {} try { DrumNotation.stop(); } catch (e) {} try { if (window.Guitar && Guitar.isPlaying()) Guitar.stop(); } catch (e) {} }
 function guardNoteHTML(r) {
   if (isWarmup(r)) return `<p class="small muted" style="text-align:center;margin:0">Beim Aufwärmen läuft die Zeit nur, solange Metronom oder Übung spielen.</p>`;
   const m = { hidden: 'Pausiert, weil die App im Hintergrund war oder der Bildschirm gesperrt wurde.', away: 'Pausiert, weil die App nicht offen war.', idle: 'Pausiert nach 5 Minuten ohne Metronom, Beat oder Video. Die stillen Minuten zählen nicht.' }[r.paused];
@@ -2493,6 +2632,19 @@ document.addEventListener('click', async (ev) => {
         await reloadCourse(); openOverlay(courseView); toast(next === 'offen' ? 'Als Hausaufgabe aufgegeben' : next === 'fertig' ? 'Geschafft' : 'Zurückgesetzt'); break;
       }
       case 'teacherConsent': await api('/api/t/consent', { student_id: S.file.student.id, how: 'liegt Oti vor' }); S.file = Object.assign(await api('/api/t/student', { id: S.file.student.id }), { course: S.file.course }); openOverlay(studentFileView); toast('Einwilligung eingetragen'); break;
+      case 'rmOpen': rmState(S.song); openOverlay(roadmapView); break;
+      case 'rmClose': rmStop(); openOverlay(songView); break;
+      case 'rmView': rmState(S.song).view = el.dataset.v; rmRefreshBars(); break;
+      case 'rmSemi': { const r = rmState(S.song); r.semi = el.dataset.v === '0' ? 0 : ((r.semi + Number(el.dataset.v) + 18) % 12) - 6; r.capo = 0; rmRefreshBars(); break; }
+      case 'rmCapo': rmState(S.song).capo = Number(el.dataset.v); rmRefreshBars(); break;
+      case 'rmBpm': { const r = rmState(S.song); r.bpm = Math.max(30, Math.min(300, r.bpm + Number(el.dataset.v))); Roadmap.setTempo(r.bpm); const b = $('#rmBpm'); if (b) b.textContent = r.bpm; break; }
+      case 'rmCountIn': rmState(S.song).countIn = Number(el.dataset.v); rmRefreshBars(); break;
+      case 'rmFeel': { const r = rmState(S.song); r.feel = el.dataset.v || null; const was = Roadmap.isPlaying(); rmRefreshBars(); if (was) rmPlay(); break; }
+      case 'rmLoop': { const r = rmState(S.song); const v = Number(el.dataset.v); r.loop = r.loop === v ? null : v; r.trainer = r.loop != null && r.trainer; const was = Roadmap.isPlaying(); rmStop(); r.cur = -1; rmRefreshBars(); if (was) { rmPlay(); rmRefreshBars(); } break; }
+      case 'rmTrainer': { const r = rmState(S.song); r.trainer = !r.trainer; rmRefreshBars(); if (Roadmap.isPlaying()) rmPlay(); break; }
+      case 'rmFrom': { const r = rmState(S.song); r.cur = Number(el.dataset.v); r.loop = null; rmPlay(); rmRefreshBars(); break; }
+      case 'rmPlay': if (Roadmap.isPlaying()) { rmStop(); rmState(S.song).cur = -1; } else rmPlay(); rmRefreshBars(); break;
+      case 'rmDelete': if (S.rmDel !== S.song.song.id) { S.rmDel = S.song.song.id; rerenderSong(); break; } S.rmDel = null; await api('/api/t/song/roadmap', { song_id: S.song.song.id, roadmap: null }); S.song = await api('/api/song', { id: S.song.song.id }); rerenderSong(); toast('Roadmap entfernt'); break;
       case 'song': S.songVersion = el.dataset.v || null; await openSong(id); break;
       case 'songVer': S.songVersion = el.dataset.v; openOverlay(songView); break;
       case 'songInstr': S.songInstrPick = el.dataset.v; S.songVersion = null; openOverlay(songView); break;
@@ -2748,6 +2900,18 @@ document.addEventListener('submit', async (ev) => {
   ev.preventDefault();
   const f = ev.target; const fid = f.getAttribute('id'); // nicht f.id: ein Feld name="id" überdeckt es
   try {
+    if (fid === 'rmImportForm') {
+      const list = Roadmap.fromIreal($('#rm_link').value); if (!list.length) { toast('Kein iReal Pro Link gefunden'); return; }
+      const want = slugify(S.song.song.title); const it = list.find((x) => slugify(x.title) === want) || list[0];
+      await api('/api/t/song/roadmap', { song_id: S.song.song.id, roadmap: it.roadmap });
+      S.song = await api('/api/song', { id: S.song.song.id }); S.songs = await api('/api/songs'); S.rm = null; rerenderSong(false); toast(list.length > 1 ? `Roadmap von „${it.title}“ übernommen` : 'Roadmap übernommen'); return;
+    }
+    if (fid === 'rmPlForm') {
+      const btn = f.querySelector('button[type=submit]'); btn.disabled = true; btn.textContent = 'Wird übernommen …';
+      try { const r = await rmImportPlaylist($('#rmpl_link').value, $('#rmpl_kind').value); S.songKind = $('#rmpl_kind').value; render(); toast(`${r.done} von ${r.total} Songs übernommen${r.made ? ', ' + r.made + ' neu angelegt' : ''}${r.bad.length ? '. Fehler: ' + r.bad.join('; ') : ''}`); }
+      finally { if (btn.isConnected) { btn.disabled = false; btn.textContent = 'Übernehmen'; } }
+      return;
+    }
     if (fid === 'loginForm') { S.loginError = null; await doLogin($('#code').value); }
     else if (fid === 'studentForm') {
       const data = Object.fromEntries(new FormData(f)); if (!data.id) delete data.id;

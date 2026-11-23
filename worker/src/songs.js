@@ -212,9 +212,9 @@ export async function songsHome(s, who) {
   const [lib, parts, mine, worship, meta, vids] = await Promise.all([
     s.all(`SELECT s.id, s.title, s.lang, GROUP_CONCAT(DISTINCT f.key_sig) AS keys, COALESCE(MAX(m.bpm), MAX(f.bpm)) AS bpm,
              (SELECT state FROM song_teaching WHERE song_id = s.id) AS t_state, (SELECT kind FROM song_teaching WHERE song_id = s.id) AS t_kind,
-             EXISTS (SELECT 1 FROM assignment_songs x WHERE x.song_id = s.id) AS assigned
+             EXISTS (SELECT 1 FROM assignment_songs x WHERE x.song_id = s.id) AS assigned, EXISTS (SELECT 1 FROM song_roadmap r WHERE r.song_id = s.id) AS rm
            FROM songs s LEFT JOIN song_files f ON f.song_id = s.id LEFT JOIN song_meta m ON m.song_id = s.id WHERE s.id NOT IN (SELECT song_id FROM song_hidden) GROUP BY s.id
-           HAVING COUNT(f.drive_id) > 0 OR s.lang = 'unterricht' OR EXISTS (SELECT 1 FROM song_teaching t WHERE t.song_id = s.id AND t.state = 'on') OR EXISTS (SELECT 1 FROM song_parts p WHERE p.song_id = s.id) OR EXISTS (SELECT 1 FROM song_links k WHERE k.song_id = s.id) ORDER BY s.title COLLATE NOCASE`),
+           HAVING COUNT(f.drive_id) > 0 OR s.lang = 'unterricht' OR EXISTS (SELECT 1 FROM song_roadmap r2 WHERE r2.song_id = s.id) OR EXISTS (SELECT 1 FROM song_teaching t WHERE t.song_id = s.id AND t.state = 'on') OR EXISTS (SELECT 1 FROM song_parts p WHERE p.song_id = s.id) OR EXISTS (SELECT 1 FROM song_links k WHERE k.song_id = s.id) ORDER BY s.title COLLATE NOCASE`),
     s.all('SELECT song_id, COUNT(*) AS n FROM (SELECT song_id FROM song_parts UNION ALL SELECT song_id FROM song_links) GROUP BY song_id'),
     studentId ? s.all('SELECT song_id FROM student_songs WHERE student_id = ? ORDER BY added_at', studentId) : [],
     studentId ? s.first('SELECT 1 AS w FROM worship_students WHERE student_id = ?', studentId) : { w: 1 },
@@ -225,7 +225,7 @@ export async function songsHome(s, who) {
   const pn = {}; for (const p of parts) pn[p.song_id] = p.n;
   const vid = {}; for (const v of vids) (vid[v.song_id] = vid[v.song_id] || {})[v.instr === 'guitar' ? 'g' : 'd'] = 1;
   const songs = lib.map((x) => ({ id: x.id, title: x.title, lang: x.lang, keys: (x.keys || '').split(',').filter(Boolean), bpm: x.bpm, parts: pn[x.id] || 0,
-    teach: x.t_state === 'on' || x.lang === 'unterricht' || !!x.assigned, pinned: x.t_state === 'on', kind: songKind(x), gv: !!(vid[x.id] || {}).g, dv: !!(vid[x.id] || {}).d }));
+    teach: x.t_state === 'on' || x.lang === 'unterricht' || !!x.assigned, pinned: x.t_state === 'on', kind: songKind(x), gv: !!(vid[x.id] || {}).g, dv: !!(vid[x.id] || {}).d, rm: !!x.rm }));
   return { songs, mine: mine.map((m) => m.song_id), sunday: worship ? await sundaySetlist(s) : null, worship: !!worship, synced: meta ? JSON.parse(meta.v) : null };
 }
 

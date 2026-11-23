@@ -1198,8 +1198,13 @@ test('Roadmap: speichern, prüfen, lesen (Schüler), löschen, nur Lehrer schrei
   assert.equal((await w.call('/api/t/song/roadmap', { song_id: sg, roadmap: long }, w.t)).status, 400);
   assert.equal((await w.call('/api/t/song/roadmap', { song_id: sg, roadmap: rm }, w.ta)).status, 403);
   assert.equal((await w.call('/api/t/song/roadmap', { song_id: 'nix', roadmap: rm }, w.t)).status, 404);
+  const home = (await w.call('/api/songs', {}, w.ta)).data.songs.find((x) => x.id === sg);
+  assert.equal(home.rm, true);
+  await w.call('/api/t/song/teaching', { song_id: sg, state: 'on', kind: 'jazz' }, w.t);
+  assert.equal((await w.call('/api/songs', {}, w.t)).data.songs.find((x) => x.id === sg).kind, 'jazz');
   await w.call('/api/t/song/roadmap', { song_id: sg, roadmap: null }, w.t);
   assert.equal((await w.call('/api/song', { id: sg }, w.ta)).data.roadmap, null);
+  assert.equal((await w.call('/api/songs', {}, w.ta)).data.songs.find((x) => x.id === sg).rm, false);
 });
 
 test('Roadmap Logik: Ablauf, Cheat Sheet, Transponieren, Nashville, Capo', async () => {
@@ -1227,4 +1232,20 @@ test('Roadmap Logik: Ablauf, Cheat Sheet, Transponieren, Nashville, Capo', async
   assert.equal(R.shapeChord('B', 4, 'G'), 'G'); assert.equal(R.shapeChord('F#/A#', 4, 'G'), 'D/F#');
   assert.equal(R.keyCycle('C').length, 12); assert.equal(new Set(R.keyCycle('C')).size, 12);
   assert.equal(R.cheatSheet({ sections: [{ id: 'a', type: 'verse', name: 'Strophe 1', bars: [] }, { id: 'b', type: 'verse', name: 'Strophe 2', bars: [] }], order: [{ s: 'a' }, { s: 'b' }] }), 'V1 V2');
+});
+
+test('Roadmap: iReal Pro Import (Otis Playlist) besteht die Server Prüfung', async () => {
+  const fs = await import('node:fs');
+  const { createRequire } = await import('node:module');
+  const { cleanRoadmap } = await import('../src/roadmap.js');
+  const R = createRequire(import.meta.url)('../../public/roadmap.js');
+  const data = JSON.parse(fs.readFileSync(new URL('../../tools/ireal/jazz-einstieg.json', import.meta.url)));
+  assert.equal(data.length, 9);
+  for (const s of data) { const out = JSON.parse(cleanRoadmap(s.roadmap)); assert.deepEqual(R.expand(out).map((b) => b.chords), R.expand(s.roadmap).map((b) => b.chords), s.title); }
+  // Ein Song Link wie aus iReal Pro (Blues Simple aus Otis Playlist)
+  const link = 'irealb://Blues%20-%20Simple%3DExercise%3D%3DShuffle%3DA%3D4%3D1r34LbKcu7X7EZL7XyQKyX7AZL%20lcKQyX7ZDL%20x%20ZL%20x%20ZL%20lcQKcl%20A44T%5ByQ%7CD7XyQ%7CA7XyQKcl%20%20Z%20%3D%3D90%3D6===';
+  const one = R.fromIreal(link);
+  assert.equal(one.length, 1); assert.equal(one[0].title, 'Blues - Simple'); assert.equal(one[0].roadmap.key, 'A');
+  assert.equal(R.cheatSheet(one[0].roadmap), 'Blues'); assert.equal(R.totalBars(one[0].roadmap), 12);
+  assert.ok(cleanRoadmap(one[0].roadmap));
 });
