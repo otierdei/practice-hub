@@ -3,8 +3,8 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
-<meta name="theme-color" content="#e5e5e0" media="(prefers-color-scheme: light)">
-<meta name="theme-color" content="#171814" media="(prefers-color-scheme: dark)">
+<meta name="theme-color" content="#ece6de" media="(prefers-color-scheme: light)">
+<meta name="theme-color" content="#1b1714" media="(prefers-color-scheme: dark)">
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-title" content="Practice Hub">
 <meta name="robots" content="noindex">
@@ -15,19 +15,19 @@
 <style>
 @font-face{font-family:"Young Serif";src:url("fonts/young-serif.woff2") format("woff2");font-weight:400;font-display:swap}
 @font-face{font-family:"Figtree";src:url("fonts/figtree.woff2") format("woff2");font-weight:300 900;font-display:swap}
-/* Richtung D Kalkstein: Steinflächen, Oliv als einzige Akzentfarbe, Kreise für Fortschritt */
+/* Farben seit 23.11.2026 (Otis Wahl B Terrakotta): warme Steinflächen, Terrakotta als einzige Akzentfarbe, Kreise für Fortschritt */
 :root{
-  --bg:#e5e5e0; --surface:#f6f6f3; --sunk:#ededE8; --ink:#23241f; --muted:#5c5d55; --line:#d3d0c6;
-  --accent:#4f5a2c; --accent-ink:#f6f6f3; --ring:#5f6b3a; --ring2:#8a6236; --track:#dcd9d0;
-  --danger:#9b3a24; --glass:rgba(229,229,224,.72);
+  --bg:#ece6de; --surface:#f8f4ee; --sunk:#f0e9e0; --ink:#261f1a; --muted:#64594f; --line:#dccfc1;
+  --accent:#b0502b; --accent-ink:#fcf6ef; --ring:#b0502b; --ring2:#7a5a3a; --track:#e4d9cb;
+  --danger:#8f2a1f; --glass:rgba(236,230,222,.72); --head:#f4ede3;
   --display:"Young Serif", Georgia, "Times New Roman", serif;
   --body:"Figtree", -apple-system, "Segoe UI", system-ui, sans-serif;
   color-scheme:light;
 }
 @media (prefers-color-scheme: dark){:root{
-  --bg:#171814; --surface:#22231e; --sunk:#1c1d19; --ink:#ecebe4; --muted:#a6a798; --line:#393a31;
-  --accent:#b3c083; --accent-ink:#1b1c16; --ring:#b3c083; --ring2:#d1a46f; --track:#34352d;
-  --danger:#e58f72; --glass:rgba(34,35,30,.72); color-scheme:dark }}
+  --bg:#1b1714; --surface:#26201b; --sunk:#201b17; --ink:#f0e9e1; --muted:#ab9f92; --line:#3e352d;
+  --accent:#e0855c; --accent-ink:#1f1510; --ring:#e0855c; --ring2:#cfa577; --track:#3a3029;
+  --danger:#f0937a; --glass:rgba(38,32,27,.72); --head:#2c241e; color-scheme:dark }}
 *{box-sizing:border-box}
 html,body{margin:0;background:var(--bg);color:var(--ink);font-family:var(--body);font-size:16px;line-height:1.5;-webkit-text-size-adjust:100%}
 body{padding-top:env(safe-area-inset-top,0px)}
@@ -84,9 +84,9 @@ body.kid{--bg:#fbf3e4;--surface:#ffffff;--sunk:#f6ead3;--ink:#23241f;--muted:#4a
 .kid .task-icon{background:#f2c14e;color:#23241f;border:3px solid #23241f}
 .kid .thumb{border:3px solid #23241f}
 .mascot{flex:none}
-.sunday-card{display:flex;justify-content:space-between;align-items:center;gap:12px;width:100%;padding:16px 18px;border:0;border-radius:24px;background:#2f3619;color:#f6f6f3;font:inherit;text-align:left;cursor:pointer}
+.sunday-card{display:flex;justify-content:space-between;align-items:center;gap:12px;width:100%;padding:16px 18px;border:0;border-radius:24px;background:#3b2a20;color:#fcf6ef;font:inherit;text-align:left;cursor:pointer}
 .sunday-card b{font-family:var(--display,'Young Serif'),serif;font-weight:400;font-size:1.3rem}
-.card.sunday{background:#2f3619;color:#f6f6f3}.card.sunday .item{border-color:rgba(246,246,243,.18)}.card.sunday .btn{color:#f6f6f3;border-color:rgba(246,246,243,.5)}
+.card.sunday{background:#3b2a20;color:#fcf6ef}.card.sunday .item{border-color:rgba(252,246,239,.18)}.card.sunday .btn{color:#fcf6ef;border-color:rgba(252,246,239,.5)}
 .song-open{display:flex;flex-direction:column;align-items:flex-start;gap:2px;background:none;border:0;padding:6px 0;font:inherit;color:inherit;text-align:left;cursor:pointer;flex:1;min-width:0}
 .card.sunday .song-open .small{opacity:.85}
 .num{width:22px;flex:none;font-weight:700;opacity:.8}
@@ -264,8 +264,6 @@ details.card summary{cursor:pointer;font-family:var(--display);font-size:1.08rem
 @media (max-width:480px){.rm-bar{padding:5px 5px;min-height:52px;border-radius:10px}.rm-ch{font-size:.92rem}.rm-ch.many{font-size:.74rem}.rm-sub{font-size:.66rem}.rm-mark{white-space:normal}.rm-sec{padding:8px 6px}}
 
 /* Proberaum (Muster): Drumeo Aufbau, Erdtöne, Trommelfell als Signatur */
-:root{--head:#efece4}
-@media (prefers-color-scheme:dark){:root{--head:#2a2b25}}
 .pr-eyebrow{font-size:.72rem;font-weight:700;letter-spacing:.12em;text-transform:uppercase;color:var(--muted)}
 .pr-streak{display:flex;align-items:center;gap:16px;padding:16px 18px;border-radius:24px;background:var(--surface);border:1px solid var(--line)}
 .pr-days{display:flex;gap:6px}
