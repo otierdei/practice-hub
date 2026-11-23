@@ -101,7 +101,7 @@ let n = 0; const ok = (m) => console.log('ok ' + (++n) + ' ' + m);
   await t.evaluate(async () => { const st = S.data.students[0]; S.previewFrom = null; S.file = await api('/api/t/student', { id: st.id }); startPreview(await api('/api/t/preview', { id: st.id })); stuData().assignments.push({ id: 'pv-extra', title: 'Extra Aufgabe', status: 'offen', minutes_per_day: 10, created_at: new Date().toISOString() }); render(); });
   const list = await t.evaluate(() => tourList().map((a) => a.title || a.free_text));
   assert.ok(list.length >= 3, 'mindestens 3 offene Aufgaben: ' + list.length);
-  await t.click('.practice-hero'); await t.locator('#clockRing').waitFor();
+  await t.click('.pr-next'); await t.locator('#clockRing').waitFor();
   assert.equal((await t.textContent('.sheet h1')).trim(), list[0]); await t.getByText('Aufgabe 1 von ' + list.length).waitFor(); ok('Üben Knopf startet direkt Aufgabe 1');
   await t.screenshot({ path: OUT + '/v103-1-aufgabe1.png' });
   await t.click('.tour-nav [data-act=tourGo]:has-text("Nächste")'); await t.getByText('Aufgabe 2 von ' + list.length).waitFor();
