@@ -263,6 +263,35 @@ details.card summary{cursor:pointer;font-family:var(--display);font-size:1.08rem
 .rm-shapes{display:flex;flex-wrap:wrap;gap:10px}
 .rm-opts summary .small{font-family:var(--body);font-size:.85rem;margin-left:6px}.rm-opts{padding:12px 16px}
 @media (max-width:480px){.rm-bar{padding:5px 5px;min-height:52px;border-radius:10px}.rm-ch{font-size:.92rem}.rm-ch.many{font-size:.74rem}.rm-sub{font-size:.66rem}.rm-mark{white-space:normal}.rm-sec{padding:8px 6px}}
+
+/* Proberaum (Muster): Drumeo Aufbau, Erdtöne, Trommelfell als Signatur */
+:root{--head:#efece4}
+@media (prefers-color-scheme:dark){:root{--head:#2a2b25}}
+.pr-eyebrow{font-size:.72rem;font-weight:700;letter-spacing:.12em;text-transform:uppercase;color:var(--muted)}
+.pr-streak{display:flex;align-items:center;gap:16px;padding:16px 18px;border-radius:24px;background:var(--surface);border:1px solid var(--line)}
+.pr-days{display:flex;gap:6px}
+.pr-day{width:34px;height:34px;border-radius:50%;display:grid;place-items:center;font-size:.72rem;font-weight:700;color:var(--muted);background:var(--sunk)}
+.pr-day.on{background:var(--ring);color:var(--accent-ink)}
+.pr-day.today{box-shadow:inset 0 0 0 2px var(--ink)}
+.pr-next{display:flex;flex-direction:column;align-items:stretch;gap:14px;width:100%;padding:12px 12px 16px;border:0;border-radius:26px;background:var(--accent);color:var(--accent-ink);text-align:left;font:inherit;cursor:pointer;min-height:104px}
+.pr-next .pr-eyebrow{color:color-mix(in srgb,var(--accent-ink) 75%,transparent)}
+.pr-next-body{display:flex;flex-direction:column;gap:4px;flex:1;min-width:0}
+.pr-next-title{font-family:'Young Serif',serif;font-weight:400;font-size:1.45rem;line-height:1.15;overflow-wrap:anywhere}
+.pr-next-row{display:flex;align-items:center;gap:12px;padding:0 6px}
+.pr-thumb{position:relative;width:100%;aspect-ratio:16/9;border-radius:18px;overflow:hidden;background:color-mix(in srgb,var(--accent-ink) 14%,transparent)}
+.pr-thumb img{width:100%;height:100%;object-fit:cover;display:block}
+.pr-play{position:absolute;inset:0;margin:auto;width:56px;height:56px;border-radius:50%;display:grid;place-items:center;background:var(--accent-ink);color:var(--accent)}
+.pr-play svg{width:24px;height:24px}
+.pr-cta{flex:none;align-self:center;padding:10px 18px;border-radius:999px;background:var(--accent-ink);color:var(--accent);font-weight:800;letter-spacing:.06em;text-transform:uppercase;font-size:.82rem}
+.pr-row{display:flex;gap:12px;overflow-x:auto;scroll-snap-type:x mandatory;padding-bottom:6px;margin:0 -2px}
+.pr-mini{flex:none;width:168px;scroll-snap-align:start;display:flex;flex-direction:column;gap:6px;padding:0 0 10px;border:1px solid var(--line);border-radius:18px;background:var(--surface);color:var(--ink);font:inherit;text-align:left;cursor:pointer;overflow:hidden}
+.pr-mini b{padding:0 12px;font-size:.95rem;line-height:1.25}.pr-mini .pr-eyebrow{padding:0 12px}
+.pr-mini-thumb{aspect-ratio:16/9;background:var(--sunk);display:block}.pr-mini-thumb img{width:100%;height:100%;object-fit:cover;display:block}
+.pr-mini-thumb.none{display:grid;place-items:center;color:var(--muted)}
+.pr-path{display:flex;align-items:center;gap:14px;width:100%;padding:14px 18px;border:1px solid var(--line);border-radius:24px;background:var(--surface);color:var(--ink);font:inherit;cursor:pointer}
+.pr-path b{font-size:1.1rem}.pr-chev{font-size:1.6rem;color:var(--muted)}
+@media (max-width:420px){.pr-next-title{font-size:1.3rem}.pr-day{width:30px;height:30px}.pr-days{gap:4px}.pr-streak{gap:12px;padding:14px}}
+.kid .pr-next{background:#e4572e;color:#fff;border:3px solid #23241f;box-shadow:0 6px 0 #23241f}.kid .pr-cta{background:#fff;color:#23241f}
 </style>
 </head>
 <body>
@@ -1119,6 +1148,50 @@ function lessonView() {
 function weekStart() { const d = new Date(); d.setHours(0, 0, 0, 0); d.setDate(d.getDate() - ((d.getDay() + 6) % 7)); return localDate(d); }
 function allSessions(d = S.data) { return (d.sessions || []).concat(store.get('outbox', []).filter((o) => !d.sessions.some((s) => s.client_id === o.client_id))); }
 const PLAY = '<svg viewBox="0 0 24 24" width="18" height="18" aria-hidden="true"><path d="M8 5v14l11-7z" fill="currentColor"/></svg>';
+// ===== Proberaum Design (Muster, 23.11.2026): Drumeo Aufbau, Otis Erdtöne, Fortschritt als Trommelfell =====
+// Trommelfell: Fortschritt als Spannreifen, 8 Stimmschrauben als Signatur
+function drumhead(value, size, label, inner, sub) {
+  const v = Math.max(0, Math.min(1, value || 0)), c = size / 2, r = c - 7, circ = 2 * Math.PI * r;
+  const lugs = Array.from({ length: 8 }, (_, i) => { const a = (i / 8) * 2 * Math.PI - Math.PI / 2; return `<circle cx="${(c + (c - 2.5) * Math.cos(a)).toFixed(1)}" cy="${(c + (c - 2.5) * Math.sin(a)).toFixed(1)}" r="2" fill="var(--line)"/>`; }).join('');
+  return `<svg class="drumhead" width="${size}" height="${size}" viewBox="0 0 ${size} ${size}" role="img" aria-label="${esc(label)}">${lugs}
+    <circle cx="${c}" cy="${c}" r="${r}" fill="var(--head)" stroke="var(--track)" stroke-width="6"/>
+    ${v > 0.004 ? `<circle cx="${c}" cy="${c}" r="${r}" fill="none" stroke="var(--ring)" stroke-width="6" stroke-linecap="round" stroke-dasharray="${(v * circ).toFixed(1)} ${circ.toFixed(1)}" transform="rotate(-90 ${c} ${c})"/>` : ''}
+    ${inner != null ? `<text x="50%" y="${sub ? '46%' : '52%'}" text-anchor="middle" dominant-baseline="middle" fill="var(--ink)" font-size="${Math.round(size / 3.4)}" font-weight="800">${esc(inner)}</text>` : ''}
+    ${sub ? `<text x="50%" y="68%" text-anchor="middle" dominant-baseline="middle" fill="var(--muted)" font-size="${Math.max(10, Math.round(size / 9))}" font-weight="600">${esc(sub)}</text>` : ''}</svg>`;
+}
+const STREAK_DAYS = 3; // Tage pro Woche, später pro Schüler einstellbar
+function streakBand(sessions) {
+  const ws = weekStart(), today = localDate();
+  const days = Array.from({ length: 7 }, (_, i) => { const x = new Date(ws + 'T12:00:00'); x.setDate(x.getDate() + i); return localDate(x); });
+  const played = new Set(sessions.map((s) => s.local_date));
+  const n = days.filter((d) => played.has(d)).length, weeks = weekStreak(sessions), safe = n >= STREAK_DAYS;
+  const names = ['Mo', 'Di', 'Mi', 'Do', 'Fr', 'Sa', 'So'];
+  const msg = safe ? 'Woche geschafft. Deine Serie läuft weiter.' : `Noch ${STREAK_DAYS - n} ${STREAK_DAYS - n === 1 ? 'Tag' : 'Tage'} diese Woche${weeks ? ', dann hältst du deine Serie.' : ', dann startet deine Serie.'}`;
+  return `<section class="pr-streak" aria-label="Übe Serie">
+    ${drumhead(Math.min(1, n / STREAK_DAYS), 84, weeks + ' Wochen in Folge', String(weeks), weeks === 1 ? 'Woche' : 'Wochen')}
+    <div class="col" style="gap:8px;flex:1;min-width:0"><span class="pr-eyebrow">Deine Serie</span>
+      <div class="pr-days">${days.map((d, i) => `<span class="pr-day${played.has(d) ? ' on' : ''}${d === today ? ' today' : ''}" aria-label="${names[i]}${played.has(d) ? ' geübt' : ''}">${names[i]}</span>`).join('')}</div>
+      <span class="small${safe ? '' : ' muted'}">${esc(msg)}</span></div></section>`;
+}
+function nextStepCard(a, running, kid) {
+  if (running) return `<button class="pr-next" data-act="resumePractice"><span class="pr-next-body"><span class="pr-eyebrow">Läuft gerade</span><b class="pr-next-title">Weiter üben</b></span><span class="pr-cta">Weiter</span></button>`;
+  if (!a) return `<button class="pr-next" data-act="practiceFree"><span class="pr-next-body"><span class="pr-eyebrow">Freies Üben</span><b class="pr-next-title">${kid ? 'Üben!' : 'Einfach spielen'}</b><span class="small">Keine offenen Aufgaben. Stoppuhr startet sofort.</span></span><span class="pr-cta">Üben</span></button>`;
+  const th = ytThumb(a.url);
+  const meta = [a.target_bpm ? (isSongTask(a) ? a.target_bpm + ' BPM' : 'Ziel ' + a.target_bpm + ' BPM') : '', a.minutes_per_day ? a.minutes_per_day + ' Min. heute' : ''].filter(Boolean).join(' · ');
+  return `<button class="pr-next${th ? ' has-thumb' : ''}" data-act="practiceTour">${th ? `<span class="pr-thumb"><img src="${th}" alt="" loading="lazy" onerror="this.parentNode.remove()"><span class="pr-play">${PLAY}</span></span>` : ''}
+    <span class="pr-next-row"><span class="pr-next-body"><span class="pr-eyebrow">Nächster Schritt${a.minutes_per_day ? ' · ' + a.minutes_per_day + ' Min.' : ''}</span><b class="pr-next-title">${esc(a.title || a.free_text || 'Aufgabe')}</b>${meta && a.target_bpm ? `<span class="small">${esc(a.target_bpm ? (isSongTask(a) ? a.target_bpm + ' BPM' : 'Ziel ' + a.target_bpm + ' BPM') : '')}</span>` : ''}</span><span class="pr-cta">Üben</span></span></button>`;
+}
+function continueRow(list) {
+  if (!list.length) return '';
+  return `<section class="col" style="gap:10px"><div class="row between"><h2>Weiter machen</h2><span class="small muted">${list.length} offen</span></div>
+    <div class="pr-row">${list.map((a) => { const th = ytThumb(a.url); return `<button class="pr-mini" data-act="practice" data-id="${a.id}">${th ? `<span class="pr-mini-thumb"><img src="${th}" alt="" loading="lazy" onerror="this.parentNode.classList.add('none');this.remove()"></span>` : `<span class="pr-mini-thumb none">${ICON_NOTE}</span>`}<span class="pr-eyebrow">${esc(isSongTask(a) ? 'Song' : a.category || 'Übung')}</span><b>${esc(a.title || a.free_text || '')}</b></button>`; }).join('')}</div></section>`;
+}
+function pathCard(c) {
+  if (!c || !c.level) return '';
+  const lv = c.level, pct = lv.total ? lv.done / lv.total : 0;
+  return `<button class="pr-path" data-act="course">${drumhead(pct, 64, lv.done + ' von ' + lv.total + ' Lektionen', String(lv.level), 'Level')}
+    <span class="col" style="gap:3px;flex:1;min-width:0;align-items:flex-start;text-align:left"><span class="pr-eyebrow">Dein Weg</span><b>${esc(lv.name)}</b><span class="small muted">${lv.complete ? 'Alle Level geschafft' : lv.done + ' von ' + lv.total + ' Lektionen · Urkunde am Ende'}</span></span><span aria-hidden="true" class="pr-chev">›</span></button>`;
+}
 function studentView(d = S.data, t = S.tab) {
   const sessions = allSessions(d);
   const today = localDate(), ws = weekStart();
@@ -1135,10 +1208,8 @@ function studentView(d = S.data, t = S.tab) {
     const kidHead = isKid(d.student);
     html = `${kidHead ? `<div class="row" style="flex-wrap:nowrap;gap:14px">${/Gitarre/.test(d.student.instrument || '') ? GUITAR_FACE : DRUM_FACE}<div class="col" style="gap:0"><span style="font-weight:600">Hey ${esc(d.student.first_name)}!</span><h1>Los geht's!</h1></div></div>` : `<div class="col" style="gap:2px"><span class="muted">Hallo ${esc(d.student.first_name)}</span><h1>Heute üben</h1></div>`}
     ${lessonModeBanner(d)}
-    <button class="practice-hero" data-act="${running ? 'resumePractice' : open.length ? 'practiceTour' : 'practiceFree'}">
-      <span class="ph-icon"><svg viewBox="0 0 24 24" width="30" height="30" aria-hidden="true"><circle cx="12" cy="13" r="8" stroke="currentColor" stroke-width="2" fill="none"/><path d="M12 9v4l2.5 2M9.5 2.5h5" stroke="currentColor" stroke-width="2" fill="none" stroke-linecap="round"/></svg></span>
-      <span class="col" style="gap:2px;align-items:flex-start"><b>${running ? 'Weiter üben' : kidHead ? 'Üben!' : 'Üben'}</b><span>${inLessonMode() ? 'Im Unterricht, zählt nicht' : !running && open.length ? 'Start mit Aufgabe 1: ' + esc(open[0].title || open[0].free_text || '') : todayMin ? 'Heute ' + todayMin + ' von ' + dailyGoal + ' min' : 'Stoppuhr starten'}</span></span>
-    </button>
+    ${streakBand(sessions)}
+    ${nextStepCard(open[0], running, kidHead)}
     <div class="tiles">
       <button class="tile" data-act="metroOpen"><svg viewBox="0 0 24 24" width="28" height="28" aria-hidden="true"><path d="M9 3h6l4 18H5z" stroke="currentColor" stroke-width="2" fill="none" stroke-linejoin="round"/><path d="M12 16l5-9" stroke="currentColor" stroke-width="2" stroke-linecap="round"/></svg><span>Metronom</span></button>
       ${/Gitarre/.test(d.student.instrument || '') ? `<button class="tile" data-ptab="stimmen" data-tab="stimmen"><svg viewBox="0 0 24 24" width="28" height="28" aria-hidden="true"><path d="M4 18a8 8 0 1 1 16 0" stroke="currentColor" stroke-width="2" fill="none"/><path d="M12 18l4-6" stroke="currentColor" stroke-width="2" stroke-linecap="round"/></svg><span>Stimmen</span></button>` : ''}
@@ -1146,9 +1217,10 @@ function studentView(d = S.data, t = S.tab) {
     </div>
     ${!S.preview && S.songs && S.songs.sunday ? `<button class="sunday-card" data-tab="songs"><span class="col" style="gap:2px;align-items:flex-start"><span class="small">${esc(fmtSunday(S.songs.sunday.date))} · Du spielst</span><b>Setlist Gottesdienst</b><span class="small">${S.songs.sunday.items.map((i) => esc(i.title)).join(' · ')}</span></span>${ICON_NOTE}</button>` : ''}
     ${missionCards(d)}
-    ${!S.preview && S.course && S.course.lessons.length && S.course.level ? levelCard(S.course) : ''}
+    ${!S.preview && S.course && S.course.lessons.length && S.course.level ? pathCard(S.course) : ''}
+
     ${pending ? `<span class="pill">${pending} Sitzung${pending > 1 ? 'en' : ''} wird gesendet, sobald Internet da ist</span>` : ''}
-    <section class="col"><div class="row between"><h2>Deine Aufgaben</h2>${streak ? `<span class="pill">${streak} ${streak === 1 ? 'Woche' : 'Wochen'} in Folge</span>` : ''}</div>
+    <section class="col"><div class="row between"><h2>Deine Aufgaben</h2></div>
       ${openLessonCards()}
       ${open.length ? open.map((a, i) => assignmentCard(a, sessions, i + 1)).join('') : openLessonCards() ? '' : '<div class="empty">Keine offenen Aufgaben. Tipp oben auf Üben und spiel frei.</div>'}
     </section>
