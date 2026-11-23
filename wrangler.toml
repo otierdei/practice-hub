@@ -16,7 +16,7 @@ ALLOWED_ORIGINS = "https://practice-hub.othniel-erdei.workers.dev"
 TEACHER_SESSIONS_AFTER = "2026-11-16T20:33:35.000Z"
 
 [triggers]
-crons = ["17 3 * * *"]
+crons = ["17 3 * * *", "7 * * * *"]
 
 [[d1_databases]]
 binding = "DB"
