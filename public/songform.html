@@ -99,38 +99,61 @@ html:root{--bg:#fbf3e4;--surface:#ffffff;--sunk:#f6ead3;--ink:#23241f;--muted:#4
 </head>
 <body>
 <main class="wrap" id="app" aria-live="polite"></main>
-<script src="notation.js?v=118"></script>
+<script src="notation.js?v=119"></script>
 <script src="game-audio.js?v=2"></script>
 <script>
 'use strict';
-// Songform Spiel (Otis Wunsch 19.11.2026, Kurs L16 Songform und Cheat Sheets): Teile am Groove erkennen,
-// das Fill vor einem neuen Teil hören, typische Abläufe ergänzen und ein Cheat Sheet lesen. Beats werden erzeugt.
-const PARTS = {
-  Strophe: { tip: 'Die Strophe ist ruhiger: HiHat geschlossen und eher leise, wenig Bassdrum. Hier wird die Geschichte erzählt.' },
-  Refrain: { tip: 'Der Refrain ist der Höhepunkt: Crash auf der 1, Ride oder offene HiHat, mehr Bassdrum, alles lauter.' },
-  Bridge: { tip: 'Die Bridge klingt anders als der Rest, oft mit Toms, die sich aufbauen. Danach kommt meist der letzte große Refrain.' },
-};
+// Songform Spiel (Otis Wunsch 19.11.2026, überarbeitet 23.11.2026, Kurs L16 Songform und Cheat Sheets).
+// Echte Song Bausteine aus dem Practice Hub (über /api/game/parts, nur mit Anmeldung), sonst erzeugte Beispiele.
+// Begriffe wie im Worship Team: Intro, Strophe, Pre Chorus, Chorus, Bridge, Turnaround, Tag, Outro.
+const SECTIONS = [
+  { k: 'Intro', d: 'Der Anfang. Oft ohne Gesang, manchmal ohne Schlagzeug oder nur mit Becken Swells. Zeigt die Stimmung des Songs.', dr: 'Oft leise oder Pause, manchmal schon der Groove der Strophe.' },
+  { k: 'Strophe', d: 'Erzählt die Geschichte. Jede Strophe hat neuen Text auf der gleichen Melodie. Englisch: Verse.', dr: 'Grundgroove, eher leise: HiHat geschlossen, oft Side Stick statt Snare, wenig Bassdrum.' },
+  { k: 'Pre Chorus', d: 'Kurzer Teil zwischen Strophe und Chorus. Baut Spannung auf.', dr: 'Wird lauter oder dichter, zum Beispiel Toms, mehr Bassdrum oder Snare statt Side Stick.' },
+  { k: 'Chorus', d: 'Die Hauptaussage. Kommt mehrmals mit gleichem Text, alle singen mit. Auf Deutsch auch Refrain.', dr: 'Voll und laut: Crash auf der 1, Ride oder offene HiHat, volle Snare, mehr Bassdrum.' },
+  { k: 'Bridge', d: 'Neue Melodie und neuer Gedanke, klingt anders als Strophe und Chorus. Oft der emotionale Höhepunkt kurz vor dem letzten Chorus.', dr: 'Kontrast: entweder ganz runter (Floor Tom, Halftime) oder ein Build, der Schritt für Schritt lauter wird.' },
+  { k: 'Turnaround', d: 'Kurzer Instrumentalteil, der zurück in die nächste Strophe führt. Auch Zwischenspiel oder Interlude.', dr: 'Groove ohne Gesang, oft wie das Intro. Fill am Ende in die Strophe.' },
+  { k: 'Tag', d: 'Wiederholung der letzten Zeile vom Chorus oder der Bridge am Ende.', dr: 'Meist wie der Chorus oder etwas zurückgenommen, damit der Schluss wirkt.' },
+  { k: 'Outro', d: 'Das Ende. Ausklingen, gemeinsamer Schlag oder ruhiges Ausblenden.', dr: 'Ritardando, ein gemeinsamer Schlusshit oder nur noch Becken.' },
+];
+const SEC = Object.fromEntries(SECTIONS.map((x) => [x.k, x]));
+// Typische Abläufe; Lücken nur dort, wo die Antwort aus der Regel folgt
 const FORMS = [
-  { name: 'Typischer Worship Song', parts: ['Intro', 'Strophe 1', 'Refrain', 'Strophe 2', 'Refrain', 'Bridge', 'Refrain', 'Outro'], gaps: [0, 2, 5, 7] },
-  { name: 'Pop Song mit Pre Chorus', parts: ['Intro', 'Strophe 1', 'Pre Chorus', 'Refrain', 'Strophe 2', 'Pre Chorus', 'Refrain', 'Bridge', 'Refrain', 'Outro'], gaps: [0, 5, 7, 9] },
-  { name: 'Worship Song mit langer Bridge', parts: ['Intro', 'Strophe 1', 'Strophe 2', 'Refrain', 'Zwischenspiel', 'Strophe 3', 'Refrain', 'Bridge', 'Bridge', 'Refrain', 'Outro'], gaps: [0, 3, 7, 10] },
+  { name: 'Typischer Worship Song', parts: ['Intro', 'Strophe 1', 'Chorus', 'Strophe 2', 'Chorus', 'Bridge', 'Chorus', 'Outro'], gaps: { 0: 'Am Anfang steht fast immer ein Intro.', 2: 'Nach der ersten Strophe kommt der Chorus.', 5: 'Nach dem zweiten Chorus kommt oft die Bridge, danach der letzte Chorus.', 7: 'Am Ende klingt der Song mit dem Outro aus.' } },
+  { name: 'Pop Song mit Pre Chorus', parts: ['Intro', 'Strophe 1', 'Pre Chorus', 'Chorus', 'Strophe 2', 'Pre Chorus', 'Chorus', 'Bridge', 'Chorus', 'Outro'], gaps: { 2: 'Zwischen Strophe und Chorus baut der Pre Chorus Spannung auf.', 5: 'Die zweite Strophe läuft genauso: Pre Chorus, dann Chorus.', 7: 'Nach dem zweiten Chorus kommt die Bridge als Kontrast.' } },
+  { name: 'Worship Song mit Turnaround und Tag', parts: ['Intro', 'Strophe 1', 'Strophe 2', 'Chorus', 'Turnaround', 'Strophe 3', 'Chorus', 'Bridge', 'Bridge', 'Chorus', 'Tag', 'Outro'], gaps: { 4: 'Ein kurzer Instrumentalteil führt nach dem Chorus zurück in die nächste Strophe: der Turnaround.', 7: 'Nach dem Chorus kommt die Bridge, hier sogar zweimal, oft mit Build.', 10: 'Die letzte Zeile vom Chorus wird am Ende wiederholt: der Tag.' } },
+  { name: 'Song mit doppeltem Chorus am Ende', parts: ['Intro', 'Strophe 1', 'Chorus', 'Strophe 2', 'Chorus', 'Chorus', 'Outro'], gaps: { 2: 'Nach der Strophe kommt der Chorus.', 6: 'Nach dem letzten Chorus kommt das Outro.' } },
 ];
-const GAP_OPTS = ['Intro', 'Strophe', 'Pre Chorus', 'Refrain', 'Bridge', 'Outro'];
+const GAP_OPTS = ['Intro', 'Strophe', 'Pre Chorus', 'Chorus', 'Bridge', 'Turnaround', 'Tag', 'Outro'];
 const base = (p) => p.replace(/ \d+$/, '');
-const WHY = { Intro: 'Am Anfang steht fast immer ein Intro.', Outro: 'Am Ende klingt der Song mit dem Outro aus.', Refrain: 'Nach der Strophe (oder dem Pre Chorus) kommt der Refrain, und nach der Bridge kommt meist der letzte große Refrain.', Bridge: 'Nach dem zweiten Refrain kommt oft die Bridge, bevor der letzte Refrain kommt.', 'Pre Chorus': 'Der Pre Chorus baut zwischen Strophe und Refrain Spannung auf.', Strophe: 'Nach dem Intro beginnt die Strophe.' };
-const LEVELS = [
-  { id: 1, title: 'Entdecken', text: 'Strophe, Refrain und Bridge: Wie klingt das Schlagzeug in jedem Teil?', learn: true },
-  { id: 2, title: 'Welcher Teil?', text: 'Hör dir einen Groove an. Strophe, Refrain oder Bridge?', type: 'part' },
-  { id: 3, title: 'Das Fill hören', text: 'Ein Fill kündigt den neuen Teil an. In welchem Takt kommt es?', type: 'fill' },
-  { id: 4, title: 'Der Ablauf', text: 'Welcher Teil fehlt im Songablauf?', type: 'gap' },
-  { id: 5, title: 'Cheat Sheet lesen', text: 'Lies den Ablauf mit Taktzahlen und beantworte die Frage.', type: 'sheet' },
-  { id: 6, title: 'Songform Prüfung', text: '10 Aufgaben gemischt. Mit 9 richtigen bist du Songform Profi.', exam: true },
+// Wissensfragen aus der Praxis von Worship Drummern
+const FACTS = [
+  { q: 'Du spielst in der Strophe Side Stick. Was ist ein typischer Wechsel für den Chorus?', a: 'Auf die volle Snare wechseln', w: ['Nur noch Bassdrum spielen', 'Leiser werden'], why: 'Side Stick in der Strophe, volle Snare im Chorus: einer der häufigsten Wechsel, damit der Chorus größer klingt.' },
+  { q: 'Womit zeigst du der Gemeinde: Jetzt beginnt der Chorus?', a: 'Fill davor und Crash auf der 1', w: ['Tempo schneller machen', 'Aufhören zu spielen'], why: 'Das Fill kündigt den neuen Teil an, der Crash auf der 1 markiert den Anfang. Das Tempo bleibt gleich.' },
+  { q: 'Was passiert oft in einer Bridge mit Build?', a: 'Sie wird Schritt für Schritt lauter bis zum letzten Chorus', w: ['Sie bleibt die ganze Zeit gleich laut', 'Sie wird immer schneller'], why: 'Ein Build steigert die Dynamik. Wichtig: Wisse, wie lang der Build ist, damit der Höhepunkt genau am Anfang vom Chorus kommt.' },
+  { q: 'Welcher Wechsel macht einen Chorus größer, ohne schneller zu werden?', a: 'Von der HiHat auf das Ride', w: ['Von Achteln auf Viertel', 'Den Crash weglassen'], why: 'Von HiHat auf Ride oder offene HiHat wechseln macht den Sound breiter. Das Tempo bleibt gleich.' },
+  { q: 'Warum spielt man die Strophe leiser als den Chorus?', a: 'Damit der Song noch Platz nach oben hat', w: ['Weil die Strophe unwichtig ist', 'Weil man sich ausruhen muss'], why: 'Spielst du die Strophe so laut wie den Chorus, kann der Song nicht mehr wachsen.' },
+  { q: 'In wie großen Gruppen sind die Teile eines Songs meistens gebaut?', a: '4 oder 8 Takte', w: ['3 oder 5 Takte', 'Immer 1 Takt'], why: 'Fast alle Pop und Worship Songs denken in Phrasen von 4 oder 8 Takten. Deshalb kommt das Fill meistens im 4. oder 8. Takt.' },
+  { q: 'Was ist ein Tag?', a: 'Die letzte Zeile wird am Ende wiederholt', w: ['Ein Schlagzeug Solo', 'Der Anfang des Songs'], why: 'Beim Tag wiederholt die Band die letzte Zeile vom Chorus oder der Bridge, oft mehrmals.' },
+  { q: 'Was bedeutet auf einem Cheat Sheet "C x2"?', a: 'Chorus zweimal spielen', w: ['Zweiter Chorus', 'Chorus mit 2 Takten'], why: 'Mit x2 steht, wie oft ein Teil hintereinander gespielt wird.' },
+  { q: 'Der Worship Leader wiederholt spontan einen Teil. Was machst du?', a: 'Den Teil weiterspielen und auf sein Zeichen achten', w: ['Einfach zum nächsten Teil gehen', 'Aufhören'], why: 'Im Lobpreis wird oft spontan wiederholt. Halte den Groove und schau zum Leiter, bis er weitergeht.' },
 ];
-const ROUNDS = 6, NEED = 5, EXAM = 10, EXAM_NEED = 9, BPM = 86;
+const LEVELS = [
+  { id: 1, title: 'Entdecken', text: 'Intro, Strophe, Pre Chorus, Chorus, Bridge und mehr: Was ist was, und was spielt das Schlagzeug?', learn: true },
+  { id: 2, title: 'Strophe oder Chorus?', text: 'Zwei Bausteine aus einem echten Song. Welcher ist der Chorus?', type: 'pair' },
+  { id: 3, title: 'Welcher Teil?', text: 'Ein Baustein aus einem echten Song. Welcher Teil ist das?', type: 'part' },
+  { id: 4, title: 'Das Fill hören', text: 'Ein Fill kündigt den neuen Teil an. In welchem Takt kommt es?', type: 'fill' },
+  { id: 5, title: 'Der Ablauf', text: 'Welcher Teil fehlt im Songablauf?', type: 'gap' },
+  { id: 6, title: 'Drummer Wissen', text: 'Was spielt der Drummer in welchem Teil?', type: 'fact' },
+  { id: 7, title: 'Cheat Sheet lesen', text: 'Ein Cheat Sheet mit Abkürzungen und Taktzahlen lesen.', type: 'sheet' },
+  { id: 8, title: 'Songform Prüfung', text: '12 Aufgaben gemischt. Mit 10 richtigen bist du Songform Profi.', exam: true },
+];
+const ROUNDS = 6, NEED = 5, EXAM = 12, EXAM_NEED = 10;
 const KEY = 'ph_songform';
-let P = load(), G = null;
-function load() { try { return Object.assign({ name: '', done: {}, cert: null }, JSON.parse(localStorage.getItem(KEY) || '{}')); } catch (e) { return { name: '', done: {}, cert: null }; } }
-function appLogin() { try { const t = JSON.parse(localStorage.getItem('ph_token') || 'null'), r = JSON.parse(localStorage.getItem('ph_role') || 'null'); return t && r === 'student' ? t : null; } catch (e) { return null; } }
+let P = load(), G = null, REAL = null;
+function load() { try { const p = Object.assign({ name: '', done: {}, cert: null, v: 1 }, JSON.parse(localStorage.getItem(KEY) || '{}')); if (p.v !== 2) { p.done = {}; p.cert = null; p.v = 2; } return p; } catch (e) { return { name: '', done: {}, cert: null, v: 2 }; } }
+function token() { try { return JSON.parse(localStorage.getItem('ph_token') || 'null'); } catch (e) { return null; } }
+function appLogin() { try { const r = JSON.parse(localStorage.getItem('ph_role') || 'null'); return token() && r === 'student' ? token() : null; } catch (e) { return null; } }
 function save() {
   try { localStorage.setItem(KEY, JSON.stringify(P)); } catch (e) {}
   const t = appLogin(); if (!t) return;
@@ -143,67 +166,133 @@ const shuffle = (a) => { a = a.slice(); for (let i = a.length - 1; i > 0; i--) {
 const pick = (a) => a[Math.floor(Math.random() * a.length)];
 const E = [0, 2, 4, 6, 8, 10, 12, 14];
 
-// ---------- Grooves erzeugen (4/4, 16tel Raster) ----------
-function groove(part) {
-  if (part === 'Strophe') return { hh: E.slice(), bd: pick([[0, 8], [0, 10], [0, 6, 8]]), sn: [], ss: [4, 12], soft: true };
-  if (part === 'Refrain') return { cr: [0], rd: E.filter((i) => i), bd: pick([[0, 6, 8, 10], [0, 8, 10], [0, 3, 8, 10]]), sn: [4, 12], loud: true };
-  return { ft: E.slice(), bd: [0, 4, 8, 12], sn: pick([[12], [4, 12], []]), build: true };
+// ---------- Echte Bausteine laden und einordnen ----------
+function kindOf(title) {
+  const t = title.toLowerCase();
+  if (/opener/.test(t)) return 'Intro';
+  if (/fill|transition|übergang|wechsel/.test(t) && !/groove|beat/.test(t)) return 'Fill';
+  if (/pre ?chorus/.test(t)) return 'Pre Chorus';
+  if (/post ?chorus/.test(t)) return null;
+  if (/bridge|build/.test(t)) return 'Bridge';
+  if (/refrain|chorus/.test(t)) return 'Chorus';
+  if (/strophe|vers/.test(t)) return 'Strophe';
+  if (/intro/.test(t)) return 'Intro';
+  return null;
 }
-function toNotation(bars) {
-  const n = DrumNotation.empty('4/4', bars.length, BPM); n.dyn = {};
-  bars.forEach((b, j) => { for (const k of ['cr', 'hh', 'rd', 'ft', 't1', 't2', 'ss', 'sn', 'bd']) for (const i of b[k] || []) { n.tracks[k].push(j * 16 + i); if (b.loud && k === 'sn') n.dyn['sn:' + (j * 16 + i)] = 'a'; } });
+async function loadReal() {
+  const t = token(); if (!t) { REAL = { songs: [] }; return; }
+  try {
+    const r = await fetch('/api/game/parts', { method: 'POST', headers: { 'Content-Type': 'application/json', Authorization: 'Bearer ' + t }, body: '{}' });
+    const d = await r.json(), list = (d.data || d).parts || [], songs = {};
+    for (const p of list) {
+      const n = DrumNotation.parse(p.notation); if (!n || n.sig !== '4/4') continue;
+      const k = kindOf(p.title); if (!k) continue;
+      const s = songs[p.song] = songs[p.song] || { song: p.song, bpm: p.bpm || n.bpm || 90, parts: [] };
+      s.parts.push({ title: p.title, kind: k, n });
+    }
+    REAL = { songs: Object.values(songs) };
+  } catch (e) { REAL = { songs: [] }; }
+}
+const realOf = (k) => (REAL ? REAL.songs : []).flatMap((s) => s.parts.filter((p) => p.kind === k).map((p) => ({ ...p, song: s.song, bpm: s.bpm })));
+const pairSongs = () => (REAL ? REAL.songs : []).filter((s) => s.parts.some((p) => p.kind === 'Strophe') && s.parts.some((p) => p.kind === 'Chorus'));
+
+// Einen Takt aus einer Notation herausnehmen und Takte zu einer neuen Notation zusammensetzen (nur normales Raster)
+function barOf(n, b) {
+  const per = 16, o = { tracks: {}, dyn: {}, flam: {}, stick: {} };
+  for (const [k, l] of Object.entries(n.tracks)) o.tracks[k] = l.filter((i) => i >= b * per && i < (b + 1) * per).map((i) => i - b * per);
+  for (const [key, v] of Object.entries(n.dyn || {})) { const [k, i] = key.split(':'); const x = Number(i) - b * per; if (x >= 0 && x < per) o.dyn[k + ':' + x] = v; }
+  for (const [key, v] of Object.entries(n.flam || {})) { const [k, i] = key.split(':'); const x = Number(i) - b * per; if (x >= 0 && x < per) o.flam[k + ':' + x] = v; }
+  return o;
+}
+function join(bars, bpm) {
+  const n = DrumNotation.empty('4/4', bars.length, bpm); n.dyn = {}; n.flam = {};
+  bars.forEach((o, j) => {
+    for (const [k, l] of Object.entries(o.tracks)) { n.tracks[k] = n.tracks[k] || []; for (const i of l) n.tracks[k].push(j * 16 + i); }
+    for (const [key, v] of Object.entries(o.dyn || {})) { const [k, i] = key.split(':'); n.dyn[k + ':' + (j * 16 + Number(i))] = v; }
+    for (const [key, v] of Object.entries(o.flam || {})) { const [k, i] = key.split(':'); n.flam[k + ':' + (j * 16 + Number(i))] = v; }
+  });
   for (const k of Object.keys(n.tracks)) n.tracks[k].sort((a, c) => a - c);
   return n;
 }
-function fillBar(b) { const f = JSON.parse(JSON.stringify(b)); for (const k of ['hh', 'rd', 'ft', 'ss', 'sn']) f[k] = (f[k] || []).filter((i) => i < 8); f.bd = (f.bd || []).filter((i) => i < 8); f.sn = (f.sn || []).concat([8, 9]); f.t1 = [10, 11]; f.t2 = [12, 13]; f.ft = (f.ft || []).concat([14, 15]); return f; }
-const staff = (n, label) => `<div class="staff">${DrumNotation.render(n, { barsPerLine: 2, label: label || 'Groove' })}</div>`;
+const withBpm = (n, bpm) => { const c = JSON.parse(JSON.stringify(n)); c.bpm = bpm || n.bpm || 90; return c; };
+
+// ---------- Erzeugte Beispiele, wenn keine echten Bausteine da sind ----------
+function genBar(part) {
+  if (part === 'Strophe') return { tracks: { hh: E.slice(), bd: pick([[0, 8], [0, 10], [0, 6, 8]]), ss: [4, 12] }, dyn: {} };
+  if (part === 'Chorus') return { tracks: { cr: [0], rd: E.filter((i) => i), bd: pick([[0, 6, 8, 10], [0, 8, 10]]), sn: [4, 12] }, dyn: { 'sn:4': 'a', 'sn:12': 'a' } };
+  if (part === 'Pre Chorus') return { tracks: { hh: E.slice(), bd: [0, 4, 8, 12], sn: [4, 12] }, dyn: {} };
+  if (part === 'Intro') return { tracks: { cr: [0], bd: [0, 8], t2: [4, 12] }, dyn: {} };
+  return { tracks: { ft: E.slice(), bd: [0, 4, 8, 12], sn: [12] }, dyn: {} };
+}
+function genFill(o) { const f = JSON.parse(JSON.stringify(o)); for (const k of Object.keys(f.tracks)) f.tracks[k] = f.tracks[k].filter((i) => i < 8); f.tracks.sn = (f.tracks.sn || []).concat([8, 9]); f.tracks.t1 = [10, 11]; f.tracks.t2 = [12, 13]; f.tracks.ft = (f.tracks.ft || []).concat([14, 15]); return f; }
+
+// ---------- Fragen ----------
+const opts3 = (right, pool) => shuffle(shuffle(pool.filter((o) => o !== right)).slice(0, 2).concat(right));
+function question(type) {
+  if (type === 'pair') {
+    const songs = pairSongs();
+    if (songs.length) {
+      const s = pick(songs), v = pick(s.parts.filter((p) => p.kind === 'Strophe')), c = pick(s.parts.filter((p) => p.kind === 'Chorus')), first = Math.random() < 0.5 ? 'A' : 'B';
+      const A = first === 'A' ? c : v, B = first === 'A' ? v : c;
+      return { type, song: s.song, A: withBpm(A.n, s.bpm), B: withBpm(B.n, s.bpm), opts: ['A', 'B'], right: first, why: `Chorus war ${first} („${first === 'A' ? A.title : B.title}“). Achte auf den Unterschied: ${SEC.Chorus.dr}` };
+    }
+    const first = Math.random() < 0.5 ? 'A' : 'B', ch = join([genBar('Chorus')], 86), ve = join([genBar('Strophe')], 86);
+    return { type, song: 'Beispiel', A: first === 'A' ? ch : ve, B: first === 'A' ? ve : ch, opts: ['A', 'B'], right: first, why: `Chorus war ${first}. ${SEC.Chorus.dr}` };
+  }
+  if (type === 'part') {
+    const pool = ['Strophe', 'Chorus', 'Bridge', 'Intro', 'Pre Chorus'].flatMap((k) => realOf(k));
+    if (pool.length >= 6) { const p = pick(pool), kinds = [...new Set(pool.map((x) => x.kind))]; return { type, song: p.song, title: p.title, n: withBpm(p.n, p.bpm), opts: opts3(p.kind, kinds.length >= 3 ? kinds : ['Strophe', 'Chorus', 'Bridge']), right: p.kind, why: `„${p.title}“ aus ${p.song}. ${SEC[p.kind].dr}` }; }
+    const k = pick(['Strophe', 'Chorus', 'Bridge']); return { type, song: 'Beispiel', n: join([genBar(k)], 86), opts: ['Strophe', 'Chorus', 'Bridge'], right: k, why: SEC[k].dr };
+  }
+  if (type === 'fill') {
+    const bar = pick([2, 3, 4]), fills = realOf('Fill').filter((f) => !(f.n.tup || []).length && !(f.n.trip || []).length && (REAL.songs.find((s) => s.song === f.song) || { parts: [] }).parts.some((p) => p.kind === 'Strophe' || p.kind === 'Chorus'));
+    let bars, song = 'Beispiel', bpm = 86, after = 'Chorus';
+    if (fills.length && Math.random() < 0.8) {
+      const f = pick(fills), s = REAL.songs.find((x) => x.song === f.song), g = s.parts.find((p) => p.kind === 'Strophe') || s.parts.find((p) => p.kind === 'Chorus'), c = s.parts.find((p) => p.kind === 'Chorus') || g;
+      after = c.kind; song = s.song; bpm = s.bpm;
+      bars = [1, 2, 3, 4].map((k) => (k < bar ? barOf(g.n, 0) : k === bar ? barOf(f.n, f.n.bars - 1) : barOf(c.n, 0)));
+    } else { const g = genBar('Strophe'), c = genBar('Chorus'); bars = [1, 2, 3, 4].map((k) => (k < bar ? g : k === bar ? genFill(g) : c)); }
+    return { type, song, n: join(bars, bpm), opts: ['Takt 2', 'Takt 3', 'Takt 4'], right: 'Takt ' + bar, why: `Das Fill kam in Takt ${bar}.${bar < 4 ? ` Danach beginnt der ${after === 'Chorus' ? 'Chorus' : 'nächste Teil'}.` : ' Danach würde der nächste Teil beginnen.'}` };
+  }
+  if (type === 'gap') { const f = pick(FORMS), gi = Number(pick(Object.keys(f.gaps))), right = base(f.parts[gi]); return { type, form: f, gi, opts: opts3(right, GAP_OPTS), right, why: f.gaps[gi] }; }
+  if (type === 'fact') { const f = pick(FACTS); return { type, ask: f.q, opts: shuffle([f.a, ...f.w]), right: f.a, why: f.why }; }
+  // Cheat Sheet mit Abkürzungen und Wiederholungen
+  const f = pick(FORMS), AB = { Intro: 'Intro', Strophe: 'V', 'Pre Chorus': 'PC', Chorus: 'C', Bridge: 'B', Turnaround: 'TA', Tag: 'Tag', Outro: 'Outro' };
+  const len = { Intro: pick([4, 8]), Strophe: pick([8, 16]), 'Pre Chorus': 4, Chorus: 8, Bridge: pick([4, 8]), Turnaround: 4, Tag: 4, Outro: pick([4, 8]) };
+  const rows = []; for (const p of f.parts) { const b = base(p), last = rows[rows.length - 1]; if (last && last.b === b && b !== 'Strophe') last.x++; else rows.push({ b, label: AB[b] + (/\d$/.test(p) ? p.slice(-1) : ''), bars: len[b], x: 1 }); }
+  const firstC = rows.findIndex((r) => r.b === 'Chorus'), total = rows.reduce((s, r) => s + r.bars * r.x, 0);
+  const asks = [
+    { q: 'Wie viele Takte spielst du bis zum ersten Chorus?', a: rows.slice(0, firstC).reduce((s, r) => s + r.bars * r.x, 0), u: 'Takte', why: 'Zähl die Takte aller Zeilen vor dem ersten C zusammen. Bei x2 doppelt.' },
+    { q: 'Wie oft spielst du insgesamt den Chorus?', a: rows.filter((r) => r.b === 'Chorus').reduce((s, r) => s + r.x, 0), u: 'Mal', why: 'Zähl jede Zeile mit C, bei x2 zählt sie doppelt.' },
+    { q: 'Wie viele Takte hat der ganze Song?', a: total, u: 'Takte', why: 'Alle Taktzahlen zusammenzählen, Wiederholungen mitrechnen.' },
+    { q: 'Was bedeutet die Abkürzung „' + pick(rows.filter((r) => ['V', 'PC', 'C', 'B', 'TA'].includes(AB[r.b]))).label.replace(/\d$/, '') + '“?', kind: 'abbr' },
+  ];
+  const k = pick(asks);
+  if (k.kind === 'abbr') { const ab = k.q.match(/„(.+)“/)[1], right = Object.keys(AB).find((x) => AB[x] === ab); return { type: 'sheet', rows, ask: k.q, opts: opts3(right, ['Strophe', 'Pre Chorus', 'Chorus', 'Bridge', 'Turnaround', 'Tag']), right, why: 'V = Verse (Strophe), PC = Pre Chorus, C = Chorus, B = Bridge, TA = Turnaround.' }; }
+  const d = k.u === 'Mal' ? [1, 2, -1] : [4, 8, -4, -8];
+  const o = shuffle([...new Set(d.map((x) => k.a + x))].filter((x) => x > 0)).slice(0, 2).concat(k.a);
+  return { type: 'sheet', rows, ask: k.q, opts: shuffle(o).map((x) => x + ' ' + k.u), right: k.a + ' ' + k.u, why: k.why };
+}
 
 // ---------- Abspielen ----------
 let playing = null;
 function play(n, loops = 2) {
   stopPlay(); try { DrumNotation.loadSamples(); } catch (e) {}
-  window.GameAudio && GameAudio.duck && GameAudio.duck(14);
+  window.GameAudio && GameAudio.duck && GameAudio.duck(16);
   let done = 0, last = -1; const tok = {}; playing = tok;
-  DrumNotation.play(n, n.bpm, (i) => { if (playing !== tok || i < 0) return; if (i < last && ++done >= loops) { stopPlay(); return; } last = i; }, { countIn: 1 });
+  DrumNotation.play(n, n.bpm || 90, (i) => { if (playing !== tok || i < 0) return; if (i < last && ++done >= loops) { stopPlay(); return; } last = i; }, { countIn: 1 });
 }
 function stopPlay() { if (playing) { playing = null; try { DrumNotation.stop(); } catch (e) {} } }
-
-// ---------- Fragen ----------
-function question(type) {
-  if (type === 'part') { const p = pick(Object.keys(PARTS)); return { type, n: toNotation([groove(p)]), opts: Object.keys(PARTS), right: p, why: PARTS[p].tip }; }
-  if (type === 'fill') {
-    const bar = pick([2, 3, 4]), g = groove('Strophe'), r = groove('Refrain'), bars = [1, 2, 3, 4].map((k) => (k < bar ? g : k === bar ? fillBar(g) : r));
-    const n = toNotation(bars);
-    return { type, n, opts: ['Takt 2', 'Takt 3', 'Takt 4'], right: 'Takt ' + bar, bars: bars.length, why: `Das Fill kam in Takt ${bar}.${bar < 4 ? ' Danach beginnt der Refrain mit einem Crash auf der 1.' : ' Danach würde der nächste Teil beginnen.'}` };
-  }
-  if (type === 'gap') {
-    const f = pick(FORMS), gi = pick(f.gaps), right = base(f.parts[gi]);
-    const opts = shuffle(GAP_OPTS.filter((o) => o !== right)).slice(0, 2).concat(right).sort(() => Math.random() - 0.5);
-    return { type, form: f, gi, opts, right, why: WHY[right] || '' };
-  }
-  // Cheat Sheet: Ablauf mit Taktzahlen
-  const f = pick(FORMS), len = { Intro: pick([4, 8]), Strophe: 8, 'Pre Chorus': 4, Refrain: 8, Bridge: pick([4, 8]), Zwischenspiel: 4, Outro: pick([4, 8]) };
-  const rows = f.parts.map((p) => [p, len[base(p)]]);
-  const firstR = rows.findIndex((r) => base(r[0]) === 'Refrain');
-  const asks = [
-    { q: 'Wie viele Takte spielst du bis zum ersten Refrain?', a: rows.slice(0, firstR).reduce((s, r) => s + r[1], 0), unit: 'Takte' },
-    { q: 'Wie oft spielst du den Refrain?', a: rows.filter((r) => base(r[0]) === 'Refrain').length, unit: 'Mal' },
-    { q: 'Wie viele Takte hat das Intro und die erste Strophe zusammen?', a: rows[0][1] + rows[1][1], unit: 'Takte' },
-  ];
-  const k = pick(asks), d = k.unit === 'Mal' ? [1, 2, -1] : [4, 8, -4];
-  const opts = shuffle([...new Set([k.a, ...d.map((x) => k.a + x)])].filter((x) => x > 0)).slice(0, 3);
-  if (!opts.includes(k.a)) opts[0] = k.a;
-  return { type: 'sheet', form: f, rows, ask: k.q, opts: shuffle(opts).map((x) => x + ' ' + k.unit), right: k.a + ' ' + k.unit, why: k.unit === 'Mal' ? 'Zähl im Cheat Sheet jede Zeile mit Refrain.' : 'Zähl die Taktzahlen der Zeilen davor zusammen.' };
-}
+const staff = (n, label) => `<div class="staff">${DrumNotation.render(n, { barsPerLine: 2, label: label || 'Groove' })}</div>`;
 
 // ---------- Bildschirme ----------
 function topBar(title, back = true) { return `<div class="top">${back ? '<button class="btn" data-act="home" style="min-height:44px;padding:0 16px">Übersicht</button>' : '<a href="./">Zur Practice Hub App</a>'}<span class="small muted">${esc(title)}</span></div>`; }
 function render() { $('#app').innerHTML = G ? G.view() : homeView(); }
 function homeView() {
-  const next = LEVELS.find((l) => !P.done[l.id]);
+  const next = LEVELS.find((l) => !P.done[l.id]), real = REAL && REAL.songs.length;
   return `${topBar('Songform Spiel', false)}<h1>Songform Spiel</h1>
-    <p class="muted">Strophe, Refrain, Bridge: Erkenne die Teile eines Songs am Schlagzeug und lies den Ablauf wie ein Profi.</p>
-    <p class="small muted">${appLogin() ? 'Dein Lehrer sieht deinen Fortschritt in der App.' : 'Öffne das Spiel aus der Practice Hub App, dann sieht dein Lehrer deinen Fortschritt.'}</p>
+    <p class="muted">Intro, Strophe, Chorus, Bridge: Erkenne die Teile eines Songs am Schlagzeug und lies den Ablauf wie ein Profi.</p>
+    <p class="small muted">${real ? `Mit Bausteinen aus ${REAL.songs.length} echten Songs aus dem Practice Hub.` : REAL ? 'Öffne das Spiel aus der Practice Hub App, dann spielst du mit Bausteinen aus echten Songs.' : 'Songs werden geladen …'} ${appLogin() ? 'Dein Lehrer sieht deinen Fortschritt.' : ''}</p>
     <div class="card"><label for="nm" class="small muted">Dein Vorname (für die Urkunde)</label><input type="text" id="nm" maxlength="30" value="${esc(P.name)}" autocomplete="given-name"></div>
     <div style="display:flex;flex-direction:column;gap:10px">${LEVELS.map((l, i) => { const open = i === 0 || P.done[LEVELS[i - 1].id];
       return `<button class="level ${P.done[l.id] ? 'done' : ''}" data-act="level" data-id="${l.id}" ${open ? '' : 'disabled'}><span class="n">${P.done[l.id] ? '✓' : l.id}</span><span><b>${esc(l.title)}</b><span class="small muted">${esc(l.text)}</span></span></button>`; }).join('')}</div>
@@ -211,21 +300,28 @@ function homeView() {
     ${Object.keys(P.done).length ? '<button class="btn block" data-act="reset">Von vorne anfangen</button>' : ''}`;
 }
 const formList = (f, gi) => `<ol class="form">${f.parts.map((p, i) => `<li${i === gi ? ' class="gap"' : ''}>${i === gi ? '?' : esc(p)}</li>`).join('')}</ol>`;
-const sheet = (rows) => `<table class="sheet"><thead><tr><th>Teil</th><th>Takte</th></tr></thead><tbody>${rows.map((r) => `<tr><td>${esc(r[0])}</td><td>${r[1]}</td></tr>`).join('')}</tbody></table>`;
+const sheet = (rows) => `<table class="sheet"><thead><tr><th>Teil</th><th>Takte</th></tr></thead><tbody>${rows.map((r) => `<tr><td><b>${esc(r.label)}</b>${r.x > 1 ? ' x' + r.x : ''}</td><td>${r.bars}</td></tr>`).join('')}</tbody></table><p class="small muted">V = Verse (Strophe), PC = Pre Chorus, C = Chorus, B = Bridge, TA = Turnaround, x2 = zweimal</p>`;
 function learnRun(lv) {
-  const keys = Object.keys(PARTS), R = { i: 0, n: keys.map((p) => toNotation([groove(p)])) };
+  const R = { i: 0 }, ex = (k) => { const r = realOf(k); if (r.length) { const p = pick(r); return { n: withBpm(p.n, p.bpm), label: `${p.song}: ${p.title}` }; } return ['Strophe', 'Chorus', 'Bridge', 'Intro', 'Pre Chorus'].includes(k) ? { n: join([genBar(k)], 86), label: 'Beispiel' } : null; };
+  R.ex = SECTIONS.map((s) => ex(s.k));
   return {
-    view: () => `${topBar(lv.title + ' · ' + (R.i + 1) + ' von 3')}<div class="card"><h2>${esc(keys[R.i])}</h2><p>${esc(PARTS[keys[R.i]].tip)}</p>${staff(R.n[R.i], keys[R.i])}<button class="btn primary block" data-act="listen">Anhören</button></div>
-      ${R.i === 2 ? '<div class="tip"><b>Merke:</b> Vor einem neuen Teil spielt der Drummer meist ein Fill. Danach kommt oft ein Crash auf der 1.</div>' : ''}
-      <button class="btn block" data-act="next">${R.i < 2 ? 'Nächster Teil' : 'Stufe abschließen'}</button>`,
-    act: (a) => { if (a === 'listen') return play(R.n[R.i]); if (a === 'next') { stopPlay(); if (R.i < 2) { R.i++; window.scrollTo(0, 0); return render(); } return finishLevel(lv.id, 0); } },
+    view: () => { const s = SECTIONS[R.i], e = R.ex[R.i];
+      return `${topBar(lv.title + ' · ' + (R.i + 1) + ' von ' + SECTIONS.length)}<div class="card"><h2>${esc(s.k)}</h2><p>${esc(s.d)}</p><div class="tip"><b>Schlagzeug:</b> ${esc(s.dr)}</div>
+        ${e ? `<p class="small muted">Beispiel: ${esc(e.label)}</p>${staff(e.n, s.k)}<button class="btn primary block" data-act="listen">Anhören</button>` : ''}</div>
+        ${R.i === SECTIONS.length - 1 ? '<div class="tip"><b>Merke:</b> Teile sind meist 4 oder 8 Takte lang. Vor einem neuen Teil spielt der Drummer ein Fill, danach oft einen Crash auf der 1.</div>' : ''}
+        <div class="row">${R.i ? '<button class="btn" data-act="prev">Zurück</button>' : ''}<button class="btn primary" data-act="next">${R.i < SECTIONS.length - 1 ? 'Nächster Teil' : 'Stufe abschließen'}</button></div>`; },
+    act: (a) => {
+      if (a === 'listen') return play(R.ex[R.i].n);
+      if (a === 'prev') { stopPlay(); R.i--; return render(); }
+      if (a === 'next') { stopPlay(); if (R.i < SECTIONS.length - 1) { R.i++; window.scrollTo(0, 0); return render(); } return finishLevel(lv.id, 0); }
+    },
   };
 }
 function runLevel(lv) {
   if (lv.learn) return learnRun(lv);
   const exam = !!lv.exam, total = exam ? EXAM : ROUNDS, need = exam ? EXAM_NEED : NEED;
-  const nextQ = () => question(exam ? pick(['part', 'fill', 'gap', 'sheet']) : lv.type);
-  const R = { n: 0, ok: 0, wrong: 0, q: nextQ(), ans: null, heard: false };
+  const nextQ = () => question(exam ? pick(['pair', 'part', 'fill', 'gap', 'fact', 'sheet']) : lv.type);
+  const R = { n: 0, ok: 0, wrong: 0, q: nextQ(), ans: null, heard: {} };
   return {
     view: () => {
       const q = R.q;
@@ -233,21 +329,21 @@ function runLevel(lv) {
         return `${topBar(lv.title)}<div class="card" style="text-align:center;align-items:center"><p class="big">${R.ok} von ${total} richtig</p>
           <p class="muted">${pass ? (exam ? 'Bestanden! Du bist Songform Profi.' : 'Super, Stufe geschafft.') : `Du brauchst ${need} richtige. Versuch es nochmal.`}</p>
           <button class="btn primary block" data-act="${pass ? (exam ? 'certNow' : 'finish') : 'again'}">${pass ? (exam ? 'Zur Urkunde' : 'Weiter') : 'Nochmal versuchen'}</button></div>`; }
-      const audio = q.type === 'part' || q.type === 'fill';
-      const ask = q.type === 'part' ? 'Hör dir den Groove an. Welcher Teil ist das?' : q.type === 'fill' ? `Hör genau hin: ${q.bars} Takte. In welchem Takt kommt das Fill?` : q.type === 'gap' ? `${esc(q.form.name)}: Welcher Teil fehlt?` : esc(q.ask);
-      const btn = (o) => { const cls = R.ans == null ? '' : o === q.right ? ' right' : o === R.ans ? ' wrong' : ''; return `<button class="opt${cls}" data-act="pick" data-v="${esc(o)}" ${R.ans != null || (audio && !R.heard) ? 'disabled' : ''}>${esc(o)}</button>`; };
+      const audio = ['pair', 'part', 'fill'].includes(q.type), heardAll = q.type === 'pair' ? R.heard.A && R.heard.B : R.heard.x;
+      const ask = q.type === 'pair' ? `${esc(q.song)}: Hör dir A und B an. Welcher Baustein ist der Chorus?` : q.type === 'part' ? `${q.song !== 'Beispiel' ? esc(q.song) + ': ' : ''}Welcher Teil ist das?` : q.type === 'fill' ? `${q.song !== 'Beispiel' ? esc(q.song) + ': ' : ''}4 Takte. In welchem Takt kommt das Fill?` : q.type === 'gap' ? `${esc(q.form.name)}: Welcher Teil fehlt?` : esc(q.ask);
+      const btn = (o) => { const cls = R.ans == null ? '' : o === q.right ? ' right' : o === R.ans ? ' wrong' : ''; return `<button class="opt${cls}" data-act="pick" data-v="${esc(o)}" ${R.ans != null || (audio && !heardAll) ? 'disabled' : ''}>${esc(q.type === 'pair' ? 'Baustein ' + o : o)}</button>`; };
+      const listen = q.type === 'pair' ? `<div class="row"><button class="btn ${R.heard.A ? '' : 'primary'}" data-act="listen" data-w="A">A anhören</button><button class="btn ${R.heard.B ? '' : 'primary'}" data-act="listen" data-w="B">B anhören</button></div>` : audio ? `<button class="btn primary block" data-act="listen" data-w="x">${R.heard.x ? 'Nochmal anhören' : 'Anhören'}</button>` : '';
       return `${topBar(lv.title + ' · ' + (R.n + 1) + ' von ' + total)}<div class="bar" role="progressbar" aria-valuemin="0" aria-valuemax="${total}" aria-valuenow="${R.n}"><i style="width:${(R.n / total) * 100}%"></i></div>
-        <div class="card"><p><b>${ask}</b></p>
-          ${q.type === 'gap' ? formList(q.form, q.gi) : q.type === 'sheet' ? sheet(q.rows) : ''}
-          ${audio ? `<button class="btn primary block" data-act="listen">${R.heard ? 'Nochmal anhören' : 'Anhören'}</button><p class="small muted">Erst ein Takt Klick, dann ${q.type === 'fill' ? 'spielt der Ausschnitt einmal' : 'spielt der Groove zweimal'}.</p>` : ''}</div>
+        <div class="card"><p><b>${ask}</b></p>${q.type === 'gap' ? formList(q.form, q.gi) : q.type === 'sheet' ? sheet(q.rows) : ''}${listen}
+          ${audio ? `<p class="small muted">Erst ein Takt Klick, dann ${q.type === 'fill' ? 'spielen die 4 Takte einmal' : 'spielt der Baustein zweimal'}.</p>` : ''}</div>
         <div class="opts">${q.opts.map(btn).join('')}</div>
-        ${R.ans != null ? `<div class="fb ${R.ans === q.right ? 'good' : 'bad'}"><p class="big">${R.ans === q.right ? 'Richtig!' : 'Fast.'}</p><p>${R.ans === q.right ? '' : 'Richtig ist: ' + esc(q.right) + '. '}${esc(q.why)}</p>${audio ? staff(q.n, 'Lösung') : ''}<button class="btn primary" data-act="next">Weiter</button></div>` : ''}`;
+        ${R.ans != null ? `<div class="fb ${R.ans === q.right ? 'good' : 'bad'}"><p class="big">${R.ans === q.right ? 'Richtig!' : 'Fast.'}</p><p>${R.ans === q.right ? '' : 'Richtig ist: ' + esc(q.type === 'pair' ? 'Baustein ' + q.right : q.right) + '. '}${esc(q.why)}</p>${q.type === 'pair' ? staff(q[q.right], 'Chorus') : audio ? staff(q.n, 'Lösung') : ''}<button class="btn primary" data-act="next">Weiter</button></div>` : ''}`;
     },
     act: (a, el) => {
       const q = R.q;
-      if (a === 'listen') { R.heard = true; play(q.n, q.type === 'fill' ? 1 : 2); return render(); }
+      if (a === 'listen') { const w = el.dataset.w; R.heard[w] = true; play(w === 'x' ? q.n : q[w], q.type === 'fill' ? 1 : 2); return render(); }
       if (a === 'pick') { if (R.ans != null) return; stopPlay(); R.ans = el.dataset.v; if (R.ans === q.right) { R.ok++; window.GameAudio && GameAudio.ok(); } else { R.wrong++; window.GameAudio && GameAudio.bad(); } return render(); }
-      if (a === 'next') { stopPlay(); R.n++; R.ans = null; R.heard = false; if (R.n < total) R.q = nextQ(); window.scrollTo(0, 0); return render(); }
+      if (a === 'next') { stopPlay(); R.n++; R.ans = null; R.heard = {}; if (R.n < total) R.q = nextQ(); window.scrollTo(0, 0); return render(); }
       if (a === 'again') { G = runLevel(lv); return render(); }
       if (a === 'finish') return finishLevel(lv.id, R.wrong);
       if (a === 'certNow') { P.done[lv.id] = true; P.cert = P.cert || new Date().toISOString().slice(0, 10); save(); window.GameAudio && GameAudio.win(); return showCert(); }
@@ -261,7 +357,7 @@ function finishLevel(id, wrongs = 0) {
   window.scrollTo(0, 0); render();
 }
 function showCert() {
-  G = { view: () => `${topBar('Urkunde')}<div class="card cert"><p class="small muted">Urkunde</p><h1>Songform Profi</h1><p class="big">${esc(P.name || 'Du')}</p><p>erkennt Strophe, Refrain und Bridge am Schlagzeug, hört das Fill vor dem neuen Teil und liest Cheat Sheets.</p>${formList(FORMS[0], -1)}<p class="small">${esc(new Date(P.cert || Date.now()).toLocaleDateString('de-DE'))}</p></div><button class="btn block" data-act="home">Zur Übersicht</button>` };
+  G = { view: () => `${topBar('Urkunde')}<div class="card cert"><p class="small muted">Urkunde</p><h1>Songform Profi</h1><p class="big">${esc(P.name || 'Du')}</p><p>erkennt Strophe, Chorus und Bridge am Schlagzeug, hört das Fill vor dem neuen Teil und liest Cheat Sheets.</p>${formList(FORMS[0], -1)}<p class="small">${esc(new Date(P.cert || Date.now()).toLocaleDateString('de-DE'))}</p></div><button class="btn block" data-act="home">Zur Übersicht</button>` };
   window.scrollTo(0, 0); render();
 }
 function startLevel(id) { stopPlay(); G = runLevel(LEVELS.find((l) => l.id === id)); window.scrollTo(0, 0); render(); }
@@ -271,11 +367,11 @@ document.addEventListener('click', (ev) => {
   if (act === 'home') { stopPlay(); G = null; return render(); }
   if (act === 'level') { const nm = $('#nm'); if (nm) { P.name = nm.value.trim(); save(); } return startLevel(Number(el.dataset.id)); }
   if (act === 'cert') return showCert();
-  if (act === 'reset') { if (confirm('Wirklich von vorne anfangen? Dein Fortschritt wird gelöscht.')) { P = { name: P.name, done: {}, cert: null }; save(); render(); } return; }
+  if (act === 'reset') { if (confirm('Wirklich von vorne anfangen? Dein Fortschritt wird gelöscht.')) { P = { name: P.name, done: {}, cert: null, v: 2 }; save(); render(); } return; }
   if (G && G.act) G.act(act, el);
 });
 document.addEventListener('change', (ev) => { if (ev.target.id === 'nm') { P.name = ev.target.value.trim(); save(); } });
-render();
+render(); loadReal().then(() => { if (!G) render(); });
 </script>
 </body>
 </html>

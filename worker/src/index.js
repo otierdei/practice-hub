@@ -712,6 +712,13 @@ async function route(env, req, path, body) {
     if (!course && sid) { const st = await s.first('SELECT instrument FROM students WHERE id = ?', sid); course = st && /^Gitarre$/.test(st.instrument || '') ? 'guitar' : 'drums'; }
     return courseData(s, course || 'drums', sid, who.role === 'teacher');
   }
+  // Songform Spiel (23.11.2026): alle Song Bausteine mit Noten auf einmal, nur lesen, für jede angemeldete Rolle (wie /api/song)
+  if (path === '/api/game/parts') {
+    const rows = await s.all(`SELECT sg.title AS song, COALESCE(m.bpm, (SELECT MAX(bpm) FROM song_files WHERE song_id = sg.id)) AS bpm, p.title, n.notation
+      FROM song_parts p JOIN song_part_notation n ON n.part_id = p.id JOIN songs sg ON sg.id = p.song_id LEFT JOIN song_meta m ON m.song_id = sg.id
+      WHERE n.notation IS NOT NULL ORDER BY sg.title, p.sort, p.created_at LIMIT 400`);
+    return { parts: rows };
+  }
   if (path === '/api/song') { const d = await songDetail(s, body.id, who.role === 'teacher'); if (!d) throw new HttpError(404, 'Song nicht gefunden.'); return d; }
   if (path === '/api/my/song') {
     if (who.role !== 'student') throw new HttpError(403, 'Nur Schüler haben eine eigene Setlist.');

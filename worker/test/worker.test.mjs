@@ -1164,3 +1164,14 @@ test('Neu seit dem letzten Besuch: Notizen, eigene Ziele, Beats; Gesehen pro Sch
     assert.equal(news[0].items[0].kind, 'beat_edit', 'Bearbeitung steht trotzdem in der Karte');
   } finally { globalThis.fetch = real; }
 });
+
+test('Songform Spiel: alle Bausteine mit Noten für Schüler lesbar, ohne Anmeldung nicht', async () => {
+  const w = await world();
+  const sid = (await w.call('/api/t/song/create', { title: 'Testsong' }, w.t)).data.id;
+  await w.call('/api/t/song/part/save', { song_id: sid, title: 'Groove Strophe', notation: { sig: '4/4', bars: 1, tracks: { bd: [0, 8] } } }, w.t);
+  await w.call('/api/t/song/part/save', { song_id: sid, title: 'Nur Video', url: 'youtu.be/abcdefghijk' }, w.t);
+  const d = (await w.call('/api/game/parts', {}, w.ta)).data;
+  const mine = d.parts.filter((p) => p.song === 'Testsong');
+  assert.equal(mine.length, 1); assert.equal(mine[0].title, 'Groove Strophe'); assert.deepEqual(JSON.parse(mine[0].notation).tracks.bd, [0, 8]);
+  assert.equal((await w.call('/api/game/parts', {})).status, 401);
+});
