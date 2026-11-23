@@ -239,7 +239,7 @@
           for (const h of nt.hits) {
             const d = dynOf(n, h.k, nt.i);
             // Zuletzt angetippter Schlag im Editor: farbig hinterlegt
-            if (opt.sel && opt.sel.k === h.k && opt.sel.i === nt.i) out.push(`<circle class="nt-selmark" cx="${X(nt.i)}" cy="${yOf(h.p)}" r="9.5" fill="var(--ring2, #8a6236)" opacity=".45"/>`);
+            if (opt.sel && opt.sel.k === h.k && opt.sel.i === nt.i) out.push(`<circle class="nt-selmark" cx="${X(nt.i)}" cy="${yOf(h.p)}" r="9.5" fill="var(--ring2, #7a5a3a)" opacity=".45"/>`);
             out.push(head(d === 's' && !h.ghost ? { ...h, ghost: true } : h, X(nt.i), ink));
             if (flamOf(n, h.k, nt.i)) out.push(grace(h, X(nt.i) - (d === 's' ? 19 : 13), ink, down));
           }
@@ -271,7 +271,7 @@
         }
       }
     }
-    if (opt.cursor) out.push(`<rect class="nt-cursor" x="0" y="20" width="${sw - 2}" height="${H - 26}" rx="4" fill="var(--ring, #5f6b3a)" opacity="0"/>`);
+    if (opt.cursor) out.push(`<rect class="nt-cursor" x="0" y="20" width="${sw - 2}" height="${H - 26}" rx="4" fill="var(--ring, #b0502b)" opacity="0"/>`);
     // Platz oben für Akzente der Oberstimme
     const inLine = (g) => g * 4 >= from * pb && g * 4 < to * pb && !n.repeat.includes(Math.floor((g * 4) / pb));
     const top = Object.entries(n.dyn || {}).some(([key, v]) => { const [k, i] = key.split(':'); return v === 'a' && !(BY[k] && BY[k].down) && Number(i) >= from * pb && Number(i) < to * pb; })
