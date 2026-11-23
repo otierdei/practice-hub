@@ -99,7 +99,7 @@ html:root{--bg:#fbf3e4;--surface:#ffffff;--sunk:#f6ead3;--ink:#23241f;--muted:#4
 </head>
 <body>
 <main class="wrap" id="app" aria-live="polite"></main>
-<script src="notation.js?v=120"></script>
+<script src="notation.js?v=121"></script>
 <script src="game-audio.js?v=2"></script>
 <script>
 'use strict';
@@ -179,12 +179,28 @@ function kindOf(title) {
   if (/intro/.test(t)) return 'Intro';
   return null;
 }
+// Songs, die nicht ins Spiel gehören (Otis Wunsch 23.11.2026)
+const EXCLUDE = ['antiteza'];
+// Was unterscheidet den Chorus hörbar von der Strophe? Aus den echten Noten berechnet
+function diffText(c, v) {
+  const cnt = (n, k) => (n.tracks[k] || []).length / (n.bars || 1), out = [];
+  if (cnt(c, 'cr') > cnt(v, 'cr')) out.push('Crash Becken');
+  if (cnt(c, 'rd') > cnt(v, 'rd')) out.push('Ride statt HiHat');
+  if (cnt(c, 'ho') > cnt(v, 'ho')) out.push('offene HiHat');
+  if (cnt(v, 'ss') > cnt(c, 'ss') && cnt(c, 'sn') >= cnt(v, 'sn')) out.push('volle Snare statt Side Stick');
+  if (cnt(c, 'bd') > cnt(v, 'bd')) out.push('mehr Bassdrum');
+  if (cnt(c, 'sn') > cnt(v, 'sn') + 1) out.push('mehr Snare');
+  const toms = (n) => cnt(n, 't1') + cnt(n, 't2') + cnt(n, 'ft'); if (toms(c) > toms(v) + 1) out.push('Toms');
+  const all = (n) => Object.values(n.tracks).reduce((a, l) => a + l.length, 0) / (n.bars || 1); if (!out.length && all(c) > all(v) * 1.2) out.push('mehr Schläge insgesamt');
+  return out.length ? 'Im Chorus hört man: ' + out.join(', ') + '.' : 'Hier ist der Unterschied klein. Hör auf die Lautstärke und die Energie im Original.';
+}
 async function loadReal() {
   const t = token(); if (!t) { REAL = { songs: [] }; return; }
   try {
     const r = await fetch('/api/game/parts', { method: 'POST', headers: { 'Content-Type': 'application/json', Authorization: 'Bearer ' + t }, body: '{}' });
     const d = await r.json(), list = (d.data || d).parts || [], songs = {};
     for (const p of list) {
+      if (EXCLUDE.includes(String(p.song).trim().toLowerCase())) continue;
       const n = DrumNotation.parse(p.notation); if (!n || n.sig !== '4/4') continue;
       const k = kindOf(p.title); if (!k) continue;
       const s = songs[p.song] = songs[p.song] || { song: p.song, bpm: p.bpm || n.bpm || 90, parts: [] };
@@ -240,7 +256,7 @@ function question(type) {
     if (songs.length) {
       const s = pick(songs), v = pick(s.parts.filter((p) => p.kind === 'Strophe')), c = pick(s.parts.filter((p) => p.kind === 'Chorus')), first = Math.random() < 0.5 ? 'A' : 'B';
       const A = first === 'A' ? c : v, B = first === 'A' ? v : c;
-      return { type, song: s.song, A: withBpm(A.n, s.bpm), B: withBpm(B.n, s.bpm), opts: ['A', 'B'], right: first, why: `Chorus war ${first} („${first === 'A' ? A.title : B.title}“). Achte auf den Unterschied: ${SEC.Chorus.dr}` };
+      return { type, song: s.song, A: withBpm(A.n, s.bpm), B: withBpm(B.n, s.bpm), opts: ['A', 'B'], right: first, why: `Chorus war ${first} („${c.title}“). ${diffText(c.n, v.n)}` };
     }
     const first = Math.random() < 0.5 ? 'A' : 'B', ch = join([genBar('Chorus')], 86), ve = join([genBar('Strophe')], 86);
     return { type, song: 'Beispiel', A: first === 'A' ? ch : ve, B: first === 'A' ? ve : ch, opts: ['A', 'B'], right: first, why: `Chorus war ${first}. ${SEC.Chorus.dr}` };
