@@ -1221,7 +1221,7 @@ test('Roadmap Logik: Ablauf, Cheat Sheet, Transponieren, Nashville, Capo', async
   assert.equal(R.transposeChord('Bbmaj7', 2), 'Cmaj7');
   assert.equal(R.transposeKey('G', 3), 'Bb'); assert.equal(R.transposeKey('A', 1), 'Bb'); assert.equal(R.transposeKey('E', 2), 'F#');
   assert.equal(R.nashville('Em7', 'G'), '6m7'); assert.equal(R.nashville('D/F#', 'G'), '5/7'); assert.equal(R.nashville('C', 'G'), '4');
-  assert.equal(R.nashville('G', 'Em'), '1');
+  assert.equal(R.nashville('G', 'Em'), 'b3'); assert.equal(R.nashville('Cm7', 'Cm'), '1m7');
   const cap = R.capoOptions('B');
   assert.deepEqual(cap[0], { shape: 'A', capo: 2 }); assert.ok(cap.some((x) => x.shape === 'G' && x.capo === 4));
   assert.equal(R.shapeChord('B', 4, 'G'), 'G'); assert.equal(R.shapeChord('F#/A#', 4, 'G'), 'D/F#');

@@ -36,8 +36,7 @@
   function nashville(chord, key) {
     if (!chord || chord === '%' || chord === 'N.C.') return chord;
     const k = keyIndex(key); const m = ROOT.exec(chord); if (k < 0 || !m) return chord;
-    const minorKey = /m$/.test(key);
-    const tonic = minorKey ? (k + 3) % 12 : k; // Moll Tonart: Zahlen relativ zur relativen Dur Tonart (Em in G: Em = 6m, wie in Worship Charts üblich)
+    const tonic = k; // Moll Tonart zählt vom Moll Grundton (Blue Bossa in Cm: Cm7 = 1m7)
     const deg = (n) => DEG[(pc(n) - tonic + 12) % 12];
     return deg(m[1]) + m[2] + (m[3] ? '/' + deg(m[3]) : '');
   }
@@ -55,6 +54,7 @@
   function label(sec) { return (sec && (sec.name || (TYPES[sec.type] || TYPES.other).label)) || 'Teil'; }
   function short(sec, rm) {
     const t = TYPES[sec.type] || TYPES.other;
+    if (sec.type === 'other' && sec.name && sec.name.length <= 10) return sec.name; // Jazz Formteile A, B, A1, Blues
     const same = (rm.sections || []).filter((s) => s.type === sec.type);
     if (same.length < 2) return t.short;
     const num = /(\d+)\s*$/.exec(sec.name || '');

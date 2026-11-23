@@ -1,6 +1,6 @@
 // Song Roadmap: ein Chart für Schlagzeug und Gitarre (Teile, Takte, Akkorde, Drum Marken, Ablauf)
 // Format v1:
-// { kind:'roadmap', v:1, sig:'4/4'|'3/4'|'6/8'|'12/8', bpm, key,
+// { kind:'roadmap', v:1, sig:'4/4'|'3/4'|'6/8'|'12/8', bpm, key, style (Groove, z.B. Swing, Bossa Nova),
 //   sections:[{ id, type, name, bars:[{ c:[Akkorde, max 4], m:[Marken], t:'Notiz' }] }],
 //   order:[{ s:Teil id, x:Wiederholungen 1..8, feel:'n'|'h'|'d', dyn:'', note:'' }] }
 // Teile werden einmal definiert, der Ablauf ruft sie auf (wie ein Cheat Sheet: I V C V C C B C O).
@@ -73,5 +73,6 @@ export function cleanRoadmap(input) {
   }).filter(Boolean);
   if (!order.length) for (const sec of sections) { order.push({ s: sec.id, x: 1 }); total += sec.bars.length; }
   if (total > LIMITS.total) throw new Error('Die Roadmap ist zu lang (höchstens ' + LIMITS.total + ' Takte).');
-  return JSON.stringify({ kind: 'roadmap', v: 1, sig, ...(bpm ? { bpm } : {}), ...(key ? { key } : {}), sections, order });
+  const style = s(o.style, 30);
+  return JSON.stringify({ kind: 'roadmap', v: 1, sig, ...(bpm ? { bpm } : {}), ...(key ? { key } : {}), ...(style ? { style } : {}), sections, order });
 }
