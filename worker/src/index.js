@@ -8,6 +8,7 @@ import { SCHEMA } from './schema.js';
 import { newVapidKeys, sendPush } from './webpush.js';
 import { MISSION_SCHEMA, missionApi, missionDeleteStudentStatements } from './missions.js';
 import { ROADMAP_SCHEMA, cleanRoadmap } from './roadmap.js';
+import { PROGRESS_SCHEMA, streakDays } from './progress.js';
 
 const DAY = 86400000;
 const TOKEN_DAYS = 180;
@@ -201,7 +202,7 @@ function myBeats(s, studentId) {
 async function studentView(s, studentId, role) {
   const st = await s.first('SELECT id, first_name, birth_year, is_minor, weekday, lesson_time, lesson_minutes, level, instrument FROM students WHERE id = ?', studentId);
   if (!st) throw new HttpError(404, 'Schüler nicht gefunden.');
-  const since = new Date(Date.now() - 90 * DAY).toISOString();
+  const since = new Date(Date.now() - 370 * DAY).toISOString();
   const [assignments, sessions, goals, lessons, consent] = await Promise.all([
     s.all(`SELECT a.id, a.exercise_id, a.free_text, CASE WHEN ap.part_id IS NULL AND sb.bpm IS NOT NULL THEN sb.bpm ELSE a.target_bpm END AS target_bpm, sb.bpm AS song_bpm, a.start_bpm, a.minutes_per_day, a.due_date, a.status, a.done_at, a.created_at,
              COALESCE(e.title, psg.title || ': ' || sp.title) AS title, e.category, e.source_type, COALESCE(e.url, sp.url) AS url, e.book_ref, COALESCE(sp.notes, e.notes) AS exercise_notes, COALESCE(spn.notation, e.notation) AS notation, c.student_done_at, x.song_id, x.version AS song_version, ap.part_id
@@ -218,8 +219,9 @@ async function studentView(s, studentId, role) {
   const changes = await s.all('SELECT chords, count, created_at FROM chord_changes WHERE student_id = ? ORDER BY created_at DESC LIMIT 60', st.id);
   const app = await s.first('SELECT app_name, color FROM student_app WHERE student_id = ?', st.id);
   const mis = await missions(s, { role }).forStudent(st.id);
+  const streak_days = await streakDays(s, st.id);
   const game_time = await s.all('SELECT local_date, game, seconds FROM game_time WHERE student_id = ? AND local_date >= ? ORDER BY local_date DESC', studentId, since.slice(0, 10));
-  return { game_time, role, app: app || null, icon: instrIcon(st.instrument), changes, missions: mis, student: st, assignments, sessions, goals, lessons, my_beats, lesson_live: live, consent: consent ? consent.given_at : null, consentVersion: CONSENT_VERSION, canGoal: role === 'student' && canSetGoals(st) };
+  return { game_time, streak_days, role, app: app || null, icon: instrIcon(st.instrument), changes, missions: mis, student: st, assignments, sessions, goals, lessons, my_beats, lesson_live: live, consent: consent ? consent.given_at : null, consentVersion: CONSENT_VERSION, canGoal: role === 'student' && canSetGoals(st) };
 }
 
 // Alle Schüler dürfen eigene Ziele eintragen (Altersgrenze auf Otis Wunsch entfernt)
@@ -319,7 +321,7 @@ async function teacherStudent(s, id) {
   const games = (await s.all('SELECT game, data, updated_at FROM game_progress WHERE student_id = ?', id)).map((r) => ({ game: r.game, updated_at: r.updated_at, ...JSON.parse(r.data) }));
   const game_time = await s.all('SELECT local_date, game, seconds FROM game_time WHERE student_id = ? AND local_date >= ? ORDER BY local_date DESC', id, new Date(Date.now() - 370 * DAY).toISOString().slice(0, 10));
   const mis = await missions(s, { role: 'teacher' }).forStudent(id);
-  return { student: st, lessons, assignments, sessions, goals, access, consents, worship, cancellations, beats, changes, games, game_time, app: app || null, missions: mis };
+  return { student: st, streak_days: await streakDays(s, st.id), lessons, assignments, sessions, goals, access, consents, worship, cancellations, beats, changes, games, game_time, app: app || null, missions: mis };
 }
 
 async function saveStudent(s, who, b) {
@@ -994,6 +996,14 @@ async function route(env, req, path, body) {
       } else await s.run('DELETE FROM student_lessons WHERE student_id = ? AND lesson_id = ?', sid, lid);
       return { ok: true };
     }
+    case '/api/t/student/streak': {
+      // Zieltage pro Woche für die Serie (1 bis 7)
+      const st = await s.first('SELECT id FROM students WHERE id = ?', String(body.id || ''));
+      if (!st) throw new HttpError(404, 'Schüler nicht gefunden.');
+      const days = Math.round(Number(body.days)); if (!(days >= 1 && days <= 7)) throw new HttpError(400, 'Zieltage 1 bis 7.');
+      await s.batch([['INSERT INTO student_streak (student_id, days) VALUES (?, ?) ON CONFLICT(student_id) DO UPDATE SET days = excluded.days', [st.id, days]]]);
+      return { ok: true, days };
+    }
     case '/api/t/student/worship': {
       const id = String(body.id || '');
       if (body.on) await s.run('INSERT OR IGNORE INTO worship_students (student_id) VALUES (?)', id); else await s.run('DELETE FROM worship_students WHERE student_id = ?', id);
@@ -1281,7 +1291,7 @@ const schemaReady = new WeakMap();
 export function ensureSchema(env) {
   let p = schemaReady.get(env.DB);
   if (!p) {
-    const stmts = (SCHEMA + SONG_SCHEMA + COURSE_SCHEMA + MISSION_SCHEMA + ROADMAP_SCHEMA).replace(/--[^\n]*/g, '').split(';').map((x) => x.trim()).filter(Boolean);
+    const stmts = (SCHEMA + SONG_SCHEMA + COURSE_SCHEMA + MISSION_SCHEMA + ROADMAP_SCHEMA + PROGRESS_SCHEMA).replace(/--[^\n]*/g, '').split(';').map((x) => x.trim()).filter(Boolean);
     p = env.DB.batch(stmts.map((q) => env.DB.prepare(q))).catch((e) => { schemaReady.delete(env.DB); throw e; });
     schemaReady.set(env.DB, p);
   }
