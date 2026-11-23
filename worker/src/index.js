@@ -1297,7 +1297,7 @@ export function manifestFor(c, name, color, instr) {
   const code = /^[A-Za-z0-9-]{8,64}$/.test(String(c || '')) ? String(c) : null;
   const nm = String(name || '').replace(/[^\p{L}\p{N} .'&+]/gu, '').trim().slice(0, 30) || 'Practice Hub';
   const sfx = (APP_INSTR[instr] ? '-' + instr : '') + (APP_COLORS[color] ? '-' + color : '');
-  const m = { name: nm, short_name: nm, lang: 'de', start_url: code ? '/#c=' + code : '/', scope: '/', display: 'standalone', background_color: '#e5e5e0', theme_color: '#e5e5e0',
+  const m = { name: nm, short_name: nm, lang: 'de', start_url: code ? '/#c=' + code : '/', scope: '/', display: 'standalone', background_color: '#ece6de', theme_color: '#ece6de',
     icons: [{ src: `/icon${sfx}-180.png`, sizes: '180x180', type: 'image/png' }, { src: `/icon${sfx}-512.png`, sizes: '512x512', type: 'image/png' }, { src: `/icon${sfx}.svg`, sizes: 'any', type: 'image/svg+xml' }] };
   return new Response(JSON.stringify(m), { headers: { 'Content-Type': 'application/manifest+json; charset=utf-8', 'Cache-Control': 'no-store', 'Referrer-Policy': 'no-referrer' } });
 }

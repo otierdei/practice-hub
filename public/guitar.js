@@ -117,7 +117,7 @@
     for (let f = lo; f <= hi; f++) { out.push(`<text x="${xF(f)}" y="${H - 14}" text-anchor="middle" font-size="11" fill="${ink}" opacity=".75">${f}</text>`); if ([3, 5, 7, 9, 15, 17].includes(f)) out.push(`<circle cx="${xF(f)}" cy="${H - 30}" r="3" fill="${ink}" opacity=".35"/>`); if (f === 12) out.push(`<circle cx="${xF(f) - 6}" cy="${H - 30}" r="3" fill="${ink}" opacity=".35"/><circle cx="${xF(f) + 6}" cy="${H - 30}" r="3" fill="${ink}" opacity=".35"/>`); }
     if (sysOf(sc) === 'e' || sysOf(sc) === 'a') { const st = boxPattern(SC[sc.type], ((Number(sc.root) || 0) % 12 + 12) % 12, sysOf(sc)).start; for (let k = 0; k < 4; k++) if (st + k >= lo && st + k <= hi) out.push(`<text x="${xF(st + k)}" y="9" text-anchor="middle" font-size="10" font-weight="700" fill="${ink}" opacity=".8">${k + 1}</text>`); }
     notes.forEach((x, i) => {
-      const cx = xF(x.f), cy = yS(x.s), fill = x.root ? 'var(--accent, #4f5a2c)' : x.blue ? 'var(--ring2, #8a6236)' : ink, txt = x.root || x.blue ? 'var(--accent-ink, #fff)' : 'var(--sunk, #fff)';
+      const cx = xF(x.f), cy = yS(x.s), fill = x.root ? 'var(--accent, #b0502b)' : x.blue ? 'var(--ring2, #7a5a3a)' : ink, txt = x.root || x.blue ? 'var(--accent-ink, #fff)' : 'var(--sunk, #fff)';
       const label = SC[sc.type].k === 'chrom' ? String(x.f - (Number(sc.pos) || 1) + 1) : pcName(x.pc);
       out.push(`<g class="gt-sdot" data-n="${i}"><circle cx="${cx}" cy="${cy}" r="9.5" fill="${fill}"/><text x="${cx}" y="${cy + 4}" text-anchor="middle" font-size="${label.length > 1 ? 8.5 : 10}" font-weight="700" fill="${txt}">${esc(label)}</text></g>`);
     });
@@ -169,7 +169,7 @@
       if (!c) out.push(`<circle cx="${x}" cy="27" r="2" fill="${ink}" opacity=".35"/>`);
       out.push(`<text x="${x}" y="68" text-anchor="middle" font-size="11" fill="${ink}" opacity="${i % (g.strum.sub / 4) === 0 ? 1 : 0.55}">${strumCountLabel(g.strum.sub, i)}</text>`);
     });
-    if (opt.cursor) out.push(`<rect class="gt-cursor" x="0" y="2" width="${cw}" height="58" rx="6" fill="var(--ring, #5f6b3a)" opacity="0"/>`);
+    if (opt.cursor) out.push(`<rect class="gt-cursor" x="0" y="2" width="${cw}" height="58" rx="6" fill="var(--ring, #b0502b)" opacity="0"/>`);
     return `<svg class="gt-strum" viewBox="0 0 ${W} ${H}" width="${W}" height="${H}" role="img" aria-label="Schlagmuster" data-cw="${cw}">${out.join('')}</svg>`;
   }
 
@@ -183,7 +183,7 @@
       const x = 44 + step * cw + cw / 2 - 4;
       out.push(`<rect x="${x - 8}" y="${yS(s) - 8}" width="16" height="16" fill="var(--sunk, #fff)"/><text x="${x}" y="${yS(s) + 4.5}" text-anchor="middle" font-size="13" font-weight="700" fill="${ink}">${fret}</text>`);
     }
-    if (opt.cursor) out.push(`<rect class="gt-cursor" x="0" y="6" width="${cw}" height="${H - 18}" rx="5" fill="var(--ring, #5f6b3a)" opacity="0"/>`);
+    if (opt.cursor) out.push(`<rect class="gt-cursor" x="0" y="6" width="${cw}" height="${H - 18}" rx="5" fill="var(--ring, #b0502b)" opacity="0"/>`);
     return `<svg class="gt-tab" viewBox="0 0 ${W} ${H}" width="${W}" height="${H}" role="img" aria-label="Tabulatur" data-x0="44" data-cw="${cw}">${out.join('')}</svg>`;
   }
 
@@ -365,7 +365,7 @@
   function tunerHTML() {
     return `<div class="gt-tuner" id="tuner">
       <div class="gt-tuner-note" aria-live="polite"><b id="tunerNote">–</b><span id="tunerCents" class="muted">Spiel eine leere Saite</span></div>
-      <svg viewBox="0 0 240 70" width="100%" height="70" role="img" aria-label="Abweichung in Cent"><line x1="20" x2="220" y1="40" y2="40" stroke="currentColor" opacity=".3"/><line x1="120" x2="120" y1="22" y2="58" stroke="currentColor" stroke-width="2"/><circle id="tunerDot" cx="120" cy="40" r="9" fill="var(--ring, #5f6b3a)"/><text x="20" y="66" font-size="10" fill="currentColor" opacity=".6">tiefer</text><text x="220" y="66" text-anchor="end" font-size="10" fill="currentColor" opacity=".6">höher</text></svg>
+      <svg viewBox="0 0 240 70" width="100%" height="70" role="img" aria-label="Abweichung in Cent"><line x1="20" x2="220" y1="40" y2="40" stroke="currentColor" opacity=".3"/><line x1="120" x2="120" y1="22" y2="58" stroke="currentColor" stroke-width="2"/><circle id="tunerDot" cx="120" cy="40" r="9" fill="var(--ring, #b0502b)"/><text x="20" y="66" font-size="10" fill="currentColor" opacity=".6">tiefer</text><text x="220" y="66" text-anchor="end" font-size="10" fill="currentColor" opacity=".6">höher</text></svg>
       <div class="row" style="justify-content:space-between">${STRING_NAMES.map((n, s) => `<span class="gt-string" data-s="${s}">${n}</span>`).join('')}</div>
     </div>`;
   }
