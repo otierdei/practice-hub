@@ -1234,6 +1234,31 @@ function pathMap(c) {
   return `<section class="card col" style="gap:10px"><div class="row between"><h3 style="margin:0">Dein Weg</h3><button class="btn small" data-act="course">Kurs öffnen</button></div>
     <ol class="pr-path-map">${st.map((lv) => { const full = lv.done >= lv.total; return `<li class="${full ? 'done' : lv.level === cur ? 'cur' : 'next'}">${drumhead(lv.done / lv.total, 52, lv.done + ' von ' + lv.total + ' Lektionen', full ? '✓' : String(lv.level))}<span class="col" style="gap:0;min-width:0"><b>${esc(lv.name)}</b><span class="small muted">${full ? 'Geschafft' : lv.done + ' von ' + lv.total + ' Lektionen'}${lv.level === cur ? ' · hier bist du' : ''}</span></span></li>`; }).join('')}</ol></section>`;
 }
+// Übe Erinnerungen (23.11.2026): Schüler schaltet selbst ein, wählt Tage (Mo bis Sa) und Uhrzeit
+const IOS = /iPhone|iPad|iPod/.test(navigator.userAgent);
+async function stuPushState() { try { if (!pushOk()) return 'nein'; const reg = await navigator.serviceWorker.getRegistration(); const sub = reg && await reg.pushManager.getSubscription(); return sub ? 'an' : 'aus'; } catch (e) { return 'aus'; } }
+async function stuPushOn() {
+  if (await Notification.requestPermission() !== 'granted') { toast('Mitteilungen sind nicht erlaubt. Das kannst du in den Einstellungen deines Handys ändern.'); return; }
+  const reg = await navigator.serviceWorker.ready, { publicKey } = await api('/api/my/push/key');
+  const key = Uint8Array.from(atob(publicKey.replace(/-/g, '+').replace(/_/g, '/')), (c) => c.charCodeAt(0));
+  const sub = await reg.pushManager.subscribe({ userVisibleOnly: true, applicationServerKey: key });
+  await api('/api/my/push/subscribe', sub.toJSON()); S.stuPush = 'an'; await reloadStu(); render(); toast('Erinnerungen an');
+}
+async function stuPushOff() { const reg = await navigator.serviceWorker.getRegistration(); const sub = reg && await reg.pushManager.getSubscription(); if (sub) { try { await api('/api/my/push/unsubscribe', { endpoint: sub.endpoint }); } catch (e) {} await sub.unsubscribe(); } S.stuPush = 'aus'; await reloadStu(); render(); toast('Erinnerungen aus'); }
+function reminderCard(d) {
+  if (S.preview) return '';
+  if (S.stuPush == null) { stuPushState().then((v) => { S.stuPush = v; if (S.tab === 'fortschritt') render(); }); return ''; }
+  const prefs = (d.push && d.push.prefs) || { days: [1, 2, 3, 4, 5], hour: 17 }, names = ['Mo', 'Di', 'Mi', 'Do', 'Fr', 'Sa'];
+  let body;
+  if (S.stuPush === 'nein' || (IOS && !STANDALONE)) body = `<p class="small muted" style="margin:0">${IOS ? 'Auf dem iPhone gehen Erinnerungen nur, wenn Practice Hub auf deinem Home Bildschirm liegt: im Safari auf Teilen tippen, dann „Zum Home Bildschirm“. Danach hier einschalten.' : 'Dieser Browser kann keine Erinnerungen anzeigen.'}</p>`;
+  else if (d.student.is_minor && !d.consent) body = '<p class="small muted" style="margin:0">Deine Eltern stimmen zuerst über ihren Link zu. Danach kannst du Erinnerungen einschalten.</p>';
+  else if (S.stuPush !== 'an') body = `<p class="small muted" style="margin:0">Eine Erinnerung an deinen Übetagen, wenn du bis zur gewählten Uhrzeit noch nicht geübt hast. Sonntags und in den Ferien kommt nichts.</p><button class="btn primary" data-act="stuPushOn">Erinnerungen einschalten</button>`;
+  else body = `<div class="row" style="gap:6px;align-items:center"><span class="small muted">Tage</span>${names.map((n, i) => `<button class="chip" data-act="stuPushDay" data-v="${i + 1}" aria-pressed="${prefs.days.includes(i + 1)}">${n}</button>`).join('')}</div>
+    <div class="row" style="gap:6px;align-items:center"><span class="small muted">Uhrzeit</span>${[15, 16, 17, 18, 19, 20].map((h) => `<button class="chip" data-act="stuPushHour" data-v="${h}" aria-pressed="${prefs.hour === h}">${h}:00</button>`).join('')}</div>
+    <p class="small muted" style="margin:0">Nur wenn du an dem Tag noch nicht geübt hast, höchstens einmal am Tag. Steht deine Serie auf dem Spiel, sagt die Erinnerung dir das. Sonntags und in den Ferien kommt nichts.</p>
+    <button class="btn small" data-act="stuPushOff">Erinnerungen ausschalten</button>`;
+  return `<section class="card col" style="gap:10px"><div class="row between" style="align-items:center"><h3 style="margin:0">Erinnerungen</h3>${S.stuPush === 'an' ? '<span class="pill">an</span>' : ''}</div>${body}</section>`;
+}
 function studentView(d = S.data, t = S.tab) {
   const sessions = allSessions(d);
   const today = localDate(), ws = weekStart();
@@ -1275,6 +1300,7 @@ function studentView(d = S.data, t = S.tab) {
     const exList = Object.values(perEx).filter((e) => e.target);
     html = `<h1>Fortschritt</h1>
     ${progressHead(d, sessions, todayMin, dailyGoal, weekMin)}
+    ${reminderCard(d)}
     ${monthCalendar(sessions)}
     ${pathMap(S.course)}
     ${exList.length ? `<section class="card"><h3>Tempo</h3><div class="grid2" style="grid-template-columns:repeat(auto-fill,minmax(150px,1fr))">${exList.map((e) => `<div class="col" style="align-items:center;gap:6px">${ring(e.best / e.target, 96, 8, 'var(--ring)', e.title + ': ' + e.best + ' von ' + e.target + ' BPM', String(e.best || '–'), 'von ' + e.target)}<span class="small" style="text-align:center">${esc(e.title)}</span></div>`).join('')}</div></section>` : ''}
@@ -2736,6 +2762,12 @@ document.addEventListener('click', async (ev) => {
         await reloadCourse(); openOverlay(courseView); toast(next === 'offen' ? 'Als Hausaufgabe aufgegeben' : next === 'fertig' ? 'Geschafft' : 'Zurückgesetzt'); break;
       }
       case 'teacherConsent': await api('/api/t/consent', { student_id: S.file.student.id, how: 'liegt Oti vor' }); S.file = Object.assign(await api('/api/t/student', { id: S.file.student.id }), { course: S.file.course }); openOverlay(studentFileView); toast('Einwilligung eingetragen'); break;
+      case 'stuPushOn': await stuPushOn(); break;
+      case 'stuPushOff': await stuPushOff(); break;
+      case 'stuPushDay': case 'stuPushHour': { const p = { ...((S.data.push && S.data.push.prefs) || { days: [1, 2, 3, 4, 5], hour: 17 }) }; const v = Number(el.dataset.v);
+        if (act === 'stuPushDay') p.days = p.days.includes(v) ? p.days.filter((x) => x !== v) : [...p.days, v].sort(); else p.hour = v;
+        if (!p.days.length) { toast('Mindestens ein Tag'); break; }
+        const r = await api('/api/my/push/prefs', p); S.data.push = { ...(S.data.push || {}), prefs: r.prefs }; render(); break; }
       case 'calOff': S.calOff = Math.min(0, (S.calOff || 0) + Number(el.dataset.v)); render(); break;
       case 'streakDays': { const v = Number(el.dataset.v); await api('/api/t/student/streak', { id: S.file.student.id, days: v }); S.file.streak_days = v; openOverlay(studentFileView); toast('Serie: ' + v + ' Tage pro Woche'); break; }
       case 'rmOpen': rmState(S.song); openOverlay(roadmapView); break;

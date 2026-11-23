@@ -8,7 +8,7 @@ import { SCHEMA } from './schema.js';
 import { newVapidKeys, sendPush } from './webpush.js';
 import { MISSION_SCHEMA, missionApi, missionDeleteStudentStatements } from './missions.js';
 import { ROADMAP_SCHEMA, cleanRoadmap } from './roadmap.js';
-import { PROGRESS_SCHEMA, streakDays } from './progress.js';
+import { PROGRESS_SCHEMA, PUSH_SCHEMA, DEFAULT_PREFS, cleanPrefs, studentReminders, streakDays } from './progress.js';
 
 const DAY = 86400000;
 const TOKEN_DAYS = 180;
@@ -132,6 +132,10 @@ async function vapidKeys(s) {
   await s.run("INSERT OR IGNORE INTO push_config (k, v) VALUES ('vapid', ?)", JSON.stringify(await newVapidKeys()));
   return JSON.parse((await s.first("SELECT v FROM push_config WHERE k = 'vapid'")).v);
 }
+export async function sendStudentReminders(env, date = new Date(), send = null) {
+  const s = store(env); const v = await vapidKeys(s);
+  return studentReminders(s, send || ((x, payload) => sendPush({ endpoint: x.endpoint, keys: { p256dh: x.p256dh, auth: x.auth } }, payload, v, PUSH_SUBJECT, { topic: payload.tag })), date);
+}
 export async function pushTeacher(s, payload) {
   const subs = await s.all('SELECT * FROM push_subs'); if (!subs.length) return { sent: 0 };
   const v = await vapidKeys(s); let sent = 0;
@@ -220,7 +224,9 @@ async function studentView(s, studentId, role) {
   const app = await s.first('SELECT app_name, color FROM student_app WHERE student_id = ?', st.id);
   const mis = await missions(s, { role }).forStudent(st.id);
   const streak_days = await streakDays(s, st.id);
-  return { role, streak_days, app: app || null, icon: instrIcon(st.instrument), changes, missions: mis, student: st, assignments, sessions, goals, lessons, my_beats, lesson_live: live, consent: consent ? consent.given_at : null, consentVersion: CONSENT_VERSION, canGoal: role === 'student' && canSetGoals(st) };
+  const pp = await s.first('SELECT days, hour FROM student_push_prefs WHERE student_id = ?', st.id);
+  const push = { prefs: pp ? { days: JSON.parse(pp.days), hour: pp.hour } : DEFAULT_PREFS, subs: (await s.first('SELECT COUNT(*) AS n FROM student_push_subs WHERE student_id = ?', st.id)).n };
+  return { role, streak_days, push, app: app || null, icon: instrIcon(st.instrument), changes, missions: mis, student: st, assignments, sessions, goals, lessons, my_beats, lesson_live: live, consent: consent ? consent.given_at : null, consentVersion: CONSENT_VERSION, canGoal: role === 'student' && canSetGoals(st) };
 }
 
 // Alle Schüler dürfen eigene Ziele eintragen (Altersgrenze auf Otis Wunsch entfernt)
@@ -375,6 +381,7 @@ function deleteStudentStatements(id) {
     ['DELETE FROM access WHERE student_id = ?', [id]],
     ['DELETE FROM consents WHERE student_id = ?', [id]],
     ['DELETE FROM practice_sessions WHERE student_id = ?', [id]],
+    ['DELETE FROM student_streak WHERE student_id = ?', [id]], ['DELETE FROM student_push_subs WHERE student_id = ?', [id]], ['DELETE FROM student_push_prefs WHERE student_id = ?', [id]], ['DELETE FROM student_push_log WHERE student_id = ?', [id]],
     ['DELETE FROM lesson_windows WHERE student_id = ?', [id]],
     ['DELETE FROM assignments WHERE student_id = ?', [id]],
     ['DELETE FROM goals WHERE student_id = ?', [id]],
@@ -730,6 +737,27 @@ async function route(env, req, path, body) {
     if (body.on) await s.run('INSERT OR IGNORE INTO student_songs (student_id, song_id, added_at) VALUES (?, ?, ?)', who.studentId, sid, now());
     else await s.run('DELETE FROM student_songs WHERE student_id = ? AND song_id = ?', who.studentId, sid);
     return { ok: true };
+  }
+  if (path.startsWith('/api/my/push/')) {
+    // Übe Erinnerungen (23.11.2026): nur der Schüler selbst, unter 16 nur mit Einwilligung der Eltern
+    if (who.role !== 'student') throw new HttpError(403, 'Nur Schüler schalten Erinnerungen ein.');
+    if (path === '/api/my/push/key') return { publicKey: (await vapidKeys(s)).publicKey };
+    if (path === '/api/my/push/unsubscribe') { await s.run('DELETE FROM student_push_subs WHERE endpoint = ? AND student_id = ?', String(body.endpoint || ''), who.studentId); return { ok: true }; }
+    if (path === '/api/my/push/prefs') {
+      const p = cleanPrefs(body); if (!p.days.length) throw new HttpError(400, 'Wähle mindestens einen Tag.');
+      await s.run('INSERT INTO student_push_prefs (student_id, days, hour) VALUES (?, ?, ?) ON CONFLICT(student_id) DO UPDATE SET days = excluded.days, hour = excluded.hour', who.studentId, JSON.stringify(p.days), p.hour);
+      return { ok: true, prefs: p };
+    }
+    if (path === '/api/my/push/subscribe') {
+      const st = await s.first('SELECT is_minor FROM students WHERE id = ?', who.studentId);
+      if (st && st.is_minor && !(await s.first("SELECT 1 AS x FROM consents WHERE student_id = ? AND kind = 'app'", who.studentId))) throw new HttpError(403, 'Deine Eltern müssen zuerst über ihren Link zustimmen.');
+      const ep = typeof body.endpoint === 'string' && body.endpoint.length <= 1000 ? body.endpoint : '', k = body.keys || {};
+      if (!ep || !/^https:\/\//.test(ep) || typeof k.p256dh !== 'string' || typeof k.auth !== 'string' || k.p256dh.length > 200 || k.auth.length > 100) throw new HttpError(400, 'Ungültiges Abo.');
+      await s.batch([['INSERT INTO student_push_subs (id, student_id, endpoint, p256dh, auth, created_at) VALUES (?, ?, ?, ?, ?, ?) ON CONFLICT(endpoint) DO UPDATE SET student_id = excluded.student_id, p256dh = excluded.p256dh, auth = excluded.auth, fails = 0', [uid(), who.studentId, ep, k.p256dh, k.auth, now()]],
+        ['INSERT OR IGNORE INTO student_push_prefs (student_id, days, hour) VALUES (?, ?, ?)', [who.studentId, JSON.stringify(DEFAULT_PREFS.days), DEFAULT_PREFS.hour]]]);
+      return { ok: true };
+    }
+    throw new HttpError(404, 'Unbekannt.');
   }
   if (path === '/api/my/changes') {
     // Akkordwechsel Trainer: Ergebnis einer Minute speichern
@@ -1281,7 +1309,7 @@ const schemaReady = new WeakMap();
 export function ensureSchema(env) {
   let p = schemaReady.get(env.DB);
   if (!p) {
-    const stmts = (SCHEMA + SONG_SCHEMA + COURSE_SCHEMA + MISSION_SCHEMA + ROADMAP_SCHEMA + PROGRESS_SCHEMA).replace(/--[^\n]*/g, '').split(';').map((x) => x.trim()).filter(Boolean);
+    const stmts = (SCHEMA + SONG_SCHEMA + COURSE_SCHEMA + MISSION_SCHEMA + ROADMAP_SCHEMA + PROGRESS_SCHEMA + PUSH_SCHEMA).replace(/--[^\n]*/g, '').split(';').map((x) => x.trim()).filter(Boolean);
     p = env.DB.batch(stmts.map((q) => env.DB.prepare(q))).catch((e) => { schemaReady.delete(env.DB); throw e; });
     schemaReady.set(env.DB, p);
   }
@@ -1329,6 +1357,8 @@ export default {
     }
   },
   async scheduled(event, env, ctx) {
+    // Stündlich: Übe Erinnerungen an Schüler. Täglich 03:17 UTC: Aufräumen und Song Abgleich.
+    if (event && event.cron === '7 * * * *') { ctx.waitUntil(ensureSchema(env).then(() => sendStudentReminders(env)).catch((e) => console.log('Erinnerungen:', e.message))); return; }
     ctx.waitUntil(ensureSchema(env).then(() => cleanup(env)).then(() => syncSongs(env).catch((e) => console.log('Song Abgleich:', e.message))));
   },
 };
