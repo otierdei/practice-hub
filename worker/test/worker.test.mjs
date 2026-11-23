@@ -1175,3 +1175,56 @@ test('Songform Spiel: alle Bausteine mit Noten für Schüler lesbar, ohne Anmeld
   assert.equal(mine.length, 1); assert.equal(mine[0].title, 'Groove Strophe'); assert.deepEqual(JSON.parse(mine[0].notation).tracks.bd, [0, 8]);
   assert.equal((await w.call('/api/game/parts', {})).status, 401);
 });
+
+test('Roadmap: speichern, prüfen, lesen (Schüler), löschen, nur Lehrer schreibt', async () => {
+  const w = await world();
+  const sg = (await w.call('/api/t/song/create', { title: 'Roadmap Song' }, w.t)).data.id;
+  const rm = { sig: '4/4', bpm: 72, key: 'G', sections: [
+    { id: 'v', type: 'verse', bars: [{ c: ['G'] }, { c: ['D/F#'] }, { c: ['Em7', 'C'] }, { c: ['%'], m: ['fill'] }] },
+    { id: 'c', type: 'chorus', name: 'Chorus', bars: [{ c: ['C'], m: ['crash', 'quatsch'] }, { c: ['G'] }, { c: ['D'] }, { c: ['Em'], m: ['hit'], t: 'Stopp auf 4' }] },
+  ], order: [{ s: 'v', x: 1, dyn: 'p' }, { s: 'c', x: 2, feel: 'h' }, { s: 'gibtsnicht' }, { s: 'c', x: 1, dyn: 'f', note: 'alle rein' }] };
+  const r = await w.call('/api/t/song/roadmap', { song_id: sg, roadmap: rm }, w.t);
+  assert.equal(r.status, 200);
+  assert.deepEqual(r.data.roadmap.sections[1].bars[0].m, ['crash']);
+  assert.equal(r.data.roadmap.order.length, 3);
+  assert.equal(r.data.roadmap.order[1].feel, 'h');
+  const d = (await w.call('/api/song', { id: sg }, w.ta)).data;
+  assert.equal(d.roadmap.key, 'G'); assert.equal(d.roadmap.sections[0].bars[1].c[0], 'D/F#');
+  // Unbekannter Akkord wird abgelehnt statt still verworfen
+  const bad = await w.call('/api/t/song/roadmap', { song_id: sg, roadmap: { sections: [{ type: 'verse', bars: [{ c: ['Hallo'] }] }] } }, w.t);
+  assert.equal(bad.status, 400); assert.match(bad.data.error, /Hallo/);
+  assert.equal((await w.call('/api/t/song/roadmap', { song_id: sg, roadmap: { sections: [] } }, w.t)).status, 400);
+  const long = { sections: [{ id: 'a', bars: Array.from({ length: 32 }, () => ({ c: ['G'] })) }], order: Array.from({ length: 20 }, () => ({ s: 'a', x: 1 })) };
+  assert.equal((await w.call('/api/t/song/roadmap', { song_id: sg, roadmap: long }, w.t)).status, 400);
+  assert.equal((await w.call('/api/t/song/roadmap', { song_id: sg, roadmap: rm }, w.ta)).status, 403);
+  assert.equal((await w.call('/api/t/song/roadmap', { song_id: 'nix', roadmap: rm }, w.t)).status, 404);
+  await w.call('/api/t/song/roadmap', { song_id: sg, roadmap: null }, w.t);
+  assert.equal((await w.call('/api/song', { id: sg }, w.ta)).data.roadmap, null);
+});
+
+test('Roadmap Logik: Ablauf, Cheat Sheet, Transponieren, Nashville, Capo', async () => {
+  const { createRequire } = await import('node:module');
+  const R = createRequire(import.meta.url)('../../public/roadmap.js');
+  const rm = { sig: '4/4', key: 'G', sections: [
+    { id: 'v', type: 'verse', bars: [{ c: ['G'] }, { c: ['%'] }, { c: ['Em7', 'D/F#'] }, { c: ['C'] }] },
+    { id: 'c', type: 'chorus', bars: [{ c: ['C'] }, { c: ['G'] }] },
+    { id: 'b', type: 'bridge', bars: [{ c: ['Am'] }] },
+  ], order: [{ s: 'v', x: 1 }, { s: 'c', x: 2 }, { s: 'b', x: 1 }, { s: 'c', x: 1, dyn: 'f' }] };
+  assert.equal(R.cheatSheet(rm), 'V C x2 B C');
+  const bars = R.expand(rm);
+  assert.equal(bars.length, 4 + 4 + 1 + 2);
+  assert.deepEqual(bars[1].chords, ['G']);
+  assert.equal(bars[4].type, 'chorus'); assert.equal(bars[6].pass, 1); assert.equal(bars[9].dyn, 'f');
+  assert.equal(R.duration(rm, 60), 44);
+  assert.equal(R.transposeChord('D/F#', 2), 'E/G#');
+  assert.equal(R.transposeChord('Em7', 3, true), 'Gm7');
+  assert.equal(R.transposeChord('Bbmaj7', 2), 'Cmaj7');
+  assert.equal(R.transposeKey('G', 3), 'Bb'); assert.equal(R.transposeKey('A', 1), 'Bb'); assert.equal(R.transposeKey('E', 2), 'F#');
+  assert.equal(R.nashville('Em7', 'G'), '6m7'); assert.equal(R.nashville('D/F#', 'G'), '5/7'); assert.equal(R.nashville('C', 'G'), '4');
+  assert.equal(R.nashville('G', 'Em'), '1');
+  const cap = R.capoOptions('B');
+  assert.deepEqual(cap[0], { shape: 'A', capo: 2 }); assert.ok(cap.some((x) => x.shape === 'G' && x.capo === 4));
+  assert.equal(R.shapeChord('B', 4, 'G'), 'G'); assert.equal(R.shapeChord('F#/A#', 4, 'G'), 'D/F#');
+  assert.equal(R.keyCycle('C').length, 12); assert.equal(new Set(R.keyCycle('C')).size, 12);
+  assert.equal(R.cheatSheet({ sections: [{ id: 'a', type: 'verse', name: 'Strophe 1', bars: [] }, { id: 'b', type: 'verse', name: 'Strophe 2', bars: [] }], order: [{ s: 'a' }, { s: 'b' }] }), 'V1 V2');
+});

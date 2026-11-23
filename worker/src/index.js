@@ -7,6 +7,7 @@ import { SONG_SCHEMA, syncSongs, songsHome, songDetail, parseLinkLines, slug, so
 import { SCHEMA } from './schema.js';
 import { newVapidKeys, sendPush } from './webpush.js';
 import { MISSION_SCHEMA, missionApi, missionDeleteStudentStatements } from './missions.js';
+import { ROADMAP_SCHEMA, cleanRoadmap } from './roadmap.js';
 
 const DAY = 86400000;
 const TOKEN_DAYS = 180;
@@ -1012,6 +1013,16 @@ async function route(env, req, path, body) {
       else await s.batch([['INSERT INTO song_guitar (song_id, notation, sheet, key_sig, updated_at) VALUES (?, ?, ?, ?, ?) ON CONFLICT(song_id) DO UPDATE SET notation = excluded.notation, sheet = excluded.sheet, key_sig = excluded.key_sig, updated_at = excluded.updated_at', [sg.id, g, sheet, key, now()]]]);
       return { ok: true };
     }
+    case '/api/t/song/roadmap': {
+      // Roadmap zum Song speichern (leer = löschen); Gitarre und Schlagzeug lesen dasselbe Chart
+      const sg = await s.first('SELECT id FROM songs WHERE id = ?', String(body.song_id || ''));
+      if (!sg) throw new HttpError(404, 'Song nicht gefunden.');
+      if (body.roadmap == null || body.roadmap === '') { await s.batch([['DELETE FROM song_roadmap WHERE song_id = ?', [sg.id]], logRow(who, 'delete', 'songs', sg.id, 'Roadmap')]); return { ok: true }; }
+      let rm; try { rm = cleanRoadmap(body.roadmap); } catch (e) { throw new HttpError(400, e.message); }
+      await s.batch([['INSERT INTO song_roadmap (song_id, roadmap, updated_at) VALUES (?, ?, ?) ON CONFLICT(song_id) DO UPDATE SET roadmap = excluded.roadmap, updated_at = excluded.updated_at', [sg.id, rm, now()]],
+        logRow(who, 'update', 'songs', sg.id, 'Roadmap')]);
+      return { ok: true, roadmap: JSON.parse(rm) };
+    }
     case '/api/t/song/bpm': {
       const sg = await s.first('SELECT id, title FROM songs WHERE id = ?', String(body.song_id || ''));
       if (!sg) throw new HttpError(404, 'Song nicht gefunden.');
@@ -1260,7 +1271,7 @@ const schemaReady = new WeakMap();
 export function ensureSchema(env) {
   let p = schemaReady.get(env.DB);
   if (!p) {
-    const stmts = (SCHEMA + SONG_SCHEMA + COURSE_SCHEMA + MISSION_SCHEMA).replace(/--[^\n]*/g, '').split(';').map((x) => x.trim()).filter(Boolean);
+    const stmts = (SCHEMA + SONG_SCHEMA + COURSE_SCHEMA + MISSION_SCHEMA + ROADMAP_SCHEMA).replace(/--[^\n]*/g, '').split(';').map((x) => x.trim()).filter(Boolean);
     p = env.DB.batch(stmts.map((q) => env.DB.prepare(q))).catch((e) => { schemaReady.delete(env.DB); throw e; });
     schemaReady.set(env.DB, p);
   }

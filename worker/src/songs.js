@@ -233,7 +233,7 @@ export async function songDetail(s, id, teacher = false) {
   const song = await s.first(`SELECT s.id, s.title, s.lang, COALESCE(m.bpm, (SELECT MAX(bpm) FROM song_files WHERE song_id = s.id)) AS bpm, m.bpm_source
     FROM songs s LEFT JOIN song_meta m ON m.song_id = s.id WHERE s.id = ?`, String(id || ''));
   if (!song) return null;
-  const [files, parts, links, playedBy, guitar] = await Promise.all([
+  const [files, parts, links, playedBy, guitar, roadmap] = await Promise.all([
     s.all('SELECT drive_id, name, key_sig, bpm, kind FROM song_files WHERE song_id = ? ORDER BY kind DESC, name', song.id),
     s.all('SELECT p.id, p.title, p.url, p.notes, p.sort, n.notation, v.version FROM song_parts p LEFT JOIN song_part_notation n ON n.part_id = p.id LEFT JOIN song_part_version v ON v.part_id = p.id WHERE p.song_id = ? ORDER BY p.sort, p.created_at', song.id),
     s.all("SELECT l.id, l.version, l.title, l.url, l.sort, COALESCE(i.instrument, 'drums') AS instrument FROM song_links l LEFT JOIN song_link_instr i ON i.link_id = l.id WHERE l.song_id = ? ORDER BY l.sort, l.created_at", song.id),
@@ -241,8 +241,9 @@ export async function songDetail(s, id, teacher = false) {
         SELECT a.student_id FROM assignment_songs x JOIN assignments a ON a.id = x.assignment_id WHERE x.song_id = ?
         UNION SELECT student_id FROM student_songs WHERE song_id = ?) ORDER BY st.first_name`, song.id, song.id) : [],
     s.first('SELECT notation, sheet, key_sig FROM song_guitar WHERE song_id = ?', song.id),
+    s.first('SELECT roadmap FROM song_roadmap WHERE song_id = ?', song.id),
   ]);
-  return { song, files, parts, links, playedBy: playedBy.map((r) => r.first_name), guitar: guitar || null };
+  return { song, files, parts, links, playedBy: playedBy.map((r) => r.first_name), guitar: guitar || null, roadmap: roadmap ? JSON.parse(roadmap.roadmap) : null };
 }
 
 // Links in einer Zeile pro Link: "Easy | https://…" oder "Original https://…"; ohne Version gilt die gewählte
