@@ -99,7 +99,7 @@ html:root{--bg:#fbf3e4;--surface:#ffffff;--sunk:#f6ead3;--ink:#23241f;--muted:#4
 </head>
 <body>
 <main class="wrap" id="app" aria-live="polite"></main>
-<script src="notation.js?v=121"></script>
+<script src="notation.js?v=122"></script>
 <script src="game-audio.js?v=2"></script>
 <script>
 'use strict';
@@ -141,17 +141,16 @@ const FACTS = [
 const LEVELS = [
   { id: 1, title: 'Entdecken', text: 'Intro, Strophe, Pre Chorus, Chorus, Bridge und mehr: Was ist was, und was spielt das Schlagzeug?', learn: true },
   { id: 2, title: 'Strophe oder Chorus?', text: 'Zwei Bausteine aus einem echten Song. Welcher ist der Chorus?', type: 'pair' },
-  { id: 3, title: 'Welcher Teil?', text: 'Ein Baustein aus einem echten Song. Welcher Teil ist das?', type: 'part' },
-  { id: 4, title: 'Das Fill hören', text: 'Ein Fill kündigt den neuen Teil an. In welchem Takt kommt es?', type: 'fill' },
-  { id: 5, title: 'Der Ablauf', text: 'Welcher Teil fehlt im Songablauf?', type: 'gap' },
-  { id: 6, title: 'Drummer Wissen', text: 'Was spielt der Drummer in welchem Teil?', type: 'fact' },
-  { id: 7, title: 'Cheat Sheet lesen', text: 'Ein Cheat Sheet mit Abkürzungen und Taktzahlen lesen.', type: 'sheet' },
-  { id: 8, title: 'Songform Prüfung', text: '12 Aufgaben gemischt. Mit 10 richtigen bist du Songform Profi.', exam: true },
+  { id: 3, title: 'Das Fill hören', text: 'Ein Fill kündigt den neuen Teil an. In welchem Takt kommt es?', type: 'fill' },
+  { id: 4, title: 'Der Ablauf', text: 'Welcher Teil fehlt im Songablauf?', type: 'gap' },
+  { id: 5, title: 'Drummer Wissen', text: 'Was spielt der Drummer in welchem Teil?', type: 'fact' },
+  { id: 6, title: 'Cheat Sheet lesen', text: 'Ein Cheat Sheet mit Abkürzungen und Taktzahlen lesen.', type: 'sheet' },
+  { id: 7, title: 'Songform Prüfung', text: '12 Aufgaben gemischt. Mit 10 richtigen bist du Songform Profi.', exam: true },
 ];
 const ROUNDS = 6, NEED = 5, EXAM = 12, EXAM_NEED = 10;
 const KEY = 'ph_songform';
 let P = load(), G = null, REAL = null;
-function load() { try { const p = Object.assign({ name: '', done: {}, cert: null, v: 1 }, JSON.parse(localStorage.getItem(KEY) || '{}')); if (p.v !== 2) { p.done = {}; p.cert = null; p.v = 2; } return p; } catch (e) { return { name: '', done: {}, cert: null, v: 2 }; } }
+function load() { try { const p = Object.assign({ name: '', done: {}, cert: null, v: 1 }, JSON.parse(localStorage.getItem(KEY) || '{}')); if (p.v !== 3) { p.done = {}; p.cert = null; p.v = 3; } return p; } catch (e) { return { name: '', done: {}, cert: null, v: 3 }; } }
 function token() { try { return JSON.parse(localStorage.getItem('ph_token') || 'null'); } catch (e) { return null; } }
 function appLogin() { try { const r = JSON.parse(localStorage.getItem('ph_role') || 'null'); return token() && r === 'student' ? token() : null; } catch (e) { return null; } }
 function save() {
@@ -182,7 +181,8 @@ function kindOf(title) {
 // Songs, die nicht ins Spiel gehören (Otis Wunsch 23.11.2026)
 const EXCLUDE = ['antiteza'];
 // Was unterscheidet den Chorus hörbar von der Strophe? Aus den echten Noten berechnet
-function diffText(c, v) {
+function diffText(c, v) { const out = diffs(c, v); return out.length ? 'Im Chorus hört man: ' + out.join(', ') + '.' : ''; }
+function diffs(c, v) {
   const cnt = (n, k) => (n.tracks[k] || []).length / (n.bars || 1), out = [];
   if (cnt(c, 'cr') > cnt(v, 'cr')) out.push('Crash Becken');
   if (cnt(c, 'rd') > cnt(v, 'rd')) out.push('Ride statt HiHat');
@@ -191,8 +191,7 @@ function diffText(c, v) {
   if (cnt(c, 'bd') > cnt(v, 'bd')) out.push('mehr Bassdrum');
   if (cnt(c, 'sn') > cnt(v, 'sn') + 1) out.push('mehr Snare');
   const toms = (n) => cnt(n, 't1') + cnt(n, 't2') + cnt(n, 'ft'); if (toms(c) > toms(v) + 1) out.push('Toms');
-  const all = (n) => Object.values(n.tracks).reduce((a, l) => a + l.length, 0) / (n.bars || 1); if (!out.length && all(c) > all(v) * 1.2) out.push('mehr Schläge insgesamt');
-  return out.length ? 'Im Chorus hört man: ' + out.join(', ') + '.' : 'Hier ist der Unterschied klein. Hör auf die Lautstärke und die Energie im Original.';
+  return out;
 }
 async function loadReal() {
   const t = token(); if (!t) { REAL = { songs: [] }; return; }
@@ -210,7 +209,8 @@ async function loadReal() {
   } catch (e) { REAL = { songs: [] }; }
 }
 const realOf = (k) => (REAL ? REAL.songs : []).flatMap((s) => s.parts.filter((p) => p.kind === k).map((p) => ({ ...p, song: s.song, bpm: s.bpm })));
-const pairSongs = () => (REAL ? REAL.songs : []).filter((s) => s.parts.some((p) => p.kind === 'Strophe') && s.parts.some((p) => p.kind === 'Chorus'));
+// Nur Paare, bei denen der Chorus in den Noten klar anders ist (Otis Wunsch 23.11.2026: keine Songs raten)
+const pairs = () => (REAL ? REAL.songs : []).flatMap((s) => s.parts.filter((p) => p.kind === 'Strophe').flatMap((v) => s.parts.filter((p) => p.kind === 'Chorus' && diffs(p.n, v.n).length).map((c) => ({ s, v, c }))));
 
 // Einen Takt aus einer Notation herausnehmen und Takte zu einer neuen Notation zusammensetzen (nur normales Raster)
 function barOf(n, b) {
@@ -252,9 +252,9 @@ function genFill(o) { const f = JSON.parse(JSON.stringify(o)); for (const k of O
 const opts3 = (right, pool) => shuffle(shuffle(pool.filter((o) => o !== right)).slice(0, 2).concat(right));
 function question(type) {
   if (type === 'pair') {
-    const songs = pairSongs();
-    if (songs.length) {
-      const s = pick(songs), v = pick(s.parts.filter((p) => p.kind === 'Strophe')), c = pick(s.parts.filter((p) => p.kind === 'Chorus')), first = Math.random() < 0.5 ? 'A' : 'B';
+    const ps = pairs();
+    if (ps.length) {
+      const { s, v, c } = pick(ps), first = Math.random() < 0.5 ? 'A' : 'B';
       const A = first === 'A' ? c : v, B = first === 'A' ? v : c;
       return { type, song: s.song, A: withBpm(A.n, s.bpm), B: withBpm(B.n, s.bpm), opts: ['A', 'B'], right: first, why: `Chorus war ${first} („${c.title}“). ${diffText(c.n, v.n)}` };
     }
@@ -342,7 +342,7 @@ function learnRun(lv) {
 function runLevel(lv) {
   if (lv.learn) return learnRun(lv);
   const exam = !!lv.exam, total = exam ? EXAM : ROUNDS, need = exam ? EXAM_NEED : NEED;
-  const nextQ = () => question(exam ? pick(['pair', 'part', 'fill', 'gap', 'fact', 'sheet']) : lv.type);
+  const nextQ = () => question(exam ? pick(['pair', 'fill', 'gap', 'fact', 'sheet']) : lv.type);
   const R = { n: 0, ok: 0, wrong: 0, q: nextQ(), ans: null, heard: {} };
   return {
     view: () => {
@@ -389,7 +389,7 @@ document.addEventListener('click', (ev) => {
   if (act === 'home') { stopPlay(); G = null; return render(); }
   if (act === 'level') { const nm = $('#nm'); if (nm) { P.name = nm.value.trim(); save(); } return startLevel(Number(el.dataset.id)); }
   if (act === 'cert') return showCert();
-  if (act === 'reset') { if (confirm('Wirklich von vorne anfangen? Dein Fortschritt wird gelöscht.')) { P = { name: P.name, done: {}, cert: null, v: 2 }; save(); render(); } return; }
+  if (act === 'reset') { if (confirm('Wirklich von vorne anfangen? Dein Fortschritt wird gelöscht.')) { P = { name: P.name, done: {}, cert: null, v: 3 }; save(); render(); } return; }
   if (G && G.act) G.act(act, el);
 });
 document.addEventListener('change', (ev) => { if (ev.target.id === 'nm') { P.name = ev.target.value.trim(); save(); } });
