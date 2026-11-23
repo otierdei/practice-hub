@@ -1249,3 +1249,28 @@ test('Roadmap: iReal Pro Import (Otis Playlist) besteht die Server Prüfung', as
   assert.equal(R.cheatSheet(one[0].roadmap), 'Blues'); assert.equal(R.totalBars(one[0].roadmap), 12);
   assert.ok(cleanRoadmap(one[0].roadmap));
 });
+
+test('Serie: Zieltage pro Schüler (Lehrer setzt, Schüler sieht), Ferienpause und längste Serie', async () => {
+  const w = await world();
+  assert.equal((await w.call('/api/home', {}, w.ta)).data.streak_days, 3);
+  assert.equal((await w.call('/api/t/student/streak', { id: w.a, days: 2 }, w.t)).status, 200);
+  assert.equal((await w.call('/api/home', {}, w.ta)).data.streak_days, 2);
+  assert.equal((await w.call('/api/t/student', { id: w.a }, w.t)).data.streak_days, 2);
+  assert.equal((await w.call('/api/t/student/streak', { id: w.a, days: 9 }, w.t)).status, 400);
+  assert.equal((await w.call('/api/t/student/streak', { id: w.a, days: 4 }, w.ta)).status, 403);
+  const { createRequire } = await import('node:module');
+  const P = createRequire(import.meta.url)('../../public/progress.js');
+  // Herbstferien 26.10. bis 31.10.2026: Woche ohne Üben bricht die Serie nicht
+  const dates = ['2026-10-12', '2026-10-13', '2026-10-14', '2026-10-19', '2026-10-20', '2026-10-21', '2026-11-02', '2026-11-03', '2026-11-04', '2026-11-09'];
+  const r = P.streak(dates, 3, '2026-11-11');
+  assert.equal(r.weeks, 3, '2 Wochen vor den Ferien plus Woche danach, Ferienwoche pausiert'); assert.equal(r.paused, 1);
+  assert.equal(r.current.n, 1); assert.equal(r.left, 2); assert.equal(r.current.done, false);
+  // Normale Woche ohne Üben bricht die Serie
+  const r2 = P.streak(['2026-11-02', '2026-11-03', '2026-11-04', '2026-11-16', '2026-11-17', '2026-11-18'], 3, '2026-11-18');
+  assert.equal(r2.weeks, 1); assert.equal(r2.best, 1);
+  assert.equal(P.streak(['2026-11-16'], 1, '2026-11-18').weeks, 1, 'Zieltag 1 erreicht zählt sofort');
+  assert.equal(P.holidayWeek('2026-12-21'), true); assert.equal(P.holidayWeek('2026-11-16'), false);
+  assert.equal(P.dayStreakBest(['2026-11-01', '2026-11-02', '2026-11-03', '2026-11-05']), 3);
+  const m = P.month(2026, 10, { '2026-11-03': 20 }, '2026-11-23');
+  assert.equal(m.length % 7, 0); assert.equal(m[0].date, '2026-10-26'); assert.ok(m.find((c) => c.date === '2026-11-03').played);
+});

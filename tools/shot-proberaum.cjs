@@ -6,10 +6,14 @@ const APP = 'http://localhost:8080', out = process.argv[2];
   const t = (await api(null, '/api/login', { code: 'LEHRER2345XY' })).token;
   const ex1 = await api(t, '/api/t/exercise/save', { title: 'Paradiddle Groove', category: 'Technik', source_type: 'youtube', url: 'https://www.youtube.com/watch?v=dQw4w9WgXcQ', target_bpm: 90 });
   const codes = {};
+  // Kurs mit 3 Leveln für die Weg Karte
+  const lessonIds = [];
+  for (const [nm, n] of [['Starter', 3], ['Beat Builder', 4], ['Groover', 4]]) { const { level } = await api(t, '/api/t/course/level/add', { course: 'drums', name: nm }); for (let i = 0; i < n; i++) lessonIds.push((await api(t, '/api/t/course/lesson/add', { course: 'drums', level, title: nm + ' Lektion ' + (i + 1) })).id); }
   for (const [name, by] of [['Lena', 2005], ['Max', 2016]]) {
     const { id } = await api(t, '/api/t/student/save', { first_name: name, birth_year: by, weekday: 3, lesson_time: '16:20', instrument: 'Schlagzeug' });
     await api(t, '/api/t/lesson/finish', { student_id: id, minutes: 40, new_assignments: [{ exercise_id: ex1.id, target_bpm: 90, start_bpm: 70, minutes_per_day: 10 }, { free_text: 'Way Maker: Groove Strophe', url: 'https://youtu.be/dQw4w9WgXcQ', minutes_per_day: 10 }, { free_text: 'Ghost Notes ganz leise', minutes_per_day: 5 }, { free_text: 'Single Stroke Roll', minutes_per_day: 5 }] });
     await api(t, '/api/t/consent', { student_id: id, how: 'liegt Oti vor' }).catch(() => {});
+    for (const lid of lessonIds.slice(0, 5)) await api(t, '/api/t/course/assign', { student_id: id, lesson_id: lid, status: 'fertig' });
     const { code } = await api(t, '/api/t/access/create', { student_id: id, role: 'student' }); codes[name] = code;
     const tok = (await api(null, '/api/login', { code })).token;
     // Übezeiten: diese Woche 2 Tage, die 3 Wochen davor je 3 Tage
@@ -23,7 +27,14 @@ const APP = 'http://localhost:8080', out = process.argv[2];
     const p = await b.newPage({ viewport: { width: w, height: h }, deviceScaleFactor: w < 500 ? 2 : 1, colorScheme: scheme }); p.on('pageerror', (e) => errs.push(e.message));
     await p.route('https://i.ytimg.com/**', thumb);
     await p.goto(APP + '/#c=' + codes[name]); await p.waitForTimeout(1500);
-    await p.screenshot({ path: `${out}-${name}-${w}-${scheme}.png`, fullPage: true }); await p.close();
+    await p.screenshot({ path: `${out}-${name}-${w}-${scheme}.png`, fullPage: true });
+    await p.click('nav [data-tab=fortschritt]'); await p.waitForTimeout(500);
+    await p.screenshot({ path: `${out}-${name}-${w}-${scheme}-fortschritt.png`, fullPage: true }); await p.close();
   }
+  const tp = await b.newPage({ viewport: { width: 1440, height: 900 } }); tp.on('pageerror', (e) => errs.push(e.message));
+  await tp.goto(APP); await tp.fill('#code', 'LEHRER2345XY'); await tp.press('#code', 'Enter'); await tp.waitForFunction(() => typeof S !== 'undefined' && S.role === 'teacher');
+  await tp.evaluate(async () => { const st = (await api('/api/home')).students.find((x) => x.first_name === 'Lena'); await openStudent(st.id); });
+  await tp.waitForTimeout(600); await tp.click('[data-act=streakDays][data-v="2"]'); await tp.waitForTimeout(500);
+  await tp.screenshot({ path: `${out}-akte-1440.png`, fullPage: true });
   console.log('Fehler:', errs.length ? errs : 'keine'); await b.close();
 })().catch((e) => { console.error(e); process.exit(1); });
