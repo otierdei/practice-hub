@@ -1,7 +1,7 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { fileURLToPath } from 'node:url';
-import worker, { cleanup, isMinor, manifestFor, instrIcon } from '../src/index.js';
+import worker, { cleanup, isMinor, manifestFor, instrIcon, sendStudentReminders } from '../src/index.js';
 import { makeD1 } from './d1-shim.mjs';
 
 const ORIGIN = 'https://otierdei.github.io';
@@ -1273,4 +1273,45 @@ test('Serie: Zieltage pro Schüler (Lehrer setzt, Schüler sieht), Ferienpause u
   assert.equal(P.dayStreakBest(['2026-11-01', '2026-11-02', '2026-11-03', '2026-11-05']), 3);
   const m = P.month(2026, 10, { '2026-11-03': 20 }, '2026-11-23');
   assert.equal(m.length % 7, 0); assert.equal(m[0].date, '2026-10-26'); assert.ok(m.find((c) => c.date === '2026-11-03').played);
+});
+
+test('Übe Erinnerungen: Abo nur Schüler, unter 16 nur mit Einwilligung, Regeln für Tag, Stunde, Sonntag, Ferien, Serie', async () => {
+  const w = await world();
+  const sub = { endpoint: 'https://push.example/abc', keys: { p256dh: 'p'.repeat(40), auth: 'a'.repeat(16) } };
+  assert.equal((await w.call('/api/my/push/subscribe', sub, w.ta)).status, 403, 'Anna ist minderjährig, Eltern haben noch nicht zugestimmt');
+  assert.equal((await w.call('/api/my/push/subscribe', sub, w.t)).status, 403, 'Lehrer nicht');
+  assert.equal((await w.call('/api/my/push/subscribe', sub, w.tb)).status, 200, 'Ben ist erwachsen');
+  assert.deepEqual((await w.call('/api/home', {}, w.tb)).data.push, { prefs: { days: [1, 2, 3, 4, 5], hour: 17 }, subs: 1 });
+  assert.equal((await w.call('/api/my/push/prefs', { days: [7, 9], hour: 17 }, w.tb)).status, 400, 'Sonntag nicht wählbar');
+  assert.deepEqual((await w.call('/api/my/push/prefs', { days: [1, 3, 6], hour: 30 }, w.tb)).data.prefs, { days: [1, 3, 6], hour: 17 });
+  const sent = []; const send = async (x, p) => { sent.push(p); return { ok: true }; };
+  // Mi 25.11.2026, 17 Uhr in Berlin (16 Uhr UTC), Ben hat heute nicht geübt
+  let r = await sendStudentReminders(w.env, new Date('2026-11-25T16:20:00Z'), send);
+  assert.equal(r.sent, 1); assert.match(sent[0].body, /Ben, heute noch nicht geübt/);
+  r = await sendStudentReminders(w.env, new Date('2026-11-25T16:40:00Z'), send); assert.equal(r.sent, 0, 'höchstens 1 pro Tag');
+  r = await sendStudentReminders(w.env, new Date('2026-11-26T16:20:00Z'), send); assert.equal(r.sent, 0, 'Donnerstag nicht gewählt');
+  r = await sendStudentReminders(w.env, new Date('2026-11-29T16:20:00Z'), send); assert.equal(r.sent, 0, 'Sonntag still');
+  r = await sendStudentReminders(w.env, new Date('2026-12-28T16:20:00Z'), send); assert.equal(r.sent, 0, 'Weihnachtsferien still');
+  // Heute schon geübt: keine Erinnerung
+  await w.call('/api/session/add', { client_id: 'b1', seconds: 600, local_date: '2026-11-30', started_at: '2026-11-30T15:00:00Z', ended_at: '2026-11-30T15:10:00Z' }, w.tb);
+  r = await sendStudentReminders(w.env, new Date('2026-11-30T16:20:00Z'), send); assert.equal(r.sent, 0, 'schon geübt');
+  // Abmelden
+  await w.call('/api/my/push/unsubscribe', { endpoint: sub.endpoint }, w.tb);
+  assert.equal((await w.call('/api/home', {}, w.tb)).data.push.subs, 0);
+});
+
+test('Übe Erinnerungen: Serien Warnung und gleiche Regeln wie in der App', async () => {
+  const { reminderText, weekStreak, HOLIDAYS_BW } = await import('../src/progress.js');
+  const { createRequire } = await import('node:module');
+  const P = createRequire(import.meta.url)('../../public/progress.js');
+  assert.deepEqual(HOLIDAYS_BW, P.HOLIDAYS_BW, 'Ferien in App und Server gleich');
+  const dates = ['2026-11-09', '2026-11-10', '2026-11-11', '2026-11-16', '2026-11-17', '2026-11-18', '2026-11-23'];
+  for (const today of ['2026-11-25', '2026-11-27', '2026-11-04']) { const a = weekStreak(dates, 3, today), b = P.streak(dates, 3, today); assert.equal(a.weeks, b.weeks, today); assert.equal(a.left, b.left, today); }
+  const prefs = { days: [1, 2, 3, 4, 5, 6], hour: 17 };
+  // Freitag, 1 von 3 Tagen, nur noch Fr, Sa, So: Serie in Gefahr
+  const m = reminderText({ name: 'Ben', prefs, now: { date: '2026-11-27', hour: 17, weekday: 5 }, dates, target: 3, sentToday: false });
+  assert.equal(m.kind, 'serie'); assert.match(m.title, /2 Wochen/); assert.match(m.body, /Noch 2 Tage/);
+  const m2 = reminderText({ name: 'Ben', prefs, now: { date: '2026-11-24', hour: 17, weekday: 2 }, dates, target: 3, sentToday: false });
+  assert.equal(m2.kind, 'ueben');
+  assert.equal(reminderText({ name: 'Ben', prefs, now: { date: '2026-11-24', hour: 16, weekday: 2 }, dates, target: 3, sentToday: false }), null, 'falsche Stunde');
 });
