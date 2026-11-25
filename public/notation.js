@@ -364,7 +364,7 @@
     tr: (t) => { tone(t, 950, 700, 0.04, 0.35); noise(t, 0.03, 0.2, 'bandpass', 2400); tone(t, 260, 200, 0.08, 0.15); },
   };
   // Echte Samples aus Otis Bibliothek: Kick, Snare (Mystery Snare Dry), Toms, Crash, HiHat. Ride: VCSL Becken mit Stock (CC0, Versilian Studios).
-  const SAMPLE = { bd: 0.95, sn: 0.8, gh: 0.18, t1: 0.75, t2: 0.75, ft: 0.8, cr: 0.45, hh: 0.45, ho: 0.45, hf: 0.3, rd: 0.4 };
+  const SAMPLE = { bd: 0.95, sn: 0.8, gh: 0.18, t1: 0.75, t2: 0.75, ft: 0.8, cr: 0.38, hh: 0.45, ho: 0.45, hf: 0.3, rd: 0.4 };
   const SRC = { gh: 'sn', hf: 'hh' };
   const BUF = {}; let loading = null, samplesReady = false;
   // Gleiche Versionsnummer wie notation.js?v=…, damit neue Samples nach Updates sicher geladen werden
@@ -386,7 +386,10 @@
     return true;
   }
   const DYN_GAIN = { a: 1.7, s: 0.35 };
-  function hit(k, t, dyn) { audio(); loadSamples(); t = t || ctx.currentTime + 0.01; if (!(SAMPLE[k] && sample(k, t, DYN_GAIN[dyn] || 1))) (SOUND[k] || SOUND.sn)(t); }
+  // Toms eigene Dynamik (Oti 25.11.): laut etwas leiser (minus 15 Prozent), leise halb so laut
+  const TOM_DYN_GAIN = { a: 1.45, s: 0.175 };
+  const TOMS = { t1: 1, t2: 1, ft: 1 };
+  function hit(k, t, dyn) { audio(); loadSamples(); t = t || ctx.currentTime + 0.01; const dg = (TOMS[k] ? TOM_DYN_GAIN : DYN_GAIN)[dyn] || 1; if (!(SAMPLE[k] && sample(k, t, dg))) (SOUND[k] || SOUND.sn)(t); }
 
   // ---------- Metronom Klick (auch für das Metronom der App) ----------
   // level: 2 betont, 1 normal, 0.5 Unterteilung

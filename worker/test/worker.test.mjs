@@ -579,6 +579,7 @@ test('Eine Quelle: Baustein und Bibliothek Änderungen gelten überall', async (
 test('Song Hausaufgabe: Ziel Tempo ist immer das Original BPM des Songs', async () => {
   const w = await world();
   const sid = (await w.call('/api/t/song/create', { title: 'Tempo Song' }, w.t)).data.id;
+  await vids(w, sid);
   await w.env.DB.prepare("INSERT INTO song_files (drive_id, song_id, name, key_sig, bpm, kind, seen_at) VALUES ('f1', ?, 'Tempo Song-E-74.pdf', 'E', 74, 'pdf', '2026-11-09')").bind(sid).run();
   await w.call('/api/t/lesson/finish', { student_id: w.b, date: '2026-10-07', new_assignments: [{ song_id: sid, version: 'Original', start_bpm: 45, target_bpm: 100 }] }, w.t);
   const t = (await w.call('/api/t/student', { id: w.b }, w.t)).data.assignments.find((a) => a.song_id === sid);
@@ -599,6 +600,7 @@ test('Neue Hausaufgaben kommen hinten an, in der Reihenfolge der Stunde', async 
 test('Song BPM festlegen: gilt für Song und Ziel Tempo der Hausaufgaben', async () => {
   const w = await world();
   const sid = (await w.call('/api/t/song/create', { title: 'Never walk alone' }, w.t)).data.id;
+  await vids(w, sid);
   await w.call('/api/t/lesson/finish', { student_id: w.b, date: '2026-10-09', new_assignments: [{ song_id: sid, version: 'Original', start_bpm: 45, target_bpm: 100 }] }, w.t);
   assert.equal((await w.call('/api/t/song/bpm', { song_id: sid, bpm: 72 }, w.tb)).status, 403);
   await w.call('/api/t/song/bpm', { song_id: sid, bpm: 72, source: 'worshiptogether.com' }, w.t);
@@ -645,6 +647,7 @@ test('Videos: eigene Version und Titel, Playthrough wird Oti Playthrough', async
 test('Tempo: Song ohne Bereich (Original), Baustein 45 bis Original', async () => {
   const w = await world();
   const sid = (await w.call('/api/t/song/create', { title: 'Tempo Regeln' }, w.t)).data.id;
+  await vids(w, sid);
   await w.call('/api/t/song/bpm', { song_id: sid, bpm: 72 }, w.t);
   await w.call('/api/t/lesson/finish', { student_id: w.b, date: '2026-10-10', new_assignments: [{ song_id: sid, version: 'Original', start_bpm: 45, target_bpm: 100 }] }, w.t);
   const pid = (await w.call('/api/t/song/part/save', { song_id: sid, title: 'Chorus', notation: { sig: '4/4', bars: 1, tracks: { sn: [4] } } }, w.t)).data.id;
@@ -688,6 +691,7 @@ test('Unterrichtsmodus: Üben während der Stunde zählt nicht als Übungszeit',
 test('Hausaufgaben in der Stunde sofort speichern, Song in zwei Versionen, Zuordnung zur Stunde', async () => {
   const w = await world();
   const sg = (await w.call('/api/t/song/create', { title: 'Versionen Song' }, w.t)).data.id;
+  await vids(w, sg);
   const r = (await w.call('/api/t/assignments/new', { student_id: w.a, items: [{ song_id: sg, version: 'Original' }] }, w.t)).data;
   assert.equal(r.ids.length, 1);
   assert.equal((await w.call('/api/t/assignments/new', { student_id: w.a, items: [{ song_id: sg, version: 'Reel' }] }, w.t)).data.ids.length, 1, 'andere Version erlaubt');
@@ -704,6 +708,7 @@ test('Hausaufgaben in der Stunde sofort speichern, Song in zwei Versionen, Zuord
 test('Baustein in der Stunde aufgeben: verlinkt, Tempo 45 bis Original Tempo, kein Doppel', async () => {
   const w = await world();
   const sg = (await w.call('/api/t/song/create', { title: 'Baustein Song' }, w.t)).data.id;
+  await vids(w, sg);
   await w.call('/api/t/song/bpm', { song_id: sg, bpm: 72 }, w.t);
   const pid = (await w.call('/api/t/song/part/save', { song_id: sg, title: 'Chorus' }, w.t)).data.id;
   assert.ok(pid);
@@ -883,6 +888,7 @@ test('Songs umbenennen und löschen (ausblenden), offene Hausaufgabe blockiert',
   const w = await world();
   const a = (await w.call('/api/t/song/create', { title: 'Alter Titel' }, w.t)).data.id;
   const b = (await w.call('/api/t/song/create', { title: 'Anderer Song' }, w.t)).data.id;
+  await vids(w, b);
   assert.equal((await w.call('/api/t/song/rename', { id: a, title: 'anderer song' }, w.t)).status, 409);
   assert.equal((await w.call('/api/t/song/rename', { id: a, title: 'Neuer Titel' }, w.t)).status, 200);
   assert.equal((await w.call('/api/song', { id: a }, w.t)).data.song.title, 'Neuer Titel');
@@ -1368,4 +1374,24 @@ test('Mein Üben: Oti bekommt eigene Profile Gitarre (Indie Kurs) und Drums, ver
   const ov = (await w.call('/api/home', {}, w.t)).data;
   assert.ok(!ov.students.some((x) => x.first_name === 'Oti'), 'nicht in der Schülerliste');
   assert.ok(!JSON.stringify(ov.news || []).includes('lief gut'), 'nicht in Neu');
+});
+
+// Videos für Song Hausaufgaben (ganzer Song braucht ein Video, Oti 25.11.)
+async function vids(w, sid, versions = ['Original', 'Reel', 'Easy']) {
+  const lines = versions.map((v, i) => v + ' | https://youtu.be/vid' + String(i).padStart(8, '0')).join('\n');
+  await w.call('/api/t/song/links/add', { song_id: sid, lines }, w.t);
+}
+
+test('Ganzer Song nur mit Video: ohne Video blockiert, falsche Version blockiert, Baustein geht', async () => {
+  const w = await world();
+  const sg = (await w.call('/api/t/song/create', { title: 'Ohne Video Song' }, w.t)).data.id;
+  const no = await w.call('/api/t/assignments/new', { student_id: w.a, items: [{ song_id: sg, version: 'Original' }] }, w.t);
+  assert.equal(no.status, 400); assert.match(no.data.error || JSON.stringify(no.data), /kein Video/);
+  const pid = (await w.call('/api/t/song/part/save', { song_id: sg, title: 'Chorus', notation: { sig: '4/4', bars: 1, tracks: { sn: [4] } } }, w.t)).data.id;
+  assert.equal((await w.call('/api/t/assignments/new', { student_id: w.a, items: [{ part_id: pid }] }, w.t)).data.ids.length, 1, 'Baustein ohne Video erlaubt');
+  await vids(w, sg, ['Easy']);
+  assert.equal((await w.call('/api/t/assignments/new', { student_id: w.a, items: [{ song_id: sg, version: 'Original' }] }, w.t)).status, 400, 'Version ohne Video');
+  assert.equal((await w.call('/api/t/assignments/new', { student_id: w.a, items: [{ song_id: sg, version: 'Easy' }] }, w.t)).data.ids.length, 1);
+  const fin = (await w.call('/api/t/lesson/finish', { student_id: w.b, date: '2026-11-25', new_assignments: [{ song_id: sg, version: 'Original' }, { free_text: 'Bleibt' }] }, w.t));
+  assert.equal(fin.status, 200, 'Stunde speichert trotzdem'); assert.equal(fin.data.skipped.length, 1);
 });
