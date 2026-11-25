@@ -623,7 +623,17 @@ async function orderAppend(s, studentId, newIds) {
     .map((x, i) => ['INSERT INTO assignment_order (assignment_id, sort) VALUES (?, ?) ON CONFLICT(assignment_id) DO UPDATE SET sort = excluded.sort', [x, i]]);
 }
 // Neue Hausaufgaben anlegen (in der Stunde sofort oder beim Beenden). Schreibt in stmts, liefert neue IDs und übersprungene Titel.
-async function newAssignmentStatements(s, st, lessonId, items, closing, t, stmts) {
+// Ganzer Song nur mit Video (Oti 25.11.): Gitarrenschüler brauchen ein Gitarrenvideo, sonst ein Schlagzeug Video; mit Version genau diese Version.
+async function songVideoMissing(s, st, songId, version) {
+  const stu = await s.first('SELECT instrument FROM students WHERE id = ?', st.id);
+  const ins = (stu && stu.instrument) || 'Schlagzeug', guitarOnly = /^Gitarre$/.test(ins), dual = /Schlagzeug/.test(ins) && /Gitarre/.test(ins);
+  const links = await s.all('SELECT l.version, COALESCE(i.instrument, \'drums\') AS instr FROM song_links l LEFT JOIN song_link_instr i ON i.link_id = l.id WHERE l.song_id = ?', songId);
+  const fit = links.filter((l) => (guitarOnly ? l.instr === 'guitar' : dual ? true : l.instr !== 'guitar'));
+  if (!fit.length) return true;
+  const v = String(version || '').trim().toLowerCase();
+  return !!v && !guitarOnly && !fit.some((l) => String(l.version || '').trim().toLowerCase() === v);
+}
+async function newAssignmentStatements(s, st, lessonId, items, closing, t, stmts, opts = {}) {
   const skipped = [];
   // Kleinschreibung in JS, weil SQLite LOWER keine Umlaute kennt
   const openRows = (await s.all("SELECT a.id, a.exercise_id, a.free_text, x.song_id, x.version, ap.part_id FROM assignments a LEFT JOIN assignment_songs x ON x.assignment_id = a.id LEFT JOIN assignment_parts ap ON ap.assignment_id = a.id WHERE a.student_id = ? AND a.status = 'offen'", st.id)).map((r) => ({ ...r, ft: (r.free_text || '').trim().toLowerCase() }));
@@ -655,6 +665,11 @@ async function newAssignmentStatements(s, st, lessonId, items, closing, t, stmts
     const free = song ? str((song.title + (a.version ? ' (' + a.version + ')' : '')), 300) : str(a.free_text, 300);
     if (!exId && !free) continue;
     if (song && openSongs.has(songKey(song.id, a.version))) { skipped.push(free); continue; }
+    if (song && opts.video && await songVideoMissing(s, st, song.id, a.version)) {
+      const msg = free + ': kein Video' + (a.version ? ' in der Version ' + a.version : '') + ', erst im Song ein Video anhängen';
+      if (opts.video === 'throw') throw new HttpError(400, msg);
+      skipped.push(msg); continue;
+    }
     if (song) { openSongs.add(songKey(song.id, a.version)); exId = null; }
     // Keine doppelte Hausaufgabe: gleiche Übung oder gleicher Text ist schon offen
     const ft = (free || '').trim().toLowerCase();
@@ -693,7 +708,7 @@ async function finishLesson(s, who, b) {
     : ['INSERT INTO lessons (id, student_id, date, minutes, notes_teacher, notes_shared, created_at) VALUES (?, ?, ?, ?, ?, ?, ?)',
       [lessonId, st.id, date, int(b.minutes, 5, 240), str(b.notes_teacher, 3000), str(b.notes_shared, 3000), t]]];
   const closing = new Set((Array.isArray(b.close_assignments) ? b.close_assignments : []).map(String));
-  const { newIds, skipped } = await newAssignmentStatements(s, st, lessonId, b.new_assignments, closing, t, stmts);
+  const { newIds, skipped } = await newAssignmentStatements(s, st, lessonId, b.new_assignments, closing, t, stmts, { video: 'skip' });
   // In der Stunde sofort gespeicherte Hausaufgaben dieser Stunde zuordnen
   for (const id of (Array.isArray(b.attach_assignments) ? b.attach_assignments : []).slice(0, 50)) stmts.push(['UPDATE assignments SET lesson_id = ? WHERE id = ? AND student_id = ? AND lesson_id IS NULL', [lessonId, String(id), st.id]]);
   for (const id of (Array.isArray(b.close_assignments) ? b.close_assignments : []).slice(0, 50)) {
@@ -1232,7 +1247,7 @@ async function route(env, req, path, body) {
       const st = await s.first('SELECT id, first_name FROM students WHERE id = ?', String(body.student_id || ''));
       if (!st) throw new HttpError(404, 'Schüler nicht gefunden.');
       const t = now(), stmts = [];
-      const { newIds, skipped } = await newAssignmentStatements(s, st, null, body.items, new Set(), t, stmts);
+      const { newIds, skipped } = await newAssignmentStatements(s, st, null, body.items, new Set(), t, stmts, { video: 'throw' });
       if (!newIds.length) return { ids: [], skipped };
       stmts.push(logRow(who, 'create', 'assignments', newIds[0], newIds.length + ' Hausaufgabe(n) in der Stunde'));
       await s.batch(stmts);
