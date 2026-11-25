@@ -1325,3 +1325,19 @@ test('Übe Erinnerungen: Serien Warnung und gleiche Regeln wie in der App', asyn
   assert.equal(m2.kind, 'ueben');
   assert.equal(reminderText({ name: 'Ben', prefs, now: { date: '2026-11-24', hour: 16, weekday: 2 }, dates, target: 3, sentToday: false }), null, 'falsche Stunde');
 });
+
+test('Kurs Indie Gitarre: Import, dritter Kurs, Gitarrenschüler wählen ihn', async () => {
+  const fs = await import('node:fs');
+  const w = await world();
+  const data = JSON.parse(fs.readFileSync(new URL('../../tools/kurse/indie-gitarre.json', import.meta.url)));
+  const r = await w.call('/api/t/course/import', data, w.t);
+  assert.equal(r.status, 200);
+  const c = (await w.call('/api/course', { course: 'indie' }, w.t)).data;
+  assert.equal(c.course, 'indie'); assert.equal(c.levels.length, 6); assert.equal(c.lessons.length, 17);
+  assert.equal((await w.call('/api/course', { course: 'drums' }, w.t)).data.lessons.length, 0, 'Indie Import ändert den Schlagzeugkurs nicht');
+  // Schüler sieht keine Lehrer Hinweise
+  const cs = (await w.call('/api/course', { course: 'indie' }, w.tb)).data;
+  const items = Object.values(cs.items || {}).flat ? Object.values(cs.items || {}).flat() : [];
+  assert.ok(!JSON.stringify(cs).includes('Lehrer Hinweis'), 'material nur für Oti');
+  assert.equal((await w.call('/api/t/course/level/add', { course: 'indie', name: 'Extra' }, w.t)).data.level, 7);
+});

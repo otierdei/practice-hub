@@ -650,7 +650,7 @@ function teacherView() {
     html = songsTab(true);
   } else if (t === 'bibliothek') {
     const ex = S.exercises || [];
-    html = `<div class="row between"><h1>Bibliothek</h1><div class="row"><button class="btn primary small" data-act="course" data-course="drums">Schlagzeug Kurs</button><button class="btn primary small" data-act="course" data-course="guitar">Gitarren Kurs</button><button class="btn primary small" data-act="missions">Missionen</button><button class="btn primary small" data-act="newExercise">Übung anlegen</button></div></div>
+    html = `<div class="row between"><h1>Bibliothek</h1><div class="row"><button class="btn primary small" data-act="course" data-course="drums">Schlagzeug Kurs</button><button class="btn primary small" data-act="course" data-course="guitar">Gitarren Kurs</button><button class="btn primary small" data-act="course" data-course="indie">Indie Kurs</button><button class="btn primary small" data-act="missions">Missionen</button><button class="btn primary small" data-act="newExercise">Übung anlegen</button></div></div>
     ${ex.length ? `<div class="field"><label for="libQ" class="hidden">Bibliothek durchsuchen</label><input id="libQ" type="search" placeholder="Suchen: Titel, Kategorie, Hinweis" value="${esc(S.libQ || '')}" autocomplete="off"></div>
     <div class="row" style="gap:6px" id="libCats">${libCatsHTML(ex)}</div><div class="col" style="gap:12px" id="libList">${libListHTML(ex)}</div>`
       : `<div class="empty">Noch keine Übungen. Lege Grooves, Fills, Rudiments oder Worship Songs mit Link oder Buchseite an.</div>`}`;
@@ -1389,6 +1389,18 @@ function openLessonCards() {
     <button class="btn primary" data-act="courseLesson" data-id="${l.id}">Lektion öffnen</button></section>`).join('');
 }
 function lessonSummary(l) { l = { ...l, items: l.items.filter((i) => i.kind !== 'material') }; const v = l.items.filter((i) => i.kind === 'video').length, so = l.items.filter((i) => i.kind === 'song').length; return [v ? v + ' Video' + (v > 1 ? 's' : '') : '', so ? so + ' Song' + (so > 1 ? 's' : '') : ''].filter(Boolean).join(' · ') || 'Mit Oti in der Stunde'; }
+// Kurse (seit 25.11.2026 drei): Gitarrenschüler wechseln zwischen Gitarre und Indie Gitarre, Oti in der Akte ebenso
+const COURSE_NAMES = { drums: 'Schlagzeug Kurs', guitar: 'Gitarren Kurs', indie: 'Indie Gitarre' };
+function courseChoices() {
+  const st = S.role === 'teacher' ? (S.fileCourseOpen && S.file ? S.file.student : null) : stuData() && stuData().student;
+  if (!st) return [];
+  const g = /Gitarre/.test(st.instrument || ''), d = !st.instrument || /Schlagzeug/.test(st.instrument);
+  return [...(d ? ['drums'] : []), ...(g ? ['guitar', 'indie'] : [])];
+}
+function courseSwitch(c) {
+  const ch = courseChoices(); if (ch.length < 2) return '';
+  return `<div class="row" style="gap:6px">${ch.map((k) => `<button class="chip" data-act="courseSwitch" data-v="${k}" aria-pressed="${c.course === k}">${{ drums: 'Schlagzeug', guitar: 'Gitarre', indie: 'Indie Gitarre' }[k]}</button>`).join('')}</div>`;
+}
 function courseOf() { return S.role === 'teacher' && S.fileCourseOpen && S.file ? S.file.course : S.course; }
 function courseView() {
   const c = courseOf(); if (!c) return '';
@@ -1396,7 +1408,8 @@ function courseView() {
   const st = (l) => c.progress[l.id] ? c.progress[l.id].status : null;
   return `<div class="wrap" style="max-width:720px;align-items:stretch">
     <div class="row between"><button class="btn small" data-act="courseBack">Zurück</button>${c.level ? `<span class="pill">Level ${c.level.level} · ${esc(c.level.name)}</span>` : ''}</div>
-    <h1>${teacher && S.fileCourseOpen ? esc(S.file.student.first_name) + 's Weg' : teacher ? (c.course === 'guitar' ? 'Gitarren Kurs' : 'Schlagzeug Kurs') : 'Dein Weg'}</h1>
+    <h1>${teacher && S.fileCourseOpen ? esc(S.file.student.first_name) + 's Weg' : teacher ? COURSE_NAMES[c.course] || 'Kurs' : 'Dein Weg'}</h1>
+    ${courseSwitch(c)}
     ${c.levels.length ? c.levels.map((lv) => { const ls = c.lessons.filter((l) => l.level === lv.level); return `<section class="col"><h2 class="lv-head"><span class="lv-badge small-badge">${lv.level}</span>${esc(lv.name)}</h2>
       <section class="card"><div class="list">${ls.map((l) => `<div class="item"><span class="lesson-dot ${st(l) || ''}" aria-label="${st(l) === 'fertig' ? 'geschafft' : st(l) === 'offen' ? 'aufgegeben' : 'noch nicht dran'}">${st(l) === 'fertig' ? '✓' : l.num}</span><button class="t song-open" data-act="courseLesson" data-id="${l.id}"><b>${esc(l.title)}</b><span class="small muted">${lessonSummary(l)}${st(l) === 'offen' ? ' · Hausaufgabe' : ''}</span></button>
         ${teacher && S.fileCourseOpen ? `<button class="btn small" data-act="lessonState" data-id="${l.id}">${st(l) === 'fertig' ? 'Zurücksetzen' : st(l) === 'offen' ? 'Geschafft' : 'Aufgeben'}</button>` : ''}</div>`).join('')}${!ls.length ? '<div class="item"><span class="small muted">Noch keine Lektion</span></div>' : ''}</div>${teacher && !S.fileCourseOpen ? `<button class="btn small" data-act="clAdd" data-level="${lv.level}" style="margin-top:10px">Lektion hinzufügen</button>` : ''}</section></section>`; }).join('') : '<div class="empty">Der Kurs ist noch leer.</div>'}
@@ -1452,7 +1465,7 @@ function fileCourseCard(f) {
 }
 async function reloadCourse() {
   if (S.fileCourseOpen && S.file) S.file.course = await api('/api/course', { student_id: S.file.student.id });
-  else S.course = await api('/api/course', S.role === 'teacher' ? { course: S.courseKey || 'drums' } : {});
+  else S.course = await api('/api/course', S.role === 'teacher' ? { course: S.courseKey || 'drums' } : S.stuCourseKey ? { course: S.stuCourseKey } : {});
 }
 
 // ---------- Missionen (ph-v108): Paket aus Schritten mit Ziel, Oti hakt ab, dann ist der nächste Schritt frei ----------
@@ -2804,6 +2817,10 @@ document.addEventListener('click', async (ev) => {
         if (act === 'stuPushDay') p.days = p.days.includes(v) ? p.days.filter((x) => x !== v) : [...p.days, v].sort(); else p.hour = v;
         if (!p.days.length) { toast('Mindestens ein Tag'); break; }
         const r = await api('/api/my/push/prefs', p); S.data.push = { ...(S.data.push || {}), prefs: r.prefs }; render(); break; }
+      case 'courseSwitch': { const k = el.dataset.v;
+        if (S.role === 'teacher' && S.fileCourseOpen && S.file) S.file.course = await api('/api/course', { student_id: S.file.student.id, course: k });
+        else { S.stuCourseKey = k; S.course = await api('/api/course', { course: k }); }
+        openOverlay(courseView); break; }
       case 'calOff': S.calOff = Math.min(0, (S.calOff || 0) + Number(el.dataset.v)); render(); break;
       case 'streakDays': { const v = Number(el.dataset.v); await api('/api/t/student/streak', { id: S.file.student.id, days: v }); S.file.streak_days = v; openOverlay(studentFileView); toast('Serie: ' + v + ' Tage pro Woche'); break; }
       case 'rmOpen': rmState(S.song); openOverlay(roadmapView); break;
