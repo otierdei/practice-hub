@@ -533,14 +533,14 @@ export function cleanNotation(n) {
   // Viertel Triolen (t 'q', 2 Schläge im selben Takt, 3 Noten) und 16tel Triolen (t '16', 1 Schlag, 6 Noten); Noten als "Gruppe:Platz"
   const G = steps / 4, bpb = G / bars, used = new Set(trip), tup = [];
   if (['4/4', '3/4'].includes(sig)) for (const x of (Array.isArray(o.tup) ? o.tup : []).slice(0, 64)) {
-    const g = Number(x && x.g), t = x && x.t === 'q' ? 'q' : '16', span = t === 'q' ? [g, g + 1] : [g];
+    const g = Number(x && x.g), t = x && x.t === 'q' ? 'q' : x && x.t === '32' ? '32' : '16', span = t === 'q' ? [g, g + 1] : [g];
     if (!Number.isInteger(g) || g < 0 || span[span.length - 1] >= G || Math.floor(span[0] / bpb) !== Math.floor(span[span.length - 1] / bpb) || span.some((y) => used.has(y))) continue;
     span.forEach((y) => used.add(y)); tup.push({ g, t });
   }
   tup.sort((a, b) => a.g - b.g);
   const tupn = {};
   for (const k of DRUMS) {
-    const l = (Array.isArray(o.tupn && o.tupn[k]) ? o.tupn[k] : []).map(String).filter((v) => { const [g, sl] = v.split(':').map(Number); const t = tup.find((y) => y.g === g); return t && Number.isInteger(sl) && sl >= 0 && sl < (t.t === '16' ? 6 : 3); });
+    const l = (Array.isArray(o.tupn && o.tupn[k]) ? o.tupn[k] : []).map(String).filter((v) => { const [g, sl] = v.split(':').map(Number); const t = tup.find((y) => y.g === g); return t && Number.isInteger(sl) && sl >= 0 && sl < (t.t === '32' ? 8 : t.t === '16' ? 6 : 3); });
     if (l.length) tupn[k] = [...new Set(l)];
     tracks[k] = tracks[k].filter((i) => !tup.some((t) => Math.floor(i / 4) === t.g || (t.t === 'q' && Math.floor(i / 4) === t.g + 1)));
   }
@@ -562,7 +562,7 @@ export function cleanNotation(n) {
   const tdyn = {}, tflam = {}, tstick = {}, tHas = (k, g, sl) => (tupn[k] || []).includes(g + ':' + sl);
   for (const [key, v] of Object.entries(o.tdyn && typeof o.tdyn === 'object' ? o.tdyn : {})) { const [k, g, sl] = String(key).split(':'); if ((v === 'a' || v === 's') && tHas(k, Number(g), Number(sl))) tdyn[k + ':' + Number(g) + ':' + Number(sl)] = v; }
   for (const [key, v] of Object.entries(o.tflam && typeof o.tflam === 'object' ? o.tflam : {})) { const [k, g, sl] = String(key).split(':'); if (v && tHas(k, Number(g), Number(sl))) tflam[k + ':' + Number(g) + ':' + Number(sl)] = 1; }
-  for (const [key, v] of Object.entries(o.tstick && typeof o.tstick === 'object' ? o.tstick : {})) { const [g, sl] = String(key).split(':').map(Number), t = tup.find((y) => y.g === g); if (t && Number.isInteger(sl) && sl >= 0 && sl < (t.t === '16' ? 6 : 3) && (v === 'R' || v === 'L' || v === 'K')) tstick[g + ':' + sl] = v; }
+  for (const [key, v] of Object.entries(o.tstick && typeof o.tstick === 'object' ? o.tstick : {})) { const [g, sl] = String(key).split(':').map(Number), t = tup.find((y) => y.g === g); if (t && Number.isInteger(sl) && sl >= 0 && sl < (t.t === '32' ? 8 : t.t === '16' ? 6 : 3) && (v === 'R' || v === 'L' || v === 'K')) tstick[g + ':' + sl] = v; }
   const tx = { ...(Object.keys(tdyn).length ? { tdyn } : {}), ...(Object.keys(tflam).length ? { tflam } : {}), ...(Object.keys(tstick).length ? { tstick } : {}) };
   return JSON.stringify({ v: 2, sig, bars, bpm: int(o.bpm, 30, 300) || 80, tracks, stick, dyn, ...(Object.keys(flam).length ? { flam } : {}), marks, repeat, ...(trip.length ? { trip } : {}), ...(tup.length ? { tup, tupn, ...tx } : {}) });
 }
@@ -943,6 +943,33 @@ async function route(env, req, path, body) {
       if (clash) throw new HttpError(409, `Es gibt schon einen Song "${clash.title}".`);
       await s.run('UPDATE songs SET title = ? WHERE id = ?', title, sg.id);
       return { ok: true };
+    }
+    case '/api/t/song/merge': {
+      // Übersetzung zusammenführen (Oti 25.11.): alles vom Song "from" an "into" hängen, "from" ausblenden, "into" optional umbenennen.
+      // Drive Dateien (song_files) bleiben beim alten Song, der Abgleich ordnet sie nach Dateinamen zu.
+      const from = await s.first('SELECT id, title FROM songs WHERE id = ?', String(body.from_id || ''));
+      const into = await s.first('SELECT id, title FROM songs WHERE id = ?', String(body.into_id || ''));
+      if (!from || !into) throw new HttpError(404, 'Song nicht gefunden.');
+      if (from.id === into.id) throw new HttpError(400, 'Gleicher Song.');
+      const title = str(body.title, 160), f = from.id, i = into.id;
+      const ops = [
+        ['UPDATE assignment_songs SET song_id = ? WHERE song_id = ?', [i, f]],
+        ['UPDATE song_links SET song_id = ? WHERE song_id = ?', [i, f]],
+        ['UPDATE song_parts SET song_id = ? WHERE song_id = ?', [i, f]],
+        ['UPDATE student_beats SET song_id = ? WHERE song_id = ?', [i, f]],
+        ['INSERT OR IGNORE INTO student_songs (student_id, song_id, added_at) SELECT student_id, ?, added_at FROM student_songs WHERE song_id = ?', [i, f]],
+        ['DELETE FROM student_songs WHERE song_id = ?', [f]],
+        ['INSERT OR IGNORE INTO song_teaching (song_id, state, kind, updated_at) SELECT ?, state, kind, updated_at FROM song_teaching WHERE song_id = ?', [i, f]],
+        ['INSERT OR IGNORE INTO song_meta (song_id, bpm, bpm_source) SELECT ?, bpm, bpm_source FROM song_meta WHERE song_id = ?', [i, f]],
+        ['INSERT OR IGNORE INTO song_guitar (song_id, notation, sheet, key_sig, updated_at) SELECT ?, notation, sheet, key_sig, updated_at FROM song_guitar WHERE song_id = ?', [i, f]],
+        ['UPDATE song_roadmap SET song_id = ? WHERE song_id = ? AND NOT EXISTS (SELECT 1 FROM song_roadmap WHERE song_id = ?)', [i, f, i]],
+        ['UPDATE mission_steps SET item = REPLACE(item, ?, ?) WHERE item LIKE ?', [JSON.stringify(f), JSON.stringify(i), '%' + f + '%']],
+        ['INSERT INTO song_hidden (song_id, hidden_at) VALUES (?, ?) ON CONFLICT(song_id) DO NOTHING', [f, now()]],
+      ];
+      if (title) ops.push(['UPDATE songs SET title = ? WHERE id = ?', [title, i]]);
+      ops.push(logRow(who, 'update', 'songs', i, `${from.title} zusammengeführt in ${title || into.title}`));
+      await s.batch(ops);
+      return { ok: true, title: title || into.title };
     }
     case '/api/t/song/delete': {
       // Ausblenden statt löschen: Drive Songs kämen beim Abgleich zurück. Offene Hausaufgaben blockieren.
