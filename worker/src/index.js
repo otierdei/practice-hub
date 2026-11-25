@@ -163,7 +163,7 @@ const missions = (s, who) => missionApi({ s, who, now, uid, str, int, HttpError,
 export async function teacherNews(s) {
   const floor = new Date(Date.now() - 30 * DAY).toISOString(), fresh = new Date(Date.now() - 7 * DAY).toISOString();
   const seen = Object.fromEntries((await s.all('SELECT student_id, seen_at FROM news_seen')).map((r) => [r.student_id, r.seen_at]));
-  const studs = await s.all("SELECT id, first_name FROM students WHERE status != 'archiviert'");
+  const studs = await s.all("SELECT id, first_name FROM students WHERE status NOT IN ('archiviert', 'selbst')");
   const since = (id) => { const x = seen[id] || fresh; return x > floor ? x : floor; };
   const ok = new Map(studs.map((x) => [x.id, x]));
   const items = [];
@@ -281,7 +281,7 @@ async function addSession(s, who, b) {
 
 // ---------- Lehrer ----------
 async function teacherOverview(s) {
-  const students = await s.all(`SELECT id, first_name, birth_year, is_minor, weekday, lesson_time, lesson_minutes, level, instrument, status FROM students WHERE status != 'archiviert' ORDER BY weekday, lesson_time, first_name`);
+  const students = await s.all(`SELECT id, first_name, birth_year, is_minor, weekday, lesson_time, lesson_minutes, level, instrument, status FROM students WHERE status NOT IN ('archiviert', 'selbst') ORDER BY weekday, lesson_time, first_name`);
   const weekAgo = new Date(Date.now() - 7 * DAY);
   const weekAgoDate = weekAgo.toISOString().slice(0, 10);
   const lastLessons = await s.all('SELECT student_id, MAX(date) AS last FROM lessons GROUP BY student_id');
@@ -397,6 +397,30 @@ function deleteStudentStatements(id) {
     ['DELETE FROM students WHERE id = ?', [id]],
     ['UPDATE log SET summary = NULL WHERE entity_id = ?', [id]],
   ];
+}
+
+// ---------- Mein Üben (Otis Wunsch 25.11.2026) ----------
+// Oti übt selbst: je ein verstecktes Schülerprofil für Gitarre und Schlagzeug (status 'selbst', nicht in Liste, Heute, Neu).
+// Kein Code: der Lehrer bekommt direkt eine Schüler Anmeldung für sein Profil. Gitarre startet im Kurs Indie Gitarre.
+export const SELF = { guitar: { id: 'self-guitar', instrument: 'Gitarre' }, drums: { id: 'self-drums', instrument: 'Schlagzeug' } };
+async function openSelf(s, b) {
+  const k = b.instrument === 'guitar' ? 'guitar' : 'drums', me = SELF[k], t = now();
+  const fresh = !(await s.first('SELECT id FROM students WHERE id = ?', me.id));
+  if (fresh) {
+    await s.run(`INSERT INTO students (id, first_name, birth_year, is_minor, instrument, status, created_at) VALUES (?, 'Oti', NULL, 0, ?, 'selbst', ?)`, me.id, me.instrument, t);
+    if (k === 'guitar') {
+      const first = await s.first(`SELECT id FROM course_lessons WHERE course = 'indie' ORDER BY level, num LIMIT 1`);
+      if (first) await s.run('INSERT OR IGNORE INTO student_lessons (student_id, lesson_id, status, assigned_at) VALUES (?, ?, ?, ?)', me.id, first.id, 'offen', t);
+    }
+  }
+  const accId = me.id + '-acc';
+  if (!(await s.first('SELECT id FROM access WHERE id = ?', accId))) {
+    await s.run('INSERT INTO access (id, student_id, role, label, code_hash, created_at) VALUES (?, ?, ?, ?, ?, ?)', accId, me.id, 'student', 'Mein Üben', await sha256(randomCode(16)), t);
+  }
+  const token = randomToken();
+  await s.run('INSERT INTO devices (id, access_id, token_hash, created_at, last_seen, expires_at) VALUES (?, ?, ?, ?, ?, ?)',
+    uid(), accId, await sha256(token), t, t, new Date(Date.now() + TOKEN_DAYS * DAY).toISOString());
+  return { token, role: 'student', name: 'Oti', instrument: k };
 }
 
 async function createAccess(s, who, b) {
@@ -723,7 +747,14 @@ async function route(env, req, path, body) {
     // Drei Kurse: Schlagzeug (drums), Gitarre (guitar), Indie Gitarre (indie, seit 25.11.2026). Ohne Angabe nach Instrument des Schülers.
     const sid = who.role === 'teacher' ? (str(body.student_id, 64) || null) : who.studentId;
     let course = COURSES.includes(body.course) ? body.course : null;
-    if (!course && sid) { const st = await s.first('SELECT instrument FROM students WHERE id = ?', sid); course = st && /^Gitarre$/.test(st.instrument || '') ? 'guitar' : 'drums'; }
+    if (!course && sid) {
+      const st = await s.first('SELECT instrument FROM students WHERE id = ?', sid); course = st && /^Gitarre$/.test(st.instrument || '') ? 'guitar' : 'drums';
+      // Gitarrenschüler nur mit Indie Lektionen (z. B. Otis eigenes Profil) starten im Indie Kurs
+      if (course === 'guitar') {
+        const r = await s.first(`SELECT SUM(cl.course = 'indie') AS i, SUM(cl.course = 'guitar') AS g FROM student_lessons sl JOIN course_lessons cl ON cl.id = sl.lesson_id WHERE sl.student_id = ?`, sid);
+        if (r && r.i && !r.g) course = 'indie';
+      }
+    }
     return courseData(s, course || 'drums', sid, who.role === 'teacher');
   }
   // Songform Spiel (23.11.2026): alle Song Bausteine mit Noten auf einmal, nur lesen, für jede angemeldete Rolle (wie /api/song)
@@ -1188,6 +1219,7 @@ async function route(env, req, path, body) {
     case '/api/t/student/save': return saveStudent(s, who, body);
     case '/api/t/student/delete': return deleteStudent(s, who, String(body.id || ''));
     case '/api/t/access/create': return createAccess(s, who, body);
+    case '/api/t/self/open': return openSelf(s, body);
     case '/api/t/access/revoke': return revokeAccess(s, who, String(body.id || ''));
     case '/api/t/exercises': return { exercises: await s.all('SELECT * FROM exercises WHERE archived = 0 ORDER BY category, title') };
     case '/api/t/exercise/save': return saveExercise(s, who, body);

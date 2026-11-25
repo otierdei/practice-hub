@@ -121,6 +121,8 @@ body.kid{--bg:#fbf3e4;--surface:#ffffff;--sunk:#f6ead3;--ink:#23241f;--muted:#4a
 .btn.video{border-color:var(--ink);font-weight:600}
 .preview-bar{position:sticky;top:0;z-index:5;display:flex;justify-content:space-between;align-items:center;gap:12px;padding:10px 16px;background:var(--ring2);color:#fff;font-weight:600}
 .preview-bar .btn{color:#fff;border-color:#fff}
+.self-bar .btn[aria-pressed="true"]{background:#fff;color:#7a5a3a}
+.self-bar{flex-wrap:nowrap;padding:8px 12px;gap:8px;background:#7a5a3a}@media (prefers-color-scheme: dark){.self-bar{background:#4a3828}.self-bar .btn[aria-pressed="true"]{color:#4a3828}}.self-bar .row{flex-wrap:nowrap}.self-bar .btn{white-space:nowrap}.self-bar>span{white-space:nowrap}
 .btn:disabled{opacity:.5;cursor:default}
 .iconbtn{width:48px;height:48px;border-radius:50%;border:none;background:var(--sunk);font-size:1.4rem;display:inline-flex;align-items:center;justify-content:center}
 label{font-size:.88rem;color:var(--muted)}
@@ -308,11 +310,11 @@ details.card summary{cursor:pointer;font-family:var(--display);font-size:1.08rem
 </head>
 <body>
 <div id="app"><div class="wrap"><p class="muted">Lädt …</p></div></div>
-<script src="notation.js?v=128"></script>
-<script src="guitar.js?v=128"></script>
-<script src="roadmap.js?v=128"></script>
-<script src="progress.js?v=128"></script>
-<script src="transpose.js?v=128"></script>
+<script src="notation.js?v=129"></script>
+<script src="guitar.js?v=129"></script>
+<script src="roadmap.js?v=129"></script>
+<script src="progress.js?v=129"></script>
+<script src="transpose.js?v=129"></script>
 <script>
 'use strict';
 // ---------- Grundlagen ----------
@@ -327,7 +329,7 @@ const store = {
   set(k, v) { try { localStorage.setItem(pk(k), JSON.stringify(v)); } catch (e) {} },
   del(k) { try { localStorage.removeItem(pk(k)); } catch (e) {} },
 };
-const S = { token: store.get('token', null), role: store.get('role', null), name: store.get('name', null), tab: null, data: null, overlay: null, exercises: null };
+const S = { self: store.get('self', null), token: store.get('token', null), role: store.get('role', null), name: store.get('name', null), tab: null, data: null, overlay: null, exercises: null };
 const esc = (v) => String(v == null ? '' : v).replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
 const $ = (sel, root = document) => root.querySelector(sel);
 const WD = ['', 'Montag', 'Dienstag', 'Mittwoch', 'Donnerstag', 'Freitag', 'Samstag', 'Sonntag'];
@@ -354,7 +356,28 @@ async function api(path, body, real = false) {
   if (!res.ok) throw new Error(data.error || 'Fehler ' + res.status);
   return data;
 }
-function logoutLocal() { S.token = null; S.role = null; S.data = null; store.del('token'); store.del('role'); store.del('name'); store.del('code'); store.del('unterricht'); if (typeof setManifest === 'function') setManifest(); render(); }
+// Mein Üben (25.11.2026): Oti wechselt aus der Lehreransicht in seine eigenen Profile Gitarre und Drums. Der Lehrer Zugang wartet in store 'teacher'.
+function selfBack() {
+  const tk = store.get('teacher', null); if (!tk) return false;
+  S.token = tk.token; S.role = 'teacher'; S.name = tk.name; S.self = null; S.data = null; S.course = null; S.songs = null; S.stuCourseKey = null; S.overlay = null; S.tab = TABS.teacher[0][0];
+  store.set('token', tk.token); store.set('role', 'teacher'); store.set('name', tk.name); store.del('teacher'); store.del('self');
+  return true;
+}
+async function selfOpen(k) {
+  if (S.role === 'student') await flushOutbox();
+  const tk = store.get('teacher', null) || { token: S.token, name: S.name }, toks = store.get('selfTok', {});
+  if (!toks[k]) { S.token = tk.token; const r = await api('/api/t/self/open', { instrument: k }); toks[k] = r.token; store.set('selfTok', toks); }
+  store.set('teacher', tk); store.set('self', k);
+  S.token = toks[k]; S.role = 'student'; S.name = 'Oti'; S.self = k; store.set('token', toks[k]); store.set('role', 'student'); store.set('name', 'Oti');
+  S.data = null; S.course = null; S.songs = null; S.stuCourseKey = null; S.overlay = null; S.tab = 'ueben';
+  render(); await load(); flushOutbox();
+}
+function selfBar() {
+  return `<div class="preview-bar self-bar"><span>Mein Üben</span><div class="row" style="gap:6px">${[['guitar', 'Gitarre'], ['drums', 'Drums']].map(([k, l]) => `<button class="btn small" data-act="selfOpen" data-v="${k}" aria-pressed="${S.self === k}">${l}</button>`).join('')}</div><button class="btn small" data-act="selfBack">Lehreransicht</button></div>`;
+}
+function logoutLocal() {
+  if (S.self && store.get('teacher', null)) { const toks = store.get('selfTok', {}); delete toks[S.self]; store.set('selfTok', toks); selfBack(); render(); load(); return; }
+  store.del('selfTok'); S.token = null; S.role = null; S.data = null; store.del('token'); store.del('role'); store.del('name'); store.del('code'); store.del('unterricht'); if (typeof setManifest === 'function') setManifest(); render(); }
 
 // Kreis: value 0..1
 function ring(value, size, stroke, color, label, inner, sub) {
@@ -531,7 +554,7 @@ function render() {
   if (!S.data) body = `<div class="wrap"><p class="muted">${S.loadError ? esc(S.loadError) + ' <button class="btn small" data-act="reload">Nochmal</button>' : 'Lädt …'}</p></div>`;
   else if (S.preview) body = `<div class="preview-bar"><span>Simulation als ${esc(S.preview.data.student.first_name)}: tippen erlaubt, nichts wird gespeichert</span><button class="btn small" data-act="endPreview">Beenden</button></div>` + studentView(S.preview.data, S.preview.tab);
   else if (S.role === 'teacher') body = teacherView();
-  else if (S.role === 'student') body = studentView();
+  else if (S.role === 'student') body = (S.self ? selfBar() : '') + studentView();
   else body = parentView();
   if (!S.data || (!S.preview && S.role !== 'student')) document.body.classList.remove('kid');
   app.innerHTML = body + (S.preview ? previewNav() : nav()) + (S.overlay ? `<div class="sheet" role="dialog" aria-modal="true">${S.overlay()}</div>` : '');
@@ -631,7 +654,7 @@ function teacherView() {
   if (t === 'heute') {
     const cur = currentStudent(), list = todayStudents();
     const n = nowMinutes();
-    html = `<div class="row between"><h1>Heute</h1><span class="pill">${esc(new Date().toLocaleDateString('de-DE', { weekday: 'long', day: 'numeric', month: 'long' }))}</span></div>
+    html = `<div class="row between"><h1>Heute</h1><div class="row" style="gap:8px"><span class="pill">${esc(new Date().toLocaleDateString('de-DE', { weekday: 'long', day: 'numeric', month: 'long' }))}</span><button class="btn small" data-act="selfOpen" data-v="guitar">Mein Üben</button></div></div>
     ${newsCard()}
     ${cur ? `<section class="card" aria-label="Gerade dran">
       <div class="row between"><div class="col" style="gap:2px"><span class="muted small">${(() => { const tt = toMin(cur.lesson_time); return n >= tt - 10 ? 'Gerade dran' : 'Als Nächstes'; })()}</span><h2 style="font-size:1.8rem">${esc(cur.first_name)}</h2></div>
@@ -1386,7 +1409,7 @@ function myBeatView() {
       ${b.id && !b.teacher ? `<button class="btn danger" type="button" data-act="myBeatDelete" data-id="${b.id}">${S.mbConfirm === b.id ? 'Wirklich löschen?' : 'Löschen'}</button>` : ''}
     </form></div>`;
 }
-function isKid(st) { return !st.birth_year || new Date().getFullYear() - st.birth_year < 13; }
+function isKid(st) { if (/^self-/.test(st.id || '')) return false; return !st.birth_year || new Date().getFullYear() - st.birth_year < 13; }
 const DRUM_FACE = '<svg class="mascot" viewBox="0 0 76 76" width="64" height="64" role="img" aria-label="Lachende Trommel"><ellipse cx="38" cy="26" rx="28" ry="10" fill="#f2c14e" stroke="#23241f" stroke-width="3"/><path d="M10 26v26c0 6 12.5 11 28 11s28-5 28-11V26" fill="#e4572e" stroke="#23241f" stroke-width="3"/><circle cx="29" cy="42" r="3" fill="#23241f"/><circle cx="47" cy="42" r="3" fill="#23241f"/><path d="M30 50q8 7 16 0" stroke="#23241f" stroke-width="3" fill="none" stroke-linecap="round"/><path d="M54 4l-8 18M66 8l-14 16" stroke="#23241f" stroke-width="4" stroke-linecap="round"/></svg>';
 const GUITAR_FACE = '<svg class="mascot" viewBox="0 0 76 76" width="64" height="64" role="img" aria-label="Lachende Gitarre"><path d="M50 6l14 14-14 12" stroke="#23241f" stroke-width="5" stroke-linecap="round"/><path d="M30 30c-6-6-18-4-22 4s-2 22 8 28 24 6 30-2 2-18-4-22c4-6 0-10-4-8z" fill="#f2c14e" stroke="#23241f" stroke-width="3"/><circle cx="26" cy="46" r="7" fill="#e4572e" stroke="#23241f" stroke-width="3"/><path d="M46 28L62 12" stroke="#23241f" stroke-width="4"/><circle cx="20" cy="36" r="2.5" fill="#23241f"/><circle cx="34" cy="36" r="2.5" fill="#23241f"/></svg>';
 // ---------- Kurs: Level und Lektionen ----------
@@ -2711,6 +2734,8 @@ document.addEventListener('click', async (ev) => {
         toast((res.merged ? 'Stunde von heute ergänzt' : 'Stunde gespeichert') + (res.skipped && res.skipped.length ? '. Du hast die Hausaufgabe schon aufgegeben: ' + res.skipped.join(', ') : '')); load(); break;
       }
       case 'preview': { const sid = id || S.file.student.id; S.previewFrom = S.overlay; if (S.overlay === lessonView) saveDraft(); const data = await api('/api/t/preview', { id: sid }); stopTick(); startPreview(data); render(); window.scrollTo(0, 0); break; }
+      case 'selfOpen': await selfOpen(el.dataset.v); break;
+      case 'selfBack': await flushOutbox(); selfBack(); render(); await load(); break;
       case 'endPreview': endPreviewState(); if (S.previewFrom) openOverlay(S.previewFrom); else render(); S.previewFrom = null; break;
       case 'asgEdit': {
         const a = S.file.assignments.find((x) => x.id === id); S.asgEdit = id; S.nt = S.nt || {};

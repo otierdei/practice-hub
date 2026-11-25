@@ -1341,3 +1341,31 @@ test('Kurs Indie Gitarre: Import, dritter Kurs, Gitarrenschüler wählen ihn', a
   assert.ok(!JSON.stringify(cs).includes('Lehrer Hinweis'), 'material nur für Oti');
   assert.equal((await w.call('/api/t/course/level/add', { course: 'indie', name: 'Extra' }, w.t)).data.level, 7);
 });
+
+test('Mein Üben: Oti bekommt eigene Profile Gitarre (Indie Kurs) und Drums, versteckt in Liste und Neu', async () => {
+  const fs = await import('node:fs');
+  const w = await world();
+  await w.call('/api/t/course/import', JSON.parse(fs.readFileSync(new URL('../../tools/kurse/indie-gitarre.json', import.meta.url))), w.t);
+  assert.equal((await w.call('/api/t/self/open', { instrument: 'guitar' }, w.ta)).status, 403, 'nur Lehrer');
+  const g = (await w.call('/api/t/self/open', { instrument: 'guitar' }, w.t)).data;
+  assert.equal(g.role, 'student'); assert.ok(g.token);
+  const home = (await w.call('/api/home', {}, g.token)).data;
+  assert.equal(home.student.first_name, 'Oti'); assert.equal(home.student.instrument, 'Gitarre');
+  const c = (await w.call('/api/course', {}, g.token)).data;
+  assert.equal(c.course, 'indie', 'Gitarrenprofil startet im Indie Kurs');
+  const d = (await w.call('/api/t/self/open', { instrument: 'drums' }, w.t)).data;
+  const hd = (await w.call('/api/home', {}, d.token)).data;
+  assert.equal(hd.student.instrument, 'Schlagzeug'); assert.notEqual(hd.student.id, home.student.id);
+  assert.equal((await w.call('/api/course', {}, d.token)).data.course, 'drums');
+  // Zweites Öffnen legt kein neues Profil an
+  const g2 = (await w.call('/api/t/self/open', { instrument: 'guitar' }, w.t)).data;
+  assert.equal((await w.call('/api/home', {}, g2.token)).data.student.id, home.student.id);
+  // Üben wird gespeichert, taucht aber nicht in Otis Schülerliste auf
+  const day = new Date().toISOString().slice(0, 10);
+  const add = await w.call('/api/session/add', { client_id: 'self-1', free_text: 'Indie 1.1', note: 'Indie 1.1 lief gut', seconds: 600, local_date: day, started_at: new Date(Date.now() - 600000).toISOString(), ended_at: new Date().toISOString() }, g.token);
+  assert.equal(add.status, 200, JSON.stringify(add.data));
+  assert.equal((await w.call('/api/home', {}, g.token)).data.sessions.length, 1);
+  const ov = (await w.call('/api/home', {}, w.t)).data;
+  assert.ok(!ov.students.some((x) => x.first_name === 'Oti'), 'nicht in der Schülerliste');
+  assert.ok(!JSON.stringify(ov.news || []).includes('lief gut'), 'nicht in Neu');
+});
