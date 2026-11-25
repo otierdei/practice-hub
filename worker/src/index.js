@@ -304,6 +304,8 @@ async function teacherOverview(s) {
   return { students, cancellations, news: await teacherNews(s) };
 }
 
+// Liedpfad Level in Reihenfolge (2a = Beat Builder 4/4, 2b = Beat Builder 6/8, 8 = Rockstar)
+const LEVELS = ['1', '2a', '2b', '3', '4', '5', '6', '7', '8'];
 async function teacherStudent(s, id) {
   const st = await s.first('SELECT * FROM students WHERE id = ?', id);
   if (!st) throw new HttpError(404, 'Schüler nicht gefunden.');
@@ -328,7 +330,8 @@ async function teacherStudent(s, id) {
   const games = (await s.all('SELECT game, data, updated_at FROM game_progress WHERE student_id = ?', id)).map((r) => ({ game: r.game, updated_at: r.updated_at, ...JSON.parse(r.data) }));
   const game_time = await s.all('SELECT local_date, game, seconds FROM game_time WHERE student_id = ? AND local_date >= ? ORDER BY local_date DESC', id, new Date(Date.now() - 370 * DAY).toISOString().slice(0, 10));
   const mis = await missions(s, { role: 'teacher' }).forStudent(id);
-  return { student: st, streak_days: await streakDays(s, st.id), lessons, assignments, sessions, goals, access, consents, worship, cancellations, beats, changes, games, game_time, app: app || null, missions: mis };
+  const lv = await s.first('SELECT level, set_at FROM student_level WHERE student_id = ?', id);
+  return { level_set: lv || null, student: st, streak_days: await streakDays(s, st.id), lessons, assignments, sessions, goals, access, consents, worship, cancellations, beats, changes, games, game_time, app: app || null, missions: mis };
 }
 
 async function saveStudent(s, who, b) {
@@ -943,6 +946,30 @@ async function route(env, req, path, body) {
       if (clash) throw new HttpError(409, `Es gibt schon einen Song "${clash.title}".`);
       await s.run('UPDATE songs SET title = ? WHERE id = ?', title, sg.id);
       return { ok: true };
+    }
+    case '/api/t/song/level': {
+      // Songlevel setzen oder entfernen (level leer). Bulk: items [{song_id, level}]
+      const items = Array.isArray(body.items) ? body.items.slice(0, 600) : [{ song_id: body.song_id, level: body.level }];
+      const ops = [];
+      for (const it of items) {
+        const id = String((it && it.song_id) || ''), lv = String((it && it.level) || '').trim().toLowerCase();
+        if (!id) continue;
+        if (!lv) { ops.push(['DELETE FROM song_level WHERE song_id = ?', [id]]); continue; }
+        if (!LEVELS.includes(lv)) throw new HttpError(400, 'Level unbekannt: ' + lv);
+        ops.push(['INSERT INTO song_level (song_id, level, updated_at) VALUES (?, ?, ?) ON CONFLICT(song_id) DO UPDATE SET level = excluded.level, updated_at = excluded.updated_at', [id, lv, now()]]);
+      }
+      if (ops.length) await s.batch(ops);
+      return { ok: true, n: ops.length };
+    }
+    case '/api/t/student/level': {
+      // Schülerlevel von Oti setzen (überschreibt das automatische) oder zurück auf automatisch (level leer)
+      const st = await s.first('SELECT id, first_name FROM students WHERE id = ?', String(body.student_id || ''));
+      if (!st) throw new HttpError(404, 'Schüler nicht gefunden.');
+      const lv = String(body.level || '').trim().toLowerCase();
+      if (!lv) { await s.run('DELETE FROM student_level WHERE student_id = ?', st.id); return { ok: true, level: null }; }
+      if (!LEVELS.includes(lv)) throw new HttpError(400, 'Level unbekannt.');
+      await s.batch([['INSERT INTO student_level (student_id, level, set_at) VALUES (?, ?, ?) ON CONFLICT(student_id) DO UPDATE SET level = excluded.level, set_at = excluded.set_at', [st.id, lv, now()]], logRow(who, 'update', 'students', st.id, `${st.first_name}: Level ${lv}`)]);
+      return { ok: true, level: lv };
     }
     case '/api/t/song/merge': {
       // Übersetzung zusammenführen (Oti 25.11.): alles vom Song "from" an "into" hängen, "from" ausblenden, "into" optional umbenennen.

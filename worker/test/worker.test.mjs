@@ -1420,3 +1420,16 @@ test('Song zusammenführen: Hausaufgaben, Videos, Bausteine wandern, alter Song 
   const list = (await w.call('/api/songs', {}, w.t)).data.songs.map((x) => x.id);
   assert.ok(!list.includes(de) && list.includes(en));
 });
+
+test('Liedpfad: Songlevel und Schülerlevel setzen, nur Lehrer, unbekanntes Level abgelehnt', async () => {
+  const w = await world();
+  const sg = (await w.call('/api/t/song/create', { title: 'Level Song' }, w.t)).data.id;
+  assert.equal((await w.call('/api/t/song/level', { song_id: sg, level: '2b' }, w.ta)).status, 403);
+  assert.equal((await w.call('/api/t/song/level', { song_id: sg, level: '9' }, w.t)).status, 400);
+  await w.call('/api/t/song/level', { items: [{ song_id: sg, level: '2B' }] }, w.t);
+  assert.equal((await w.call('/api/songs', {}, w.t)).data.songs.find((x) => x.id === sg).level, '2b');
+  await w.call('/api/t/student/level', { student_id: w.a, level: '5' }, w.t);
+  assert.equal((await w.call('/api/t/student', { id: w.a }, w.t)).data.level_set.level, '5');
+  await w.call('/api/t/student/level', { student_id: w.a, level: '' }, w.t);
+  assert.equal((await w.call('/api/t/student', { id: w.a }, w.t)).data.level_set, null, 'zurück auf automatisch');
+});

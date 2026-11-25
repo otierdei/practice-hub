@@ -98,6 +98,17 @@ CREATE TABLE IF NOT EXISTS song_part_version (
 INSERT OR IGNORE INTO song_part_version (part_id, version) SELECT id, 'Easy' FROM song_parts WHERE title LIKE '%(Easy)';
 UPDATE song_part_version SET version = 'Oti Playthrough' WHERE version = 'Playthrough';
 INSERT OR IGNORE INTO song_part_version (part_id, version) SELECT id, 'Original' FROM song_parts WHERE title LIKE '%(Original)';
+-- Liedpfad (Oti 25.11.2026): Level pro Song (1, 2a, 2b, 3 bis 8) und Schülerlevel von Oti gesetzt (sonst automatisch aus abgeschlossenen Songs)
+CREATE TABLE IF NOT EXISTS song_level (
+  song_id TEXT PRIMARY KEY,
+  level TEXT NOT NULL,
+  updated_at TEXT NOT NULL
+);
+CREATE TABLE IF NOT EXISTS student_level (
+  student_id TEXT PRIMARY KEY,
+  level TEXT NOT NULL,
+  set_at TEXT NOT NULL
+);
 CREATE TABLE IF NOT EXISTS assignment_parts (
   assignment_id TEXT PRIMARY KEY,
   part_id TEXT NOT NULL
@@ -212,7 +223,7 @@ export async function songsHome(s, who) {
   const [lib, parts, mine, worship, meta, vids] = await Promise.all([
     s.all(`SELECT s.id, s.title, s.lang, GROUP_CONCAT(DISTINCT f.key_sig) AS keys, COALESCE(MAX(m.bpm), MAX(f.bpm)) AS bpm,
              (SELECT state FROM song_teaching WHERE song_id = s.id) AS t_state, (SELECT kind FROM song_teaching WHERE song_id = s.id) AS t_kind,
-             EXISTS (SELECT 1 FROM assignment_songs x WHERE x.song_id = s.id) AS assigned, EXISTS (SELECT 1 FROM song_roadmap r WHERE r.song_id = s.id) AS rm
+             EXISTS (SELECT 1 FROM assignment_songs x WHERE x.song_id = s.id) AS assigned, EXISTS (SELECT 1 FROM song_roadmap r WHERE r.song_id = s.id) AS rm, (SELECT level FROM song_level WHERE song_id = s.id) AS lvl
            FROM songs s LEFT JOIN song_files f ON f.song_id = s.id LEFT JOIN song_meta m ON m.song_id = s.id WHERE s.id NOT IN (SELECT song_id FROM song_hidden) GROUP BY s.id
            HAVING COUNT(f.drive_id) > 0 OR s.lang = 'unterricht' OR EXISTS (SELECT 1 FROM song_roadmap r2 WHERE r2.song_id = s.id) OR EXISTS (SELECT 1 FROM song_teaching t WHERE t.song_id = s.id AND t.state = 'on') OR EXISTS (SELECT 1 FROM song_parts p WHERE p.song_id = s.id) OR EXISTS (SELECT 1 FROM song_links k WHERE k.song_id = s.id) ORDER BY s.title COLLATE NOCASE`),
     s.all('SELECT song_id, COUNT(*) AS n FROM (SELECT song_id FROM song_parts UNION ALL SELECT song_id FROM song_links) GROUP BY song_id'),
@@ -225,7 +236,7 @@ export async function songsHome(s, who) {
   const pn = {}; for (const p of parts) pn[p.song_id] = p.n;
   const vid = {}; for (const v of vids) (vid[v.song_id] = vid[v.song_id] || {})[v.instr === 'guitar' ? 'g' : 'd'] = 1;
   const songs = lib.map((x) => ({ id: x.id, title: x.title, lang: x.lang, keys: (x.keys || '').split(',').filter(Boolean), bpm: x.bpm, parts: pn[x.id] || 0,
-    teach: x.t_state === 'on' || x.lang === 'unterricht' || !!x.assigned, pinned: x.t_state === 'on', kind: songKind(x), gv: !!(vid[x.id] || {}).g, dv: !!(vid[x.id] || {}).d, rm: !!x.rm }));
+    teach: x.t_state === 'on' || x.lang === 'unterricht' || !!x.assigned, pinned: x.t_state === 'on', kind: songKind(x), gv: !!(vid[x.id] || {}).g, dv: !!(vid[x.id] || {}).d, rm: !!x.rm, level: x.lvl || null }));
   return { songs, mine: mine.map((m) => m.song_id), sunday: worship ? await sundaySetlist(s) : null, worship: !!worship, synced: meta ? JSON.parse(meta.v) : null };
 }
 

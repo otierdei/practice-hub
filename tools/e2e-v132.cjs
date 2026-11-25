@@ -1,0 +1,34 @@
+// E2E ph-v132 Liedpfad Teil 1: Level beim Stunde starten, automatisch aus abgeschlossenen Songs, von Oti setzbar, Songfilter Level und eins drüber mit Video
+const { chromium } = require('playwright');
+const APP = 'http://localhost:8080', shots = process.argv[2]; let n = 0;
+const ok = (c, m) => { n++; if (!c) { console.error('FEHLER Schritt ' + n + ': ' + m); process.exit(1); } console.log('ok ' + n + ' ' + m); };
+(async () => {
+  const api = async (tok, p, b) => { const r = await fetch(APP + p, { method: 'POST', headers: { 'Content-Type': 'application/json', Origin: APP, ...(tok ? { Authorization: 'Bearer ' + tok } : {}) }, body: JSON.stringify(b || {}) }); return { status: r.status, data: await r.json() }; };
+  const t = (await api(null, '/api/login', { code: 'LEHRER2345XY' })).data.token;
+  const st = (await api(t, '/api/t/student/save', { first_name: 'Lina', instrument: 'Schlagzeug' })).data; const sid = st.id || (st.student && st.student.id);
+  const mk = async (title, level, vid) => { const id = (await api(t, '/api/t/song/create', { title })).data.id; await api(t, '/api/t/song/level', { song_id: id, level }); if (vid) await api(t, '/api/t/song/links/add', { song_id: id, lines: 'Original | https://youtu.be/' + (title.replace(/\W/g, '') + '00000000000').slice(0, 11) }); return id; };
+  const done3 = await mk('Groove Drei V132', '3', true);
+  await mk('Fill Vier V132', '4', true); await mk('Fill Vier ohne Video V132', '4', false); await mk('Worship Sieben V132', '7', true); await mk('Starter Eins V132', '1', true);
+  const a = (await api(t, '/api/t/assignments/new', { student_id: sid, items: [{ song_id: done3, version: 'Original' }] })).data.ids[0];
+  await api(t, '/api/t/assignment/status', { id: a, status: 'erledigt' });
+  const b = await chromium.launch(); const errs = [];
+  const p = await b.newPage({ viewport: { width: 390, height: 844 }, deviceScaleFactor: 2 }); p.on('pageerror', (e) => errs.push(e.message));
+  await p.goto(APP); await p.fill('#code', 'LEHRER2345XY'); await p.press('#code', 'Enter');
+  await p.waitForFunction(() => typeof S !== 'undefined' && S.role === 'teacher' && S.data);
+  await p.evaluate(async (id) => { S.songs = await api('/api/songs'); await openLesson(id); }, sid);
+  await p.waitForSelector('#lvlBadge');
+  ok(/Level 3 · Groover · automatisch/.test(await p.textContent('#lvlBadge')), 'Level 3 automatisch aus abgeschlossenem Song');
+  const opts = await p.$$eval('#a_songs option', (o) => o.map((x) => x.value));
+  ok(opts.includes('Fill Vier V132') && opts.includes('Groove Drei V132') && !opts.includes('Worship Sieben V132') && !opts.includes('Starter Eins V132') && !opts.includes('Fill Vier ohne Video V132'), 'Nur Level 3 und 4 mit Video: ' + opts.join(', '));
+  if (shots) await p.screenshot({ path: shots + '-level-390.png' });
+  await p.click('[data-act=allSongs]'); await p.waitForTimeout(200);
+  ok((await p.$$eval('#a_songs option', (o) => o.map((x) => x.value))).includes('Worship Sieben V132'), 'Alle zeigen zeigt alle Songs');
+  await p.click('#lvlBadge'); await p.selectOption('#lvl_sel', '7'); await p.waitForFunction(() => S.file.level_set && S.file.level_set.level === '7');
+  await p.click('[data-act=lvlEdit][data-v="0"]'); await p.waitForSelector('#lvlBadge');
+  ok(/Level 7 · Worship Ready · von dir/.test(await p.textContent('#lvlBadge')), 'Level von Oti gesetzt');
+  await p.click('[data-act=allSongs]'); await p.waitForTimeout(200);
+  const o7 = await p.$$eval('#a_songs option', (o) => o.map((x) => x.value)); ok(o7.includes('Worship Sieben V132') && !o7.includes('Groove Drei V132'), 'Filter folgt dem gesetzten Level');
+  if (shots) await p.screenshot({ path: shots + '-level7-390.png' });
+  ok(!errs.length, 'Keine JavaScript Fehler ' + errs.join(' | '));
+  await b.close(); console.log('ALLE ' + n + ' E2E V132 SCHRITTE GRÜN');
+})().catch((e) => { console.error('FEHLER', e); process.exit(1); });
