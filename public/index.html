@@ -310,11 +310,11 @@ details.card summary{cursor:pointer;font-family:var(--display);font-size:1.08rem
 </head>
 <body>
 <div id="app"><div class="wrap"><p class="muted">Lädt …</p></div></div>
-<script src="notation.js?v=132"></script>
-<script src="guitar.js?v=132"></script>
-<script src="roadmap.js?v=132"></script>
-<script src="progress.js?v=132"></script>
-<script src="transpose.js?v=132"></script>
+<script src="notation.js?v=133"></script>
+<script src="guitar.js?v=133"></script>
+<script src="roadmap.js?v=133"></script>
+<script src="progress.js?v=133"></script>
+<script src="transpose.js?v=133"></script>
 <script>
 'use strict';
 // ---------- Grundlagen ----------
@@ -834,6 +834,8 @@ async function openLesson(id) {
     const f = await api('/api/t/student', { id });
     if (!S.exercises) S.exercises = (await api('/api/t/exercises')).exercises;
     try { f.course = await api('/api/course', { student_id: id }); } catch (e) { f.course = null; }
+    if (!S.songs) { try { S.songs = await api('/api/songs'); } catch (e) {} }
+    await Promise.all([...new Set(f.assignments.filter((a) => a.status === 'offen' && a.song_id && !a.part_id).map((a) => a.song_id))].slice(0, 6).map(async (sid) => { try { songDetailCache[sid] = songDetailCache[sid] || await api('/api/song', { id: sid }); } catch (e) {} }));
     S.file = f;
     S.lesson = store.get('draft_' + id, null) || { student_id: id, notes_shared: '', notes_teacher: '', new_assignments: [], close_assignments: [], goals_reached: [], new_goals: [], started: Date.now() };
     S.nt = S.nt || {}; if (S.lesson.beat) S.nt.lb = S.lesson.beat; else delete S.nt.lb;
@@ -860,7 +862,8 @@ const songLvl = (id) => { const x = S.songs && S.songs.songs.find((y) => y.id ==
 // Automatisch: höchstes Level der abgeschlossenen Songs (Original voll, nur Easy zwei tiefer)
 function autoLevel(file) {
   let best = null;
-  for (const e of doneSongs(file)) {
+  const known = ((file && file.known_songs) || []).map((k) => ({ id: k.song_id, versions: new Set([k.version]) }));
+  for (const e of doneSongs(file).concat(known)) {
     const l = songLvl(e.id); if (!l) continue;
     const vs = [...(e.versions || [])].map((v) => String(v).toLowerCase()), onlyEasy = vs.length && vs.every((v) => v === 'easy');
     const got = onlyEasy ? easyLvl(l) : l;
@@ -877,9 +880,68 @@ function levelSongs(file) {
   return (S.songs ? S.songs.songs : []).filter((x) => x.level && ok.has(x.level) && (isGuitarOnly(st) ? x.gv : isDual(st) ? x.gv || x.dv : x.dv));
 }
 function levelBadgeHTML(file) {
+  if (isGuitarOnly(file.student)) return '';
   const l = studentLevel(file), manual = !!(file.level_set && file.level_set.level), auto = autoLevel(file);
-  if (S.lvlEdit) return `<div class="row" style="gap:8px;align-items:center"><label for="lvl_sel" class="small">Level</label><select id="lvl_sel" style="width:auto">${[['', 'Automatisch' + (auto ? ' (' + auto + ')' : ' (noch offen)')]].concat(LVL.map((x) => [x, x + ' · ' + LVL_NAME[x]])).map(([v, t]) => `<option value="${v}" ${(manual ? file.level_set.level : '') === v ? 'selected' : ''}>${esc(t)}</option>`).join('')}</select><button class="btn small" data-act="lvlEdit" data-v="0">Fertig</button></div>`;
+  if (S.lvlEdit) return `<div class="row" style="gap:8px;align-items:center"><label for="lvl_sel" class="small">Level</label><select id="lvl_sel" style="width:auto">${[['', 'Automatisch' + (auto ? ' (' + auto + ')' : ' (noch offen)')]].concat(LVL.map((x) => [x, x + ' · ' + LVL_NAME[x]])).map(([v, t]) => `<option value="${v}" ${(manual ? file.level_set.level : '') === v ? 'selected' : ''}>${esc(t)}</option>`).join('')}</select><button class="btn small" data-act="lvlEdit" data-v="0">Fertig</button><button class="btn small" data-act="einStart">Einstufung</button></div>`;
   return `<button class="pill" data-act="lvlEdit" data-v="1" id="lvlBadge" aria-label="${esc(lvlLabel(l))}, antippen zum Ändern">${esc(lvlLabel(l))}${l ? (manual ? ' · von dir' : ' · automatisch') : ''}</button>`;
+}
+// Kurs Lektionen bis zu einem Liedpfad Level (Kurslevel nach Reihenfolge: 1 Starter, 2 Beat Builder, ...)
+function courseRank(c, level) { const i = (c.levels || []).findIndex((x) => x.level === level); return i + 1; }
+function lessonsUpTo(c, l) { if (!c || !c.lessons) return []; const n = lvlNum(l); return c.lessons.filter((x) => courseRank(c, x.level) <= n); }
+// Lücken: Lektionen bis zum Level des Schülers, die in der Einstufung oder später als offen markiert sind
+function gaps(file) { const c = file.course, l = studentLevel(file); if (!c || !l) return []; return lessonsUpTo(c, l).filter((x) => c.progress[x.id] && c.progress[x.id].status === 'offen'); }
+// Aufstieg: Song über dem gesetzten Level abgeschlossen, nachdem das Level gesetzt wurde
+function promotion(file) {
+  const set = file.level_set; if (!set || !set.level) return null;
+  let best = null;
+  for (const a of file.assignments || []) {
+    if (!a.song_id || a.part_id || a.status !== 'erledigt' || !a.done_at || a.done_at <= set.set_at) continue;
+    const l = songLvl(a.song_id); if (!l) continue;
+    const got = String(a.song_version || '').toLowerCase() === 'easy' ? easyLvl(l) : l;
+    if (LVL.indexOf(got) > LVL.indexOf(set.level) && (!best || LVL.indexOf(got) > LVL.indexOf(best.level))) best = { level: got, title: a.title || a.free_text };
+  }
+  return best;
+}
+// Karten oben in der Stunde: Einstufung (bis erledigt, "Nächste Stunde" blendet sie für heute aus) und Aufstieg
+function lessonTopCards(f) {
+  if (isGuitarOnly(f.student)) return ''; // Liedpfad gibt es bisher nur für Schlagzeug
+  const out = [], today = localDate();
+  if (!f.assessed && store.get('einLater_' + f.student.id, '') !== today) out.push(`<section class="card" id="einCard"><h3>Einstufung fehlt noch</h3><p class="small muted">Etwa 1 Minute: Songs antippen, Level bestätigen, Lücken markieren. Danach passen Songs und Vorschläge zum Stand.</p><div class="row" style="gap:8px"><button class="btn small primary" data-act="einStart">Jetzt einstufen</button><button class="btn small" data-act="einLater">Nächste Stunde</button></div></section>`);
+  const pr = promotion(f);
+  if (pr) out.push(`<section class="card" id="upCard"><h3>Aufstieg auf Level ${esc(pr.level)}?</h3><p class="small muted">${esc(pr.title)} abgeschlossen. Das passt zu ${esc(lvlLabel(pr.level))}.${gaps(f).length ? ' Offene Lücken: ' + gaps(f).length + '.' : ''}</p><div class="row" style="gap:8px"><button class="btn small primary" data-act="upYes" data-v="${esc(pr.level)}">Ja, Level ${esc(pr.level)}</button><button class="btn small" data-act="upNo">Nein, bleibt</button></div></section>`);
+  return out.join('');
+}
+// Einstufungs Fragebogen: 1 Songs, 2 Level, 3 Lücken
+function einInit(f) {
+  const songs = {};
+  for (const e of doneSongs(f)) { const vs = [...(e.versions || [])].map((v) => String(v).toLowerCase()); if (songLvl(e.id)) songs[e.id] = vs.length && vs.every((v) => v === 'easy') ? 'Easy' : 'Original'; }
+  for (const k of f.known_songs || []) songs[k.song_id] = k.version;
+  S.ein = { step: 1, songs, level: null, gap: {} };
+}
+function einAuto() { let best = null; for (const [id, v] of Object.entries(S.ein.songs)) { const l = songLvl(id); if (!l) continue; const got = v === 'Easy' ? easyLvl(l) : l; if (!best || LVL.indexOf(got) > LVL.indexOf(best)) best = got; } return best; }
+function einView() {
+  const f = S.file, E = S.ein; if (!f || !E) return '';
+  const head = `<div class="row between"><button class="btn small" data-act="einClose">Abbrechen</button><span class="pill">Schritt ${E.step} von 3</span></div><h1>Einstufung ${esc(f.student.first_name)}</h1>`;
+  if (E.step === 1) {
+    const sun = f.worship && S.songs && S.songs.sunday ? new Set((S.songs.sunday.items || []).map((x) => x.song_id).filter(Boolean)) : new Set();
+    const by = {}; for (const x of (S.songs ? S.songs.songs : []).filter((y) => y.level)) (by[x.level] = by[x.level] || []).push(x);
+    return `<div class="wrap" style="max-width:720px;align-items:stretch">${head}
+      <p class="muted">Welche Songs kann ${esc(f.student.first_name)}? Antippen wechselt: Original, Easy, nicht. Vorausgewählt sind abgeschlossene Songs.${sun.size ? ' Sonntags Songs sind markiert.' : ''}</p>
+      ${LVL.filter((l) => by[l]).map((l) => `<section class="card"><h3>${esc(lvlLabel(l))}</h3><div class="row" style="gap:6px">${by[l].map((x) => { const v = E.songs[x.id]; return `<button type="button" class="chip${v ? ' ein-on' : ''}" data-act="einSong" data-id="${esc(x.id)}" aria-pressed="${!!v}">${esc(x.title)}${v ? ' · ' + v : ''}${sun.has(x.id) ? ' · Sonntag' : ''}</button>`; }).join('')}</div></section>`).join('')}
+      <button class="btn primary block" data-act="einNext">Weiter: Level</button></div>`;
+  }
+  if (E.step === 2) {
+    const auto = einAuto(), cur = E.level || auto || '1';
+    return `<div class="wrap" style="max-width:720px;align-items:stretch">${head}
+      <p class="muted">${auto ? 'Aus den Songs folgt ' + esc(lvlLabel(auto)) + '.' : 'Kein Song gewählt.'} Bestätige oder ändere das Level.</p>
+      <div class="field"><label for="ein_lvl">Level</label><select id="ein_lvl">${LVL.map((l) => `<option value="${l}" ${cur === l ? 'selected' : ''}>${l} · ${esc(LVL_NAME[l])}</option>`).join('')}</select></div>
+      <div class="row" style="gap:8px"><button class="btn" data-act="einBack">Zurück</button><button class="btn primary" style="flex:1" data-act="einNext">Weiter: Lücken</button></div></div>`;
+  }
+  const c = f.course, ls = lessonsUpTo(c, E.level), levels = (c && c.levels) || [];
+  return `<div class="wrap" style="max-width:720px;align-items:stretch">${head}
+    <p class="muted">Lektionen bis ${esc(lvlLabel(E.level))}. Haken heißt: kann ${esc(f.student.first_name)}. Nimm den Haken raus, wo etwas fehlt. Das wird eine Lücke.</p>
+    ${ls.length ? levels.filter((lv) => ls.some((x) => x.level === lv.level)).map((lv) => `<section class="card"><h3>${esc(lv.name)}</h3><div class="list">${ls.filter((x) => x.level === lv.level).map((x) => { const on = !E.gap[x.id]; return `<div class="item"><span class="t">${esc(x.num + '. ' + x.title)}</span><button class="check ${on ? 'on' : ''}" data-act="einGap" data-id="${x.id}" aria-pressed="${on}" aria-label="${esc(x.title)}: ${on ? 'kann er' : 'Lücke'}">${on ? '✓' : ''}</button></div>`; }).join('')}</div></section>`).join('') : '<p class="muted">Keine Kurslektionen bis zu diesem Level.</p>'}
+    <div class="row" style="gap:8px"><button class="btn" data-act="einBack">Zurück</button><button class="btn primary" style="flex:1" data-act="einSave">Einstufung speichern</button></div></div>`;
 }
 // Abgeschlossene Songs eines Schülers (ganzer Song, von Oti als erledigt markiert), Otis Wunsch 18.11.2026
 function doneSongs(file) {
@@ -939,11 +1001,24 @@ function suggestions(f) {
   const draftEx = new Set((S.lesson ? S.lesson.new_assignments : []).map((a) => a.exercise_id).filter(Boolean));
   const ex = (S.exercises || []).filter((e) => !openEx.has(e.id) && !draftEx.has(e.id) && (isDual(f.student) || !(e.category === 'Gitarre' || (window.Guitar && Guitar.parse(e.notation)))));
   const add = (e, why) => { if (e && !seen.has(e.id) && out.length < 5) { seen.add(e.id); out.push({ e, why }); } };
-  const c = f.course;
+  const c = f.course, lvl = studentLevel(f);
+  // Liedpfad (Oti 25.11.): zuerst Lücken, dann nächste Lektion bis zu seinem Level, dann Bausteine des aktuellen Songs, dann passende Songs
+  for (const g of gaps(f).slice(0, 2)) out.push({ gap: g, why: 'Lücke aus der Einstufung, bis ' + lvlLabel(lvl) });
   if (c && c.lessons.length) {
-    const next = c.lessons.find((l) => l.level === (c.level || {}).level && !c.progress[l.id]);
-    if (next) out.push({ lesson: next, why: `Nächste Lektion in Level ${next.level}` });
+    const next = lvl ? c.lessons.find((l) => !c.progress[l.id] && courseRank(c, l.level) <= lvlNum(lvl) + 1) : c.lessons.find((l) => l.level === (c.level || {}).level && !c.progress[l.id]);
+    if (next) out.push({ lesson: next, why: `Nächste Lektion${lvl ? ' für ' + lvlLabel(lvl) + ' und eins drüber' : ' in Level ' + next.level}` });
   }
+  const openParts = new Set(f.assignments.filter((a) => a.status === 'offen' && a.part_id).map((a) => a.part_id));
+  // Bausteine und Liedpfad Songs sind Schlagzeug; reine Gitarrenschüler bekommen sie nicht
+  if (!isGuitarOnly(f.student)) for (const a of f.assignments.filter((x) => x.status === 'offen' && x.song_id && !x.part_id)) {
+    const d = songDetailCache[a.song_id]; if (!d) continue;
+    const v = String(a.song_version || '').toLowerCase();
+    const p = (d.parts || []).find((y) => !openParts.has(y.id) && (!y.version || y.version.toLowerCase() === v));
+    if (p && out.length < 6) out.push({ part: p, version: a.song_version, why: 'Baustein für ' + (a.title || a.free_text) + ': ' + p.title });
+  }
+  const ls = levelSongs(f), done = new Set(doneSongs(f).map((e) => e.id).concat((f.known_songs || []).map((k) => k.song_id))), openS = new Set(f.assignments.filter((a) => a.status === 'offen' && a.song_id).map((a) => a.song_id));
+  if (ls && !isGuitarOnly(f.student)) for (const x of ls.filter((y) => !done.has(y.id) && !openS.has(y.id)).slice(0, 2)) out.push({ song: x.id, songTitle: x.title, why: 'Song ' + x.title + ' für ' + lvlLabel(x.level) });
+
   if (isGuitarOnly(f.student)) return out; // Stichworte und Aufwärmen gibt es bisher nur für Schlagzeug
   const notes = f.lessons.slice(0, 3).map((l) => [l.date, (l.notes_teacher || '') + ' ' + (l.notes_shared || '')]).concat([['Steckbrief', f.student.profile_note || '']]);
   for (const [from, text] of notes) for (const [k, pat] of KEYS) { const m = k.exec(text); if (m) add(ex.find((e) => pat.test(e.title)), `Notiz ${from === 'Steckbrief' ? 'im Steckbrief' : 'vom ' + fmtDate(from)}: "${m[0]}"`); }
@@ -953,8 +1028,8 @@ function suggestions(f) {
 }
 function suggestBlock(f) {
   const list = suggestions(f); if (!list.length) return '';
-  return `<details class="card" id="sugBox" ${S.sugOpen ? 'open' : ''}><summary><h3 style="display:inline">Vorschläge</h3> <span class="small muted">(${list.length})</span></summary><div class="list">${list.map((x) => `<div class="item"><span class="t col" style="gap:2px"><b>${esc(x.lesson ? 'Lektion ' + x.lesson.num + ': ' + x.lesson.title : x.e.title)}</b><span class="small muted">${esc(x.why)}</span></span>
-    ${x.lesson ? `<button class="btn small" data-act="sugLesson" data-id="${x.lesson.id}">Aufgeben</button>` : `<button class="btn small" data-act="sugEx" data-id="${x.e.id}">Aufgeben</button>`}</div>`).join('')}</div></details>`;
+  return `<details class="card" id="sugBox" ${S.sugOpen ? 'open' : ''}><summary><h3 style="display:inline">Vorschläge</h3> <span class="small muted">(${list.length})</span></summary><div class="list">${list.map((x) => `<div class="item"><span class="t col" style="gap:2px"><b>${esc(x.gap ? 'Lücke · Lektion ' + x.gap.num + ': ' + x.gap.title : x.part ? 'Baustein: ' + x.part.title : x.songTitle ? 'Song: ' + x.songTitle : x.lesson ? 'Lektion ' + x.lesson.num + ': ' + x.lesson.title : x.e.title)}</b><span class="small muted">${esc(x.why)}</span></span>
+    ${x.gap ? `<button class="btn small" data-act="sugGap" data-id="${x.gap.id}">Übungen aufgeben</button>` : x.part ? `<button class="btn small" data-act="sugPart" data-id="${x.part.id}" data-v="${esc(x.version || '')}">Aufgeben</button>` : x.songTitle ? `<button class="btn small" data-act="sugSong" data-id="${esc(x.song)}">Aufgeben</button>` : x.lesson ? `<button class="btn small" data-act="sugLesson" data-id="${x.lesson.id}">Aufgeben</button>` : `<button class="btn small" data-act="sugEx" data-id="${x.e.id}">Aufgeben</button>`}</div>`).join('')}</div></details>`;
 }
 document.addEventListener('toggle', (ev) => { if (ev.target.id === 'sugBox') S.sugOpen = ev.target.open; if (ev.target.id === 'warmBox') S.warmOpen = ev.target.open; }, true);
 function assignmentDetailView() {
@@ -1175,6 +1250,7 @@ function lessonView() {
     <div class="row between"><button class="btn small" data-act="closeLesson">Schließen</button><div class="row"><button class="btn small" data-act="preview">Schüleransicht</button><span class="pill">Stunde läuft · ${esc(st.lesson_time || '')}</span></div></div>
     <h1>${esc(st.first_name)}</h1>
     <div style="margin:-10px 0 0">${levelBadgeHTML(f)}</div>
+    ${lessonTopCards(f)}
     <p class="small muted row" style="gap:8px;align-items:center;margin:-8px 0 0">${S.lessonLive && S.lessonLive > new Date().toISOString() ? 'Unterrichtsmodus beim Schüler an: Üben zählt nicht. <button class="btn small" data-act="teacherLive" data-v="0">Aus</button>' : 'Unterrichtsmodus beim Schüler aus. <button class="btn small" data-act="teacherLive" data-v="1">An</button>'}</p>
     <p class="muted" id="lessonPractice" style="margin:-8px 0 0">Geübt seit ${last ? 'der letzten Stunde' : '7 Tagen'}: <b style="color:var(--ink)">${total} min</b> an <b style="color:var(--ink)">${days} von 7 Tagen</b></p>
     ${st.profile_note ? `<details class="card"><summary>Steckbrief</summary><p style="white-space:pre-line">${esc(st.profile_note)}</p></details>` : ''}
@@ -1703,6 +1779,7 @@ function songsTab(teacher) {
     ${teacher ? `<p class="small muted">${sg.synced ? 'Zuletzt abgeglichen ' + esc(new Date(sg.synced.at).toLocaleString('de-DE')) + ': ' + sg.synced.files + ' Dateien, ' + sg.synced.sundays + ' Sonntage.' : 'Noch nicht abgeglichen. Tipp auf Jetzt abgleichen.'} Quelle: Lobpreis Ordner Lieder in Drive, täglich automatisch.</p>` : ''}
     ${sun ? `<section class="card sunday"><div class="col" style="gap:2px"><span class="small">${esc(fmtSunday(sun.date))}${teacher ? '' : ' · Du spielst'}</span><h2>Setlist Gottesdienst</h2></div>
       <div class="list">${sun.items.map((i) => `<div class="item"><span class="num">${i.n || ''}</span><button class="t song-open" ${i.song_id ? `data-act="song" data-id="${esc(i.song_id)}"` : `data-act="sheet" data-id="${esc(i.drive_id)}"`}><b>${esc(i.title)}</b><span class="small">${[i.key, i.bpm ? i.bpm + ' BPM' : ''].filter(Boolean).join(' · ')}${i.song_id && byId[i.song_id] && byId[i.song_id].parts ? ' · ' + byId[i.song_id].parts + ' Videos' : ''}</span></button><a class="btn small" href="${driveUrl(i.drive_id)}" target="_blank" rel="noopener">Leadsheet</a></div>`).join('')}</div></section>` : ''}
+    ${teacher ? '' : pathBox()}
     ${teacher ? '' : `<section class="col"><h2>Meine Setlist</h2>${sg.mine.length ? `<section class="card"><div class="list">${sg.mine.map((id) => byId[id]).filter(Boolean).map((x) => songRow(x, true)).join('')}</div></section>` : '<div class="empty">Noch leer. Such dir unten Songs aus und tipp auf +.</div>'}</section>`}
     <section class="col"><h2>Alle Songs <span class="muted small">(${sg.songs.length})</span></h2>${vidLegend()}
       <input id="songQ" type="search" placeholder="Song suchen" value="${esc(S.songQ || '')}" autocomplete="off">
@@ -1710,6 +1787,15 @@ function songsTab(teacher) {
       ${S.songLang === 'unterricht' ? `<div class="row" style="gap:6px">${[['', 'Alle Unterrichtssongs'], ['worship', 'Worship'], ['jazz', 'Jazz Einstieg'], ['andere', 'Andere']].map(([v, l]) => `<button class="chip" data-act="songKind" data-v="${v}" aria-pressed="${(S.songKind || '') === v}">${l} <span class="muted">${sg.songs.filter((x) => x.teach && (!v || x.kind === v)).length}</span></button>`).join('')}</div>` : ''}
       <section class="card"><div class="list" id="songList">${songResults()}</div></section>
       ${teacher && S.songLang === 'unterricht' ? songSuggestBox() + rmPlaylistBox() : ''}</section>`;
+}
+// Schüler: Liedpfad mit eigenem Level und dem nächsten Level gesperrt (Oti 25.11.2026)
+function pathBox() {
+  const l = S.data && S.data.level, st = S.data && S.data.student; if (!l || !S.songs || (st && isGuitarOnly(st))) return '';
+  const i = LVL.indexOf(l), nx = LVL[i + 1], has = (x) => (st && isDual(st) ? x.gv || x.dv : x.dv);
+  const mine = S.songs.songs.filter((x) => x.level === l && has(x)), next = nx ? S.songs.songs.filter((x) => x.level === nx && has(x)) : [];
+  const c = S.course, miss = c && c.lessons && nx ? lessonsUpTo(c, nx).filter((x) => !(c.progress[x.id] && c.progress[x.id].status === 'fertig')) : [];
+  return `<section class="col"><h2>Dein Liedpfad</h2><section class="card"><p class="small muted">${esc(lvlLabel(l))}</p><div class="list">${mine.map((x) => songRow(x)).join('') || '<p class="muted small">Noch keine Songs auf deinem Level.</p>'}</div></section>
+    ${next.length ? `<section class="card path-next"><p class="small"><b>Nächstes Level: ${esc(lvlLabel(nx))}</b></p><p class="small muted">${miss.length ? 'Dafür fehlt dir noch: ' + miss.slice(0, 3).map((x) => esc(x.title)).join(', ') + (miss.length > 3 ? ' und ' + (miss.length - 3) + ' weitere' : '') : 'Dein Lehrer schaltet es frei, wenn du einen Song von deinem Level geschafft hast.'}</p><div class="row" style="gap:6px">${next.map((x) => `<span class="chip" aria-label="${esc(x.title)}, gesperrt">Gesperrt · ${esc(x.title)}</span>`).join('')}</div></section>` : ''}</section>`;
 }
 // Vorschläge aus Stundennotizen: Songs, die in Notizen vorkommen, aber noch nicht im Reiter Unterricht stehen
 function songSuggestBox() {
@@ -2785,6 +2871,32 @@ document.addEventListener('click', async (ev) => {
         store.del('draft_' + L.student_id); S.lesson = null; closeOverlay();
         toast((res.merged ? 'Stunde von heute ergänzt' : 'Stunde gespeichert') + (res.skipped && res.skipped.length ? '. Nicht aufgegeben: ' + res.skipped.join(', ') : '')); load(); break;
       }
+      case 'einStart': einInit(S.file); S.lvlEdit = false; openOverlay(einView); break;
+      case 'einLater': store.set('einLater_' + S.file.student.id, localDate()); openOverlay(lessonView); break;
+      case 'einClose': S.ein = null; openOverlay(lessonView); break;
+      case 'einSong': { const v = S.ein.songs[id]; if (!v) S.ein.songs[id] = 'Original'; else if (v === 'Original') S.ein.songs[id] = 'Easy'; else delete S.ein.songs[id]; const y = window.scrollY, sh = $('.sheet'), st = sh ? sh.scrollTop : 0; S.overlay = einView; render(); if ($('.sheet')) $('.sheet').scrollTop = st; window.scrollTo(0, y); break; }
+      case 'einNext': if (S.ein.step === 2) S.ein.level = ($('#ein_lvl') && $('#ein_lvl').value) || S.ein.level; if (S.ein.step === 1) S.ein.level = einAuto() || S.ein.level || '1'; S.ein.step++; openOverlay(einView); break;
+      case 'einBack': S.ein.step--; openOverlay(einView); break;
+      case 'einGap': { S.ein.gap[id] = !S.ein.gap[id]; const sh = $('.sheet'), st = sh ? sh.scrollTop : 0, y = window.scrollY; S.overlay = einView; render(); if ($('.sheet')) $('.sheet').scrollTop = st; window.scrollTo(0, y); break; }
+      case 'einSave': {
+        const E = S.ein, ls = lessonsUpTo(S.file.course, E.level);
+        await api('/api/t/student/assess', { student_id: S.file.student.id, level: E.level, songs: Object.entries(E.songs).map(([song_id, version]) => ({ song_id, version })), lessons_done: ls.filter((x) => !E.gap[x.id]).map((x) => x.id), lessons_gap: ls.filter((x) => E.gap[x.id]).map((x) => x.id) });
+        const f = await api('/api/t/student', { id: S.file.student.id }); f.course = await api('/api/course', { student_id: S.file.student.id }); S.file = f; S.ein = null;
+        openOverlay(lessonView); toast('Einstufung gespeichert: ' + lvlLabel(f.level_set.level)); break;
+      }
+      case 'upYes': case 'upNo': {
+        const lv = el.dataset.act === 'upYes' ? el.dataset.v : S.file.level_set.level;
+        await api('/api/t/student/level', { student_id: S.file.student.id, level: lv });
+        const f = await api('/api/t/student', { id: S.file.student.id }); f.course = S.file.course; S.file = f; openOverlay(lessonView); toast(el.dataset.act === 'upYes' ? 'Aufstieg auf Level ' + lv : 'Level bleibt'); break;
+      }
+      case 'sugGap': {
+        const l = S.file.course.lessons.find((x) => x.id === id), exs = (l ? l.items : []).filter((i) => i.kind === 'exercise' && i.exercise).slice(0, 3);
+        if (!exs.length) { toast('Diese Lektion hat keine Übungen, sie steht beim Schüler im Kurs'); break; }
+        let n = 0; for (const i of exs) if (await assignNow({ exercise_id: i.exercise.id, free_text: null, start_bpm: DEF_TEMPO.start, target_bpm: i.exercise.target_bpm || DEF_TEMPO.target, minutes_per_day: 10 })) n++;
+        openOverlay(lessonView); toast(n + (n === 1 ? ' Übung' : ' Übungen') + ' aufgegeben'); break;
+      }
+      case 'sugPart': if (await assignNow({ part_id: id, version: el.dataset.v || null })) { openOverlay(lessonView); toast('Baustein aufgegeben'); } break;
+      case 'sugSong': if (await assignNow({ song_id: id, version: 'Original' })) { openOverlay(lessonView); toast('Song aufgegeben'); } break;
       case 'lvlEdit': S.lvlEdit = el.dataset.v === '1'; S.overlay ? openOverlay(S.overlay) : render(); break;
       case 'allSongs': S.allSongs = !S.allSongs; S.overlay ? openOverlay(S.overlay) : render(); break;
       case 'preview': { const sid = id || S.file.student.id; S.previewFrom = S.overlay; if (S.overlay === lessonView) saveDraft(); const data = await api('/api/t/preview', { id: sid }); stopTick(); startPreview(data); render(); window.scrollTo(0, 0); break; }
