@@ -109,6 +109,18 @@ CREATE TABLE IF NOT EXISTS student_level (
   level TEXT NOT NULL,
   set_at TEXT NOT NULL
 );
+-- Einstufung (Oti 25.11.2026): Fragebogen in der Stunde, Songs die der Schüler kann (Original oder Easy)
+CREATE TABLE IF NOT EXISTS student_assessment (
+  student_id TEXT PRIMARY KEY,
+  at TEXT NOT NULL
+);
+CREATE TABLE IF NOT EXISTS student_known_songs (
+  student_id TEXT NOT NULL,
+  song_id TEXT NOT NULL,
+  version TEXT NOT NULL,
+  at TEXT NOT NULL,
+  PRIMARY KEY (student_id, song_id)
+);
 CREATE TABLE IF NOT EXISTS assignment_parts (
   assignment_id TEXT PRIMARY KEY,
   part_id TEXT NOT NULL

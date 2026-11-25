@@ -228,7 +228,8 @@ async function studentView(s, studentId, role) {
   const game_time = await s.all('SELECT local_date, game, seconds FROM game_time WHERE student_id = ? AND local_date >= ? ORDER BY local_date DESC', studentId, since.slice(0, 10));
   const pp = await s.first('SELECT days, hour FROM student_push_prefs WHERE student_id = ?', st.id);
   const push = { prefs: pp ? { days: JSON.parse(pp.days), hour: pp.hour } : DEFAULT_PREFS, subs: (await s.first('SELECT COUNT(*) AS n FROM student_push_subs WHERE student_id = ?', st.id)).n };
-  return { game_time, streak_days, push, role, app: app || null, icon: instrIcon(st.instrument), changes, missions: mis, student: st, assignments, sessions, goals, lessons, my_beats, lesson_live: live, consent: consent ? consent.given_at : null, consentVersion: CONSENT_VERSION, canGoal: role === 'student' && canSetGoals(st) };
+  const lvRow = await s.first('SELECT level FROM student_level WHERE student_id = ?', studentId);
+  return { level: lvRow ? lvRow.level : null, game_time, streak_days, push, role, app: app || null, icon: instrIcon(st.instrument), changes, missions: mis, student: st, assignments, sessions, goals, lessons, my_beats, lesson_live: live, consent: consent ? consent.given_at : null, consentVersion: CONSENT_VERSION, canGoal: role === 'student' && canSetGoals(st) };
 }
 
 // Alle Schüler dürfen eigene Ziele eintragen (Altersgrenze auf Otis Wunsch entfernt)
@@ -331,7 +332,9 @@ async function teacherStudent(s, id) {
   const game_time = await s.all('SELECT local_date, game, seconds FROM game_time WHERE student_id = ? AND local_date >= ? ORDER BY local_date DESC', id, new Date(Date.now() - 370 * DAY).toISOString().slice(0, 10));
   const mis = await missions(s, { role: 'teacher' }).forStudent(id);
   const lv = await s.first('SELECT level, set_at FROM student_level WHERE student_id = ?', id);
-  return { level_set: lv || null, student: st, streak_days: await streakDays(s, st.id), lessons, assignments, sessions, goals, access, consents, worship, cancellations, beats, changes, games, game_time, app: app || null, missions: mis };
+  const assessed = await s.first('SELECT at FROM student_assessment WHERE student_id = ?', id);
+  const known_songs = await s.all('SELECT song_id, version, at FROM student_known_songs WHERE student_id = ?', id);
+  return { level_set: lv || null, assessed: assessed ? assessed.at : null, known_songs, student: st, streak_days: await streakDays(s, st.id), lessons, assignments, sessions, goals, access, consents, worship, cancellations, beats, changes, games, game_time, app: app || null, missions: mis };
 }
 
 async function saveStudent(s, who, b) {
@@ -960,6 +963,31 @@ async function route(env, req, path, body) {
       }
       if (ops.length) await s.batch(ops);
       return { ok: true, n: ops.length };
+    }
+    case '/api/t/student/assess': {
+      // Einstufung speichern: Level (von Oti), Songs die er kann, Lektionen fertig (kann er) und offen (Lücken)
+      const st = await s.first('SELECT id, first_name FROM students WHERE id = ?', String(body.student_id || ''));
+      if (!st) throw new HttpError(404, 'Schüler nicht gefunden.');
+      const lv = String(body.level || '').trim().toLowerCase();
+      if (!LEVELS.includes(lv)) throw new HttpError(400, 'Level fehlt.');
+      const t = now(), ops = [
+        ['INSERT INTO student_level (student_id, level, set_at) VALUES (?, ?, ?) ON CONFLICT(student_id) DO UPDATE SET level = excluded.level, set_at = excluded.set_at', [st.id, lv, t]],
+        ['INSERT INTO student_assessment (student_id, at) VALUES (?, ?) ON CONFLICT(student_id) DO UPDATE SET at = excluded.at', [st.id, t]],
+        ['DELETE FROM student_known_songs WHERE student_id = ?', [st.id]],
+      ];
+      for (const k of (Array.isArray(body.songs) ? body.songs : []).slice(0, 300)) {
+        const sid = String((k && k.song_id) || ''), v = k && k.version === 'Easy' ? 'Easy' : 'Original';
+        if (sid) ops.push(['INSERT OR REPLACE INTO student_known_songs (student_id, song_id, version, at) VALUES (?, ?, ?, ?)', [st.id, sid, v, t]]);
+      }
+      const ids = new Set((await s.all('SELECT id FROM course_lessons')).map((r) => r.id));
+      for (const [status, list] of [['fertig', body.lessons_done], ['offen', body.lessons_gap]]) for (const lid of (Array.isArray(list) ? list : []).slice(0, 300).map(String)) {
+        if (!ids.has(lid)) continue;
+        ops.push([`INSERT INTO student_lessons (student_id, lesson_id, status, assigned_at, done_at) VALUES (?, ?, ?, ?, ?)
+          ON CONFLICT(student_id, lesson_id) DO UPDATE SET status = excluded.status, done_at = excluded.done_at`, [st.id, lid, status, t, status === 'fertig' ? t : null]]);
+      }
+      ops.push(logRow(who, 'update', 'students', st.id, `${st.first_name}: Einstufung Level ${lv}`));
+      await s.batch(ops);
+      return { ok: true, level: lv };
     }
     case '/api/t/student/level': {
       // Schülerlevel von Oti setzen (überschreibt das automatische) oder zurück auf automatisch (level leer)

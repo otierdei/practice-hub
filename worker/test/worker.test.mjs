@@ -1433,3 +1433,18 @@ test('Liedpfad: Songlevel und Schülerlevel setzen, nur Lehrer, unbekanntes Leve
   await w.call('/api/t/student/level', { student_id: w.a, level: '' }, w.t);
   assert.equal((await w.call('/api/t/student', { id: w.a }, w.t)).data.level_set, null, 'zurück auf automatisch');
 });
+
+test('Einstufung: Level, Songs und Lücken werden gespeichert', async () => {
+  const w = await world();
+  await w.call('/api/t/course/import', { course: 'drums', replace: true, levels: [{ level: 1, name: 'Starter' }], lessons: [{ level: 1, num: 1, title: 'A' }, { level: 1, num: 2, title: 'B' }] }, w.t);
+  const c = (await w.call('/api/course', { student_id: w.a }, w.t)).data;
+  const sg = (await w.call('/api/t/song/create', { title: 'Einstufung Song' }, w.t)).data.id;
+  assert.equal((await w.call('/api/t/student/assess', { student_id: w.a, level: '3' }, w.ta)).status, 403);
+  assert.equal((await w.call('/api/t/student/assess', { student_id: w.a, level: 'x' }, w.t)).status, 400);
+  await w.call('/api/t/student/assess', { student_id: w.a, level: '2b', songs: [{ song_id: sg, version: 'Easy' }], lessons_done: [c.lessons[0].id], lessons_gap: [c.lessons[1].id] }, w.t);
+  const f = (await w.call('/api/t/student', { id: w.a }, w.t)).data;
+  assert.equal(f.level_set.level, '2b'); assert.ok(f.assessed); assert.deepEqual(f.known_songs.map((k) => [k.song_id, k.version]), [[sg, 'Easy']]);
+  const c2 = (await w.call('/api/course', { student_id: w.a }, w.t)).data;
+  assert.equal(c2.progress[c.lessons[0].id].status, 'fertig'); assert.equal(c2.progress[c.lessons[1].id].status, 'offen');
+  assert.equal((await w.call('/api/home', {}, w.ta)).data.level, '2b', 'Schüler sieht sein Level');
+});
