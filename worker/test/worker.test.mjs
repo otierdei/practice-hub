@@ -1395,3 +1395,28 @@ test('Ganzer Song nur mit Video: ohne Video blockiert, falsche Version blockiert
   const fin = (await w.call('/api/t/lesson/finish', { student_id: w.b, date: '2026-11-25', new_assignments: [{ song_id: sg, version: 'Original' }, { free_text: 'Bleibt' }] }, w.t));
   assert.equal(fin.status, 200, 'Stunde speichert trotzdem'); assert.equal(fin.data.skipped.length, 1);
 });
+
+test('32tel: ein Schlag mit 8 Noten wird gespeichert, Plätze über 7 fallen weg', async () => {
+  const w = await world();
+  const nt = { v: 2, sig: '4/4', bars: 1, bpm: 70, tracks: { sn: [12, 13], hh: [0] }, tup: [{ g: 3, t: '32' }], tupn: { sn: ['3:0', '3:7', '3:8'] }, tstick: { '3:7': 'L', '3:8': 'R' } };
+  const r = await w.call('/api/t/exercise/save', { title: '32tel Test', notation: nt }, w.t);
+  const n = JSON.parse((await w.call('/api/t/exercises', {}, w.t)).data.exercises.find((x) => x.id === r.data.id).notation);
+  assert.deepEqual(n.tup, [{ g: 3, t: '32' }]); assert.deepEqual(n.tupn, { sn: ['3:0', '3:7'] }); assert.deepEqual(n.tstick, { '3:7': 'L' });
+  assert.deepEqual(n.tracks.sn, [], 'normale Noten im 32tel Schlag werden geleert');
+});
+
+test('Song zusammenführen: Hausaufgaben, Videos, Bausteine wandern, alter Song ausgeblendet, neuer Titel', async () => {
+  const w = await world();
+  const de = (await w.call('/api/t/song/create', { title: 'Ich laufe zum Vater' }, w.t)).data.id;
+  const en = (await w.call('/api/t/song/create', { title: 'Run to the Father' }, w.t)).data.id;
+  await vids(w, de, ['Original']);
+  const pid = (await w.call('/api/t/song/part/save', { song_id: de, title: 'Chorus' }, w.t)).data.id;
+  await w.call('/api/t/assignments/new', { student_id: w.a, items: [{ song_id: de, version: 'Original' }] }, w.t);
+  assert.equal((await w.call('/api/t/song/merge', { from_id: de, into_id: en, title: 'Run to the Father (Ich laufe zum Vater)' }, w.ta)).status, 403);
+  assert.equal((await w.call('/api/t/song/merge', { from_id: de, into_id: en, title: 'Run to the Father (Ich laufe zum Vater)' }, w.t)).status, 200);
+  const d = (await w.call('/api/song', { id: en }, w.t)).data;
+  assert.equal(d.song.title, 'Run to the Father (Ich laufe zum Vater)'); assert.equal(d.links.length, 1); assert.ok(d.parts.some((p) => p.id === pid));
+  assert.ok((await w.call('/api/home', {}, w.ta)).data.assignments.some((a) => a.song_id === en), 'Hausaufgabe hängt am englischen Song');
+  const list = (await w.call('/api/songs', {}, w.t)).data.songs.map((x) => x.id);
+  assert.ok(!list.includes(de) && list.includes(en));
+});
