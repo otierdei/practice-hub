@@ -1,0 +1,327 @@
+{
+ "course": "indie",
+ "levels": [
+  {
+   "level": 1,
+   "name": "Indie Starter"
+  },
+  {
+   "level": 2,
+   "name": "Jangle"
+  },
+  {
+   "level": 3,
+   "name": "Picking"
+  },
+  {
+   "level": 4,
+   "name": "Riffs"
+  },
+  {
+   "level": 5,
+   "name": "Band Ready"
+  },
+  {
+   "level": 6,
+   "name": "Sound und Band"
+  }
+ ],
+ "lessons": [
+  {
+   "level": 1,
+   "num": 1,
+   "title": "Offene Akkorde und Capo",
+   "body": "Ziel: Die typischen Indie Akkorde greifen, mit Capo die Tonart wechseln.\nSo übst du: Zwei Akkordfolgen aus dem Video wählen, jede 5 Minuten im Wechsel, langsam und sauber. Erst wenn alle Saiten klingen, schneller werden.\nFertig, wenn: Du beide Folgen ohne Pause zwischen den Akkorden spielst.",
+   "items": [
+    {
+     "kind": "video",
+     "title": "Indie Akkorde für Anfänger (Jooba Guitar, 13 min)",
+     "url": "https://www.youtube.com/watch?v=7L0lFKxRVm4"
+    },
+    {
+     "kind": "material",
+     "title": "Lehrer Hinweis",
+     "notes": "Akkordwechsel Trainer der App passt hier. Video in Englisch, Transkript am 25.11.2026 geprüft."
+    }
+   ]
+  },
+  {
+   "level": 1,
+   "num": 2,
+   "title": "Anschlag in Achteln",
+   "body": "Ziel: Ein gleichmäßiger Anschlag ab und auf, der Arm schwingt immer weiter.\nSo übst du: Muster 1 und 2 aus dem Video mit Metronom auf 70 BPM, dann in 5er Schritten schneller.\nFertig, wenn: Muster 2 bei 90 BPM eine Minute ohne Stocken läuft.",
+   "items": [
+    {
+     "kind": "video",
+     "title": "Die 5 wichtigsten Anschlagsmuster (Andy Guitar, 14 min)",
+     "url": "https://www.youtube.com/watch?v=4bPp3-p0H2k"
+    }
+   ]
+  },
+  {
+   "level": 1,
+   "num": 3,
+   "title": "Erster Song: 505",
+   "body": "Ziel: Ein ganzer Indie Song mit zwei Akkorden.\nSo übst du: Erst den einfachen Anschlag für den ersten Teil, dann den zweiten Teil. Mit dem Original mitspielen, sobald beides sitzt.\nFertig, wenn: Du den Song einmal komplett mit dem Original spielst.",
+   "items": [
+    {
+     "kind": "video",
+     "title": "505, Arctic Monkeys (Andy Guitar, 10 min)",
+     "url": "https://www.youtube.com/watch?v=6o13oKlJH2c"
+    },
+    {
+     "kind": "song",
+     "title": "505",
+     "song_title": "505"
+    }
+   ]
+  },
+  {
+   "level": 2,
+   "num": 1,
+   "title": "Jangle: offene Saiten klingen lassen",
+   "body": "Ziel: Der helle Indie und Worship Klang durch Griffe, bei denen offene Saiten mitklingen.\nSo übst du: Die Griffform aus dem Video über das Griffbrett schieben und hören, wie die offenen Saiten den Klang verändern.\nFertig, wenn: Du drei Griffe aus dem Video sauber wechselst.",
+   "items": [
+    {
+     "kind": "video",
+     "title": "Jangly Chord Voicings (Worship Guitar Skills, 10 min)",
+     "url": "https://www.youtube.com/watch?v=iv2Bjb_4A4M"
+    },
+    {
+     "kind": "material",
+     "title": "Lehrer Hinweis",
+     "notes": "Gleiche Griffe passen für Worship Songs im Lobpreis."
+    }
+   ]
+  },
+  {
+   "level": 2,
+   "num": 2,
+   "title": "Song: My Kind Of Woman",
+   "body": "Ziel: Weiche Akkordwechsel und ein ruhiger Groove.\nSo übst du: Strophe und Refrain einzeln, dann mit dem Original.\nFertig, wenn: Strophe und Refrain mit dem Original laufen.",
+   "items": [
+    {
+     "kind": "video",
+     "title": "My Kind Of Woman, Mac DeMarco (Marty Music, 11 min)",
+     "url": "https://www.youtube.com/watch?v=U6hgeqt3e-I"
+    },
+    {
+     "kind": "song",
+     "title": "My Kind Of Woman",
+     "song_title": "My Kind Of Woman"
+    }
+   ]
+  },
+  {
+   "level": 2,
+   "num": 3,
+   "title": "Bonus: Indie und Neo Soul Akkorde",
+   "body": "Für alle, bei denen 2.1 und 2.2 sitzen. Das Video nennt die Akkorde selbst Mittelstufe.\nSo übst du: Pro Woche zwei neue Akkorde, jeden in einer Folge, die du schon kennst.",
+   "items": [
+    {
+     "kind": "video",
+     "title": "Indie Rock und Neo Soul Akkorde (Trevor Wong, 8 min)",
+     "url": "https://www.youtube.com/watch?v=ljaxpZn6-bo"
+    }
+   ]
+  },
+  {
+   "level": 3,
+   "num": 1,
+   "title": "Picking statt Strumming",
+   "body": "Ziel: Akkorde Ton für Ton zupfen (Arpeggio), gleichmäßig und mit Klang.\nSo übst du: Nur die ersten Muster aus dem Video, mit Metronom auf 60 BPM in Achteln.\nFertig, wenn: Ein Muster durch vier Akkorde ohne Unterbrechung läuft.",
+   "items": [
+    {
+     "kind": "video",
+     "title": "Schöne Arpeggios (Paul Davids, 15 min)",
+     "url": "https://www.youtube.com/watch?v=AjqVARTWHyk"
+    },
+    {
+     "kind": "material",
+     "title": "Lehrer Hinweis",
+     "notes": "Das Video geht bis Profi Niveau. Nur den Anfang aufgeben."
+    }
+   ]
+  },
+  {
+   "level": 3,
+   "num": 2,
+   "title": "Song: Bloom",
+   "body": "Ziel: Ein ganzer Song gezupft. Das Intro ist schwerer, als es klingt.\nSo übst du: Intro in Stücken zu zwei Takten, jedes Stück langsam, dann verbinden.\nFertig, wenn: Intro und Strophe am Stück laufen.",
+   "items": [
+    {
+     "kind": "video",
+     "title": "Bloom, The Paper Kites (Jooba Guitar, 7 min)",
+     "url": "https://www.youtube.com/watch?v=sw-OkvXoPfk"
+    },
+    {
+     "kind": "song",
+     "title": "Bloom",
+     "song_title": "Bloom"
+    }
+   ]
+  },
+  {
+   "level": 4,
+   "num": 1,
+   "title": "Melodische Riffs",
+   "body": "Ziel: Einzelne Töne statt Akkorde, kurze Riffs aus dem Indie Rock.\nSo übst du: Ein Riff pro Woche, mit Metronom langsam beginnen.\nFertig, wenn: Zwei Riffs im Originaltempo sitzen.",
+   "items": [
+    {
+     "kind": "video",
+     "title": "5 Indie Rock Riffs (Trevor Wong, 5 min)",
+     "url": "https://www.youtube.com/watch?v=hmr11cSd-FE"
+    },
+    {
+     "kind": "video",
+     "title": "Bekannte Indie Riffs (Redlight Blue, 4 min)",
+     "url": "https://www.youtube.com/watch?v=6jR9vuH8Y1U"
+    }
+   ]
+  },
+  {
+   "level": 4,
+   "num": 2,
+   "title": "Song: Last Nite",
+   "body": "Ziel: Zwei Gitarrenrollen: Akkorde im Offbeat und Melodie.\nFertig, wenn: Du eine der beiden Rollen mit dem Original spielst.",
+   "items": [
+    {
+     "kind": "video",
+     "title": "Last Nite, The Strokes (Marty Music, 13 min)",
+     "url": "https://www.youtube.com/watch?v=Vtsua4tjMno"
+    },
+    {
+     "kind": "song",
+     "title": "Last Nite",
+     "song_title": "Last Nite"
+    }
+   ]
+  },
+  {
+   "level": 4,
+   "num": 3,
+   "title": "Song: What You Know",
+   "body": "Ziel: Ein schnelles Riff mit gedämpften Saiten.\nFertig, wenn: Das Hauptriff im Originaltempo sitzt.",
+   "items": [
+    {
+     "kind": "video",
+     "title": "What You Know, Two Door Cinema Club (Max’s Guitar Tutorials, 12 min)",
+     "url": "https://www.youtube.com/watch?v=Bg0muNG_-hs"
+    },
+    {
+     "kind": "song",
+     "title": "What You Know",
+     "song_title": "What You Know"
+    }
+   ]
+  },
+  {
+   "level": 5,
+   "num": 1,
+   "title": "Barré Akkorde",
+   "body": "Ziel: Barré Griffe (F, Bm und alle verschobenen Formen) ohne Schnarren.\nSo übst du: Täglich 5 Minuten, Daumen hinter dem Hals, nicht mit Kraft drücken.\nFertig, wenn: F und Bm in einer Akkordfolge klingen.",
+   "items": [
+    {
+     "kind": "video",
+     "title": "Barré Akkorde (Andy Guitar, 18 min)",
+     "url": "https://www.youtube.com/watch?v=4ee3TE6fQ0E"
+    },
+    {
+     "kind": "video",
+     "title": "5 Barré Songs für Anfänger (Andy Guitar, 12 min)",
+     "url": "https://www.youtube.com/watch?v=IwZKtD_fiEk"
+    }
+   ]
+  },
+  {
+   "level": 5,
+   "num": 2,
+   "title": "Song: Mr. Brightside",
+   "body": "Ziel: Ein Song mit Achtel Riff durchgehend, gute Ausdauer für die Anschlagshand.\nFertig, wenn: Du den ganzen Song mit dem Original durchhältst.",
+   "items": [
+    {
+     "kind": "video",
+     "title": "Mr. Brightside, The Killers (Marty Music, 18 min)",
+     "url": "https://www.youtube.com/watch?v=d_goB2JnG0s"
+    },
+    {
+     "kind": "song",
+     "title": "Mr. Brightside",
+     "song_title": "Mr. Brightside"
+    }
+   ]
+  },
+  {
+   "level": 5,
+   "num": 3,
+   "title": "Song: Do I Wanna Know?",
+   "body": "Ziel: Ein langsames, schweres Riff mit genauem Timing.\nFertig, wenn: Riff und Refrain mit dem Original laufen.",
+   "items": [
+    {
+     "kind": "video",
+     "title": "Do I Wanna Know?, Arctic Monkeys (Marin Music Center, 14 min)",
+     "url": "https://www.youtube.com/watch?v=CFcFj-lFxa0"
+    },
+    {
+     "kind": "song",
+     "title": "Do I Wanna Know?",
+     "song_title": "Do I Wanna Know"
+    },
+    {
+     "kind": "material",
+     "title": "Lehrer Hinweis",
+     "notes": "Liedtext spielt auf Alkohol an (Anrufe nachts). Eher ab 16, sonst diese Lektion auslassen."
+    }
+   ]
+  },
+  {
+   "level": 6,
+   "num": 1,
+   "title": "Delay richtig einsetzen",
+   "body": "Ziel: Mit Delay den Indie und Worship Klang formen.\nSo übst du: Eine Einstellung aus dem Video nachbauen und einen Song aus Level 2 damit spielen.",
+   "items": [
+    {
+     "kind": "video",
+     "title": "Delay Pedal in unter 5 Minuten (Jesse Glick, 8 min)",
+     "url": "https://www.youtube.com/watch?v=GMjt_NRbMnI"
+    },
+    {
+     "kind": "material",
+     "title": "Lehrer Hinweis",
+     "notes": "Kein Transkript vorhanden, Oti schaut das Video vor dem Aufgeben an."
+    }
+   ]
+  },
+  {
+   "level": 6,
+   "num": 2,
+   "title": "Dream Pop und Indie Pedale",
+   "body": "Ziel: Hall, Chorus und Delay kombinieren.\nSo übst du: Einen Song aus Level 3 mit einem der Klänge aus dem Video spielen.",
+   "items": [
+    {
+     "kind": "video",
+     "title": "Dream Pop und Indie Sound mit Pedalen (pedal partners, 13 min)",
+     "url": "https://www.youtube.com/watch?v=cTILkbL9MtE"
+    },
+    {
+     "kind": "material",
+     "title": "Lehrer Hinweis",
+     "notes": "Kein Transkript vorhanden, Oti schaut das Video vor dem Aufgeben an."
+    }
+   ]
+  },
+  {
+   "level": 6,
+   "num": 3,
+   "title": "Projekt: Song mit einem Schlagzeugschüler",
+   "body": "Ziel: Ein Song aus diesem Kurs mit einem Schlagzeugschüler zusammen, nach derselben Roadmap.\nSo übst du: Song in der App öffnen, Roadmap, Gitarre und Schlagzeug sehen dieselben Takte. Einzählen auf 2 Takte stellen.\nFertig, wenn: Ihr den Song einmal ohne Stopp zusammen spielt. Urkunde Indie Gitarre.",
+   "items": [
+    {
+     "kind": "text",
+     "title": "Tipp",
+     "notes": "Teil mit Loop üben, bis der Übergang sitzt, dann den ganzen Song."
+    }
+   ]
+  }
+ ]
+}

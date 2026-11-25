@@ -14,6 +14,7 @@ const DAY = 86400000;
 const TOKEN_DAYS = 180;
 const CODE_ALPHABET = 'ABCDEFGHJKMNPQRSTUVWXYZ23456789';
 const CONSENT_VERSION = 'v1 04.11.2026';
+const COURSES = ['drums', 'guitar', 'indie'];
 
 // ---------- kleine Helfer ----------
 const now = () => new Date().toISOString();
@@ -716,9 +717,9 @@ async function route(env, req, path, body) {
   }
   if (path === '/api/songs') return songsHome(s, who);
   if (path === '/api/course') {
-    // Zwei Kurse: Schlagzeug (drums) und E Gitarre (guitar). Ohne Angabe nach Instrument des Schülers.
+    // Drei Kurse: Schlagzeug (drums), Gitarre (guitar), Indie Gitarre (indie, seit 25.11.2026). Ohne Angabe nach Instrument des Schülers.
     const sid = who.role === 'teacher' ? (str(body.student_id, 64) || null) : who.studentId;
-    let course = ['drums', 'guitar'].includes(body.course) ? body.course : null;
+    let course = COURSES.includes(body.course) ? body.course : null;
     if (!course && sid) { const st = await s.first('SELECT instrument FROM students WHERE id = ?', sid); course = st && /^Gitarre$/.test(st.instrument || '') ? 'guitar' : 'drums'; }
     return courseData(s, course || 'drums', sid, who.role === 'teacher');
   }
@@ -957,7 +958,7 @@ async function route(env, req, path, body) {
     }
     case '/api/t/course/lesson/add': {
       // Neue Lektion ans Ende eines Levels, spätere Lektionen rücken eine Nummer weiter
-      const course = body.course === 'guitar' ? 'guitar' : 'drums', level = int(body.level, 1, 20), title = str(body.title, 120);
+      const course = COURSES.includes(body.course) ? body.course : 'drums', level = int(body.level, 1, 20), title = str(body.title, 120);
       if (!level || !title) throw new HttpError(400, 'Level und Titel fehlen.');
       if (!(await s.first('SELECT level FROM course_levels WHERE course = ? AND level = ?', course, level))) throw new HttpError(404, 'Level nicht gefunden.');
       const last = await s.first('SELECT MAX(num) AS n FROM course_lessons WHERE course = ? AND level <= ?', course, level);
@@ -967,7 +968,7 @@ async function route(env, req, path, body) {
       return { id, num };
     }
     case '/api/t/course/level/add': {
-      const course = body.course === 'guitar' ? 'guitar' : 'drums', name = str(body.name, 80);
+      const course = COURSES.includes(body.course) ? body.course : 'drums', name = str(body.name, 80);
       if (!name) throw new HttpError(400, 'Name fehlt.');
       const m = await s.first('SELECT MAX(level) AS n FROM course_levels WHERE course = ?', course), level = ((m && m.n) || 0) + 1;
       if (level > 20) throw new HttpError(400, 'Höchstens 20 Level.');
@@ -993,7 +994,7 @@ async function route(env, req, path, body) {
     }
     case '/api/t/course/level/remove': {
       // Leeres Level entfernen, die Level darüber rücken eins nach unten
-      const course = body.course === 'guitar' ? 'guitar' : 'drums', level = int(body.level, 1, 20);
+      const course = COURSES.includes(body.course) ? body.course : 'drums', level = int(body.level, 1, 20);
       if (!level) throw new HttpError(400, 'Level fehlt.');
       if ((await s.first('SELECT COUNT(*) AS n FROM course_lessons WHERE course = ? AND level = ?', course, level)).n) throw new HttpError(409, 'In diesem Level sind noch Lektionen.');
       await s.batch([
