@@ -282,6 +282,17 @@
     const sTop = sticks.length || tsticks.length ? 18 : 0;
     for (const [x, v] of tsticks) out.push(`<text class="nt-stick-txt" x="${x}" y="${-top - 5}" text-anchor="middle" font-size="12" font-weight="700" font-family="sans-serif" fill="${ink}">${v}</text>`);
     for (const [i, v] of sticks) out.push(`<text class="nt-stick-txt" x="${xOf(Number(i))}" y="${-top - 5}" text-anchor="middle" font-size="12" font-weight="700" font-family="sans-serif" fill="${ink}">${v}</text>`);
+    if (opt.loop || opt.loopPick) {
+      const L = opt.loop;
+      for (let bar = from; bar < to; bar++) {
+        const sx = x0 + (bar - from) * pb * sw - 3, w = pb * sw, inL = L && bar >= L.from && bar < L.to;
+        if (L && !inL) out.push(`<rect x="${sx}" y="${-top - 20}" width="${w}" height="${H + top + 20}" style="fill:var(--sunk)" opacity=".7"/>`);
+        if (inL) out.push(`<rect x="${sx}" y="${yOf(8) - 4}" width="${w}" height="${yOf(0) - yOf(8) + 8}" style="fill:var(--accent)" opacity=".1"/>`);
+        if (inL && bar === L.from) out.push(`<rect class="nt-loop-a" x="${sx - 1.5}" y="${yOf(8) - 12}" width="3" height="${yOf(0) - yOf(8) + 24}" rx="1.5" style="fill:var(--ring2)"/><circle cx="${sx}" cy="${yOf(8) - 14}" r="5" style="fill:var(--ring2)"/>`);
+        if (inL && bar === L.to - 1) out.push(`<rect class="nt-loop-b" x="${sx + w - 1.5}" y="${yOf(8) - 12}" width="3" height="${yOf(0) - yOf(8) + 24}" rx="1.5" style="fill:var(--ring2)"/><circle cx="${sx + w}" cy="${yOf(0) + 14}" r="5" style="fill:var(--ring2)"/>`);
+        if (opt.loopPick) out.push(`<rect class="nt-barhit" data-act="loopBar" data-bar="${bar}" x="${sx}" y="${-top - 20}" width="${w}" height="${H + top + 20}" fill="transparent" style="cursor:pointer"><title>Takt ${bar + 1}</title></rect>`);
+      }
+    }
     return `<svg class="nt-svg" viewBox="0 ${-top - sTop} ${W} ${H + top + sTop}" width="${W}" height="${H + top + sTop}" role="img" aria-label="${esc(opt.label || 'Schlagzeug Noten')}${from ? ', ab Takt ' + (from + 1) : ''}" data-x0="${x0}" data-sw="${sw}" data-from="${from * pb}" data-to="${to * pb}">${out.join('')}</svg>`;
   }
   function render(n, opt = {}) {
@@ -392,10 +403,12 @@
   function setClick(o) { CLICK = Object.assign({}, CLICK, o || {}); }
 
   // ---------- Wiedergabe: Schleife, Tempo Trainer, Stummschalten ----------
-  const P = { playing: false, timer: null, next: 0, step: 0, n: null, bpm: 80, queue: [], onStep: null, mute: new Set(), trainer: null, onTempo: null };
+  const P = { playing: false, timer: null, next: 0, step: 0, n: null, bpm: 80, queue: [], onStep: null, mute: new Set(), trainer: null, onTempo: null, loop: null };
+  // Takt Loop (Otis Wunsch 25.11.2026): { from, to } in Takten, to exklusiv; null = ganzer Beat
+  const loopOf = (n, l) => (l && n && l.from >= 0 && l.to > l.from && l.to <= n.bars ? { from: l.from | 0, to: l.to | 0 } : null);
   function play(n, bpm, onStep, opts = {}) {
     stop(); audio();
-    Object.assign(P, { n, bpm: bpm || n.bpm || 80, onStep, playing: true, step: 0, queue: [], mute: new Set(opts.mute || []), trainer: opts.trainer || null, onTempo: opts.onTempo || null });
+    Object.assign(P, { n, bpm: bpm || n.bpm || 80, onStep, playing: true, step: 0, queue: [], mute: new Set(opts.mute || []), trainer: opts.trainer || null, onTempo: opts.onTempo || null, loop: loopOf(n, opts.loop) });
     const token = P.token = (P.token || 0) + 1;
     const go = () => {
       if (!P.playing || P.token !== token) return; P.next = ctx.currentTime + 0.08;
@@ -414,12 +427,14 @@
   function setTempo(bpm) { P.bpm = bpm; }
   function setMute(list) { P.mute = new Set(list || []); }
   function setTrainer(tr) { P.trainer = tr; }
+  // Neuer Bereich während des Spielens: sofort am Anfang des Bereichs weiter
+  function setLoop(l) { P.loop = loopOf(P.n, l); if (P.playing) { P.step = 0; P.queue = []; } }
   function stop() { P.token = (P.token || 0) + 1; P.playing = false; clearInterval(P.timer); P.timer = null; if (P.onStep) P.onStep(-1); }
   function schedule() {
-    const n = P.n, steps = total(n), pb = perBar(n.sig);
+    const n = P.n, pb = perBar(n.sig), lf = P.loop ? P.loop.from : 0, steps = P.loop ? (P.loop.to - P.loop.from) * pb : total(n);
     while (P.next < ctx.currentTime + 0.12) {
-      const i = P.step % steps;
-      if (i === 0 && P.step > 0 && P.trainer) {
+      const i = lf * pb + (P.step % steps);
+      if (P.step % steps === 0 && P.step > 0 && P.trainer) {
         const loops = P.step / steps;
         if (loops % P.trainer.every === 0 && P.bpm < P.trainer.max) {
           P.bpm = Math.min(P.trainer.max, P.bpm + P.trainer.add);
@@ -526,5 +541,5 @@
 
   // Samples schon beim ersten Tippen irgendwo in der App vorladen
   if (typeof document !== 'undefined') document.addEventListener('pointerdown', () => { try { audio(); loadSamples(); } catch (e) { /* ohne Audio */ } }, { once: true, capture: true });
-  window.DrumNotation = { tupDyn, tupFlam, tupSetDyn, tupStick, setTrip, isTrip, setTuplet, tupleType, tupToggle, tupHas, tupAt, SIGS, ROWS, MAX_BARS, empty, parse, render, toggle, has, play, stop, setTempo, setMute, setTrainer, hit, editorHTML, cursorFor, total, perBar, setBars, usedKeys, isPlaying: () => P.playing, setDyn, dynOf, flamOf, cellText, select: (id, k, i) => { if (k == null) delete EDSEL[id]; else EDSEL[id] = { k, i }; }, selOf: (id) => EDSEL[id] || null, editMode: (id, m) => { if (m !== undefined) EDMODE[id] = m; return EDMODE[id] || ''; }, resetModes: () => { for (const k of Object.keys(EDMODE)) delete EDMODE[k]; for (const k of Object.keys(EDSEL)) delete EDSEL[k]; }, samplesReady: () => samplesReady, autoStick, audio, click, setClick, loadSamples: () => { audio(); return loadSamples(); } };
+  window.DrumNotation = { tupDyn, tupFlam, tupSetDyn, tupStick, setTrip, isTrip, setTuplet, tupleType, tupToggle, tupHas, tupAt, SIGS, ROWS, MAX_BARS, empty, parse, render, toggle, has, play, stop, setTempo, setMute, setTrainer, setLoop, loop: () => P.loop, hit, editorHTML, cursorFor, total, perBar, setBars, usedKeys, isPlaying: () => P.playing, setDyn, dynOf, flamOf, cellText, select: (id, k, i) => { if (k == null) delete EDSEL[id]; else EDSEL[id] = { k, i }; }, selOf: (id) => EDSEL[id] || null, editMode: (id, m) => { if (m !== undefined) EDMODE[id] = m; return EDMODE[id] || ''; }, resetModes: () => { for (const k of Object.keys(EDMODE)) delete EDMODE[k]; for (const k of Object.keys(EDSEL)) delete EDSEL[k]; }, samplesReady: () => samplesReady, autoStick, audio, click, setClick, loadSamples: () => { audio(); return loadSamples(); } };
 })();

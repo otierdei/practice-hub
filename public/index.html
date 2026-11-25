@@ -266,10 +266,10 @@ details.card summary{cursor:pointer;font-family:var(--display);font-size:1.08rem
 </head>
 <body>
 <div id="app"><div class="wrap"><p class="muted">Lädt …</p></div></div>
-<script src="notation.js?v=124"></script>
-<script src="guitar.js?v=124"></script>
-<script src="roadmap.js?v=124"></script>
-<script src="transpose.js?v=124"></script>
+<script src="notation.js?v=125"></script>
+<script src="guitar.js?v=125"></script>
+<script src="roadmap.js?v=125"></script>
+<script src="transpose.js?v=125"></script>
 <script>
 'use strict';
 // ---------- Grundlagen ----------
@@ -1921,7 +1921,7 @@ function startPractice(assignmentId, part = null) {
   const exSong = existing && ((existing.part && existing.part.song_id) || ((S.data.assignments || []).find((x) => x.id === existing.assignment_id) || {}).song_id);
   if (existing && part && part.song_id && exSong === part.song_id && runKeyOf(existing) !== runKey(existing.assignment_id, part)) {
     const pn = DrumNotation.parse(part.notation); existing.titles = Array.from(new Set((existing.titles || (existing.part ? [existing.part.title] : [])).concat(part.title)));
-    existing.part = part; existing.bpm = part.bpm || (pn && pn.bpm) || existing.bpm; store.set('run', existing); assignmentId = existing.assignment_id;
+    existing.part = part; existing.loop = null; S.loopPick = false; S.loopAnchor = null; existing.bpm = part.bpm || (pn && pn.bpm) || existing.bpm; store.set('run', existing); assignmentId = existing.assignment_id;
   } else
   if (existing && runKeyOf(existing) !== key && runElapsed(existing) < 60000) { store.del('run'); existing = null; releaseWake(); }
   else if (existing && runKeyOf(existing) !== key && runElapsed(existing) > 0) {
@@ -1930,6 +1930,7 @@ function startPractice(assignmentId, part = null) {
   if (!existing || runKeyOf(existing) !== runKey(assignmentId, part)) {
     const a = S.data.assignments.find((x) => x.id === assignmentId), n = part && DrumNotation.parse(part.notation);
     const best = Math.max(0, ...allSessions().filter((s) => s.assignment_id === assignmentId).map((s) => s.bpm_reached || 0));
+    S.loopPick = false; S.loopAnchor = null;
     store.set('run', { assignment_id: assignmentId || null, part: part || null, startedAt: new Date().toISOString(), accumulated: 0, runningSince: null, bpm: part ? part.bpm || (n && n.bpm) || 80 : a && a.song_id && a.song_bpm ? a.song_bpm : best || (a && (a.start_bpm || a.target_bpm && Math.round(a.target_bpm * 0.8))) || 80 });
   }
   const run = store.get('run');
@@ -1969,8 +1970,9 @@ function practiceView() {
       ${metronomeCard(a)}
       ${Guitar.parse(a.notation).chords.length >= 2 ? `<div id="chgBox">${chgBoxHTML(Guitar.parse(a.notation).chords.join(' '))}</div>` : ''}
       <div class="gt-count" id="gtCount" aria-live="assertive"></div><p class="small muted">Mitspielen: 4 Klicks zum Einzählen, dann läuft die Übung mit Klick in Schleife, bis du Stopp drückst. Tempo stellst du oben ein.</p><div class="row">${Guitar.parse(a.notation).strum.cells.some(Boolean) ? `<button class="btn" data-act="gtPlay" data-mode="strum" style="flex:1">${Guitar.isPlaying() ? 'Stopp' : 'Mitspielen: Schlagmuster'}</button>` : ''}${Guitar.parse(a.notation).scale ? `<button class="btn" data-act="gtPlay" data-mode="scale" style="flex:1">Mitspielen: Tonleiter</button>` : ''}${Guitar.parse(a.notation).tab.notes.length ? `<button class="btn" data-act="gtPlay" data-mode="tab" style="flex:1">Mitspielen: Tabs</button>` : ''}</div>` : ''}
-    ${a && DrumNotation.parse(a.notation) ? `<div class="nt-staff" id="practiceStaff">${DrumNotation.render(DrumNotation.parse(a.notation), { cursor: true, label: 'Noten: ' + (a.title || '') })}</div>
-      <div class="ctl-row">${playBtn('beatPlay', '', DrumNotation.isPlaying(), false, true)}${beatClickChip(false, true)}${a.part_id || (store.get('run', null) || {}).part ? countInChip() : ''}</div>
+    ${a && DrumNotation.parse(a.notation) ? `<div class="nt-staff" id="practiceStaff">${practiceStaffHTML(r, a)}</div>
+      <div class="ctl-row">${playBtn('beatPlay', '', DrumNotation.isPlaying(), false, true)}${beatClickChip(false, true)}${loopChip(a)}${a.part_id || (store.get('run', null) || {}).part ? countInChip() : ''}</div>
+      <p class="small muted" id="loopNote" aria-live="polite" style="margin:0">${loopNoteText(r)}</p>
       ${metronomeCard(a)}
       <div class="col" style="gap:8px"><span class="small muted">Stumm schalten und selbst spielen:</span>
         <div class="row" style="gap:6px">${DrumNotation.usedKeys(DrumNotation.parse(a.notation)).map((k) => `<button type="button" class="chip" data-act="beatMute" data-k="${k}" aria-pressed="${(S.beatMute || []).includes(k)}">${DrumNotation.ROWS.find((r) => r.k === k).n}</button>`).join('')}</div>
@@ -2084,6 +2086,25 @@ function syncMetIcons() {
 setInterval(syncMetIcons, 250);
 // Klick beim Abspielen eines Beats ein und aus
 // 1 Takt Metronom Vorlauf bei Bausteinen (Otis Wunsch 19.11.2026), standardmäßig aus, gilt für das Gerät
+// Takt Loop (Otis Wunsch 25.11.2026, wie Musora): Loop antippen, dann ersten und letzten Takt antippen; der Bereich läuft in Schleife
+const ICON_LOOP = '<svg viewBox="0 0 24 24" width="18" height="18" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M20 11a8 8 0 0 0-14.3-4.9L4 8"/><path d="M4 3v5h5"/><path d="M4 13a8 8 0 0 0 14.3 4.9L20 16"/><path d="M20 21v-5h-5"/></svg>';
+function loopChip(a) { const n = a && DrumNotation.parse(a.notation); if (!n || n.bars < 2) return ''; return `<button type="button" class="chip" data-act="loopMode" aria-pressed="${!!S.loopPick}" style="display:inline-flex;gap:6px;align-items:center">${ICON_LOOP}Loop</button>`; }
+function loopNoteText(r) {
+  const l = r && r.loop;
+  if (S.loopPick && S.loopAnchor != null) return `Takt ${S.loopAnchor + 1} gewählt. Jetzt den letzten Takt antippen (oder denselben für nur diesen Takt).`;
+  if (S.loopPick && !l) return 'Tippe auf den ersten Takt, dann auf den letzten.';
+  if (l) return `Schleife: ${l.to - l.from === 1 ? 'Takt ' + (l.from + 1) : 'Takt ' + (l.from + 1) + ' bis ' + l.to}${S.loopPick ? '. Takt antippen wählt neu, Loop ausschalten spielt wieder alles.' : ''}`;
+  return '';
+}
+function practiceStaffHTML(r, a) { const n = DrumNotation.parse(a.notation); return DrumNotation.render(n, { cursor: true, label: 'Noten: ' + (a.title || ''), loop: r && r.loop, loopPick: !!S.loopPick && n.bars > 1 }); }
+function loopRefresh(r) {
+  const a = runTask(r), st = $('#practiceStaff'); if (st && a) st.innerHTML = practiceStaffHTML(r, a);
+  const nt = $('#loopNote'); if (nt) nt.textContent = loopNoteText(r);
+  document.querySelectorAll('[data-act=loopMode]').forEach((b) => b.setAttribute('aria-pressed', String(!!S.loopPick)));
+  DrumNotation.setLoop(r.loop || null);
+  if (DrumNotation.isPlaying() && S.playN) { const f = S.playFactor || 1; DrumNotation.setTrainer(metTrainer(loopBars(S.playN, r.loop), f)); }
+}
+const loopBars = (n, l) => (n && l ? Object.assign({}, n, { bars: l.to - l.from }) : n);
 function countInChip() { const on = !!metSet().countIn; return `<button type="button" class="chip" data-act="countIn" aria-pressed="${on}">1 Takt Vorlauf</button>`; }
 const countInOpt = (f) => (metSet().countIn ? f || 1 : 0);
 function beatClickChip(small, large) { const on = metSet().beatClick; return `<button type="button" class="met-btn${small ? ' sm' : ''}${large ? ' lg' : ''}" data-act="beatClick" aria-pressed="${on}" aria-label="Metronom im Beat ${on ? 'an' : 'aus'}" title="Metronom im Beat ${on ? 'an' : 'aus'}">${ICON_MET}</button>`; }
@@ -2495,7 +2516,7 @@ document.addEventListener('click', async (ev) => {
         const r = store.get('run'); const a = runTask(r);
         metStop(); { const mb = document.querySelector('[data-act="metronome"]'); if (mb) { mb.setAttribute('aria-pressed', 'false'); mb.setAttribute('aria-label', 'Metronom starten'); } const ms = $('#metState'); if (ms) ms.textContent = 'Tippen zum Starten'; }
         { const rr = store.get('run', null), f = (rr && rr.part && rr.part.factor) || 1; S.playFactor = f; const pn = DrumNotation.parse(a.notation);
-          playBeat(pn, $('#practiceStaff'), MET.bpm * f, { mute: S.beatMute || [], trainer: metTrainer(pn, f), onTempo: (b) => setBpm(b / f), countIn: a.part_id || (rr && rr.part) ? countInOpt(f) : 0 }); } setPlay(el, true); break;
+          playBeat(pn, $('#practiceStaff'), MET.bpm * f, { mute: S.beatMute || [], loop: rr && rr.loop, trainer: metTrainer(loopBars(pn, rr && rr.loop), f), onTempo: (b) => setBpm(b / f), countIn: a.part_id || (rr && rr.part) ? countInOpt(f) : 0 }); } setPlay(el, true); break;
       }
       case 'beatMute': { const k = el.dataset.k; S.beatMute = (S.beatMute || []).includes(k) ? S.beatMute.filter((x) => x !== k) : (S.beatMute || []).concat(k); el.setAttribute('aria-pressed', String(S.beatMute.includes(k))); DrumNotation.setMute(S.beatMute); break; }
       case 'archiveExercise': await api('/api/t/exercise/archive', { id }); S.exercises = (await api('/api/t/exercises')).exercises; closeOverlay(); toast('Entfernt'); break;
@@ -2775,6 +2796,13 @@ document.addEventListener('click', async (ev) => {
       case 'metAcc': { const s = metSet(), k = Number(el.dataset.i); s.accents[k] = (s.accents[k] + 2) % 3; saveMetSet(s); el.className = 'met-dot acc' + s.accents[k]; el.setAttribute('aria-label', 'Schlag ' + (k + 1) + ': ' + ['stumm', 'normal', 'betont'][s.accents[k]]); break; }
       case 'metSub': { const s = metSet(); s.sub = Number(el.dataset.v); saveMetSet(s); document.querySelectorAll('[data-act=metSub]').forEach((b) => b.setAttribute('aria-pressed', String(b === el))); break; }
       case 'trkReset': TRK.ms = 0; TRK.bars = 0; TRK.since = MET.playing || DrumNotation.isPlaying() ? performance.now() : 0; { const k = $('#trk'); if (k) k.textContent = trkText(); } break;
+      case 'loopMode': { const r = store.get('run', null); if (!r) break; S.loopAnchor = null;
+        if (S.loopPick) { S.loopPick = false; r.loop = null; } else S.loopPick = true;
+        store.set('run', r); loopRefresh(r); break; }
+      case 'loopBar': { const r = store.get('run', null); if (!r || !S.loopPick) break; const b = Number(el.dataset.bar);
+        if (S.loopAnchor == null) { S.loopAnchor = b; r.loop = { from: b, to: b + 1 }; }
+        else { r.loop = { from: Math.min(S.loopAnchor, b), to: Math.max(S.loopAnchor, b) + 1 }; S.loopAnchor = null; }
+        store.set('run', r); loopRefresh(r); break; }
       case 'countIn': { const s = metSet(); s.countIn = !s.countIn; saveMetSet(s); document.querySelectorAll('[data-act=countIn]').forEach((b) => b.setAttribute('aria-pressed', String(s.countIn))); break; }
       case 'beatClick': { const s = metSet(); s.beatClick = !s.beatClick; saveMetSet(s); document.querySelectorAll('[data-act=beatClick]').forEach((b) => { b.setAttribute('aria-pressed', String(s.beatClick)); b.setAttribute('aria-label', 'Metronom im Beat ' + (s.beatClick ? 'an' : 'aus')); b.title = b.getAttribute('aria-label'); }); syncMetIcons(); toast('Metronom im Beat ' + (s.beatClick ? 'an' : 'aus')); break; }
       case 'metronome': if (MET.playing) metStop(); else { DrumNotation.stop(); S.prevPlaying = null; resetPlays('[data-act="partPlay"],[data-act="beatPlay"],[data-act="asgPlay"]'); metStart(); } el.setAttribute('aria-pressed', String(MET.playing)); el.setAttribute('aria-label', MET.playing ? 'Metronom stoppen' : 'Metronom starten'); { const ms = $('#metState'); if (ms) ms.textContent = MET.playing ? 'Läuft, tippen zum Stoppen' : 'Tippen zum Starten'; } syncMetIcons(); break;
