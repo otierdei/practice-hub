@@ -9,6 +9,14 @@ CREATE TABLE IF NOT EXISTS game_progress (
   updated_at TEXT NOT NULL,
   PRIMARY KEY (student_id, game)
 );
+-- Spielzeit in Lernspielen (25.11.2026): extra Zeitkontingent, zählt nicht als Übezeit
+CREATE TABLE IF NOT EXISTS game_time (
+  student_id TEXT NOT NULL,
+  local_date TEXT NOT NULL,
+  game TEXT NOT NULL,
+  seconds INTEGER NOT NULL DEFAULT 0,
+  PRIMARY KEY (student_id, local_date, game)
+);
 CREATE TABLE IF NOT EXISTS lesson_windows (
   id TEXT PRIMARY KEY,
   student_id TEXT NOT NULL,

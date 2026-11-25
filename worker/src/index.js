@@ -218,7 +218,8 @@ async function studentView(s, studentId, role) {
   const changes = await s.all('SELECT chords, count, created_at FROM chord_changes WHERE student_id = ? ORDER BY created_at DESC LIMIT 60', st.id);
   const app = await s.first('SELECT app_name, color FROM student_app WHERE student_id = ?', st.id);
   const mis = await missions(s, { role }).forStudent(st.id);
-  return { role, app: app || null, icon: instrIcon(st.instrument), changes, missions: mis, student: st, assignments, sessions, goals, lessons, my_beats, lesson_live: live, consent: consent ? consent.given_at : null, consentVersion: CONSENT_VERSION, canGoal: role === 'student' && canSetGoals(st) };
+  const game_time = await s.all('SELECT local_date, game, seconds FROM game_time WHERE student_id = ? AND local_date >= ? ORDER BY local_date DESC', studentId, since.slice(0, 10));
+  return { game_time, role, app: app || null, icon: instrIcon(st.instrument), changes, missions: mis, student: st, assignments, sessions, goals, lessons, my_beats, lesson_live: live, consent: consent ? consent.given_at : null, consentVersion: CONSENT_VERSION, canGoal: role === 'student' && canSetGoals(st) };
 }
 
 // Alle Schüler dürfen eigene Ziele eintragen (Altersgrenze auf Otis Wunsch entfernt)
@@ -316,8 +317,9 @@ async function teacherStudent(s, id) {
   const changes = await s.all('SELECT chords, count, created_at FROM chord_changes WHERE student_id = ? ORDER BY created_at DESC LIMIT 60', id);
   const app = await s.first('SELECT app_name, color FROM student_app WHERE student_id = ?', id);
   const games = (await s.all('SELECT game, data, updated_at FROM game_progress WHERE student_id = ?', id)).map((r) => ({ game: r.game, updated_at: r.updated_at, ...JSON.parse(r.data) }));
+  const game_time = await s.all('SELECT local_date, game, seconds FROM game_time WHERE student_id = ? AND local_date >= ? ORDER BY local_date DESC', id, new Date(Date.now() - 370 * DAY).toISOString().slice(0, 10));
   const mis = await missions(s, { role: 'teacher' }).forStudent(id);
-  return { student: st, lessons, assignments, sessions, goals, access, consents, worship, cancellations, beats, changes, games, app: app || null, missions: mis };
+  return { student: st, lessons, assignments, sessions, goals, access, consents, worship, cancellations, beats, changes, games, game_time, app: app || null, missions: mis };
 }
 
 async function saveStudent(s, who, b) {
@@ -367,6 +369,7 @@ function deleteStudentStatements(id) {
     ['DELETE FROM student_beat_official WHERE beat_id IN (SELECT id FROM student_beats WHERE student_id = ?)', [id]],
     ['DELETE FROM student_beats WHERE student_id = ?', [id]],
     ['DELETE FROM game_progress WHERE student_id = ?', [id]],
+    ['DELETE FROM game_time WHERE student_id = ?', [id]],
     ['DELETE FROM student_app WHERE student_id = ?', [id]],
     ['DELETE FROM chord_changes WHERE student_id = ?', [id]],
     ['DELETE FROM devices WHERE access_id IN (SELECT id FROM access WHERE student_id = ?)', [id]],
@@ -741,6 +744,13 @@ async function route(env, req, path, body) {
     // Lernspiele melden den Fortschritt, damit Oti ihn in der Schülerakte sieht
     if (who.role !== 'student') return { ok: false };
     const game = ['noten', 'werte', 'hoeren', 'takt', 'form'].includes(body.game) ? body.game : null; if (!game) throw new HttpError(400, 'Unbekanntes Spiel.');
+    // Spielzeit dazuzählen (höchstens 10 Minuten pro Meldung, 4 Stunden pro Tag und Spiel)
+    if (body.add_seconds != null) {
+      const add = int(body.add_seconds, 1, 600), day = isDate(body.local_date) ? body.local_date : null;
+      if (!add || !day) throw new HttpError(400, 'Ungültige Spielzeit.');
+      await s.run('INSERT INTO game_time (student_id, local_date, game, seconds) VALUES (?, ?, ?, ?) ON CONFLICT(student_id, local_date, game) DO UPDATE SET seconds = MIN(game_time.seconds + excluded.seconds, 14400)', who.studentId, day, game, add);
+      return { ok: true };
+    }
     const total = int(body.total, 1, 20) || 7;
     const done = [...new Set((Array.isArray(body.done) ? body.done : []).map(Number).filter((x) => Number.isInteger(x) && x >= 1 && x <= total))].sort((a, b) => a - b);
     const cert = isDate(body.cert) ? body.cert : null;

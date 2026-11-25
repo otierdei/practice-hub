@@ -1249,3 +1249,13 @@ test('Roadmap: iReal Pro Import (Otis Playlist) besteht die Server Prüfung', as
   assert.equal(R.cheatSheet(one[0].roadmap), 'Blues'); assert.equal(R.totalBars(one[0].roadmap), 12);
   assert.ok(cleanRoadmap(one[0].roadmap));
 });
+
+test('Lernspiele: Spielzeit wird extra gezählt und in Akte und Schüleransicht geliefert', async () => {
+  const w = await world();
+  const day = new Date().toISOString().slice(0, 10);
+  assert.equal((await w.call('/api/my/game', { game: 'takt', add_seconds: 120, local_date: day }, w.ta)).status, 200);
+  await w.call('/api/my/game', { game: 'takt', add_seconds: 9999, local_date: day }, w.ta);
+  assert.equal((await w.call('/api/my/game', { game: 'takt', add_seconds: 60, local_date: 'gestern' }, w.ta)).status, 400);
+  const me = (await w.call('/api/home', {}, w.ta)).data;
+  assert.deepEqual(me.game_time.map((r) => [r.game, r.seconds]), [['takt', 720]]);
+}); 
