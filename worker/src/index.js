@@ -1,4 +1,4 @@
-import { COURSE_SCHEMA, courseData, courseImport } from './course.js';
+import { COURSE_SCHEMA, courseData, courseImport, pathAdvance } from './course.js';
 import { transcribeImage } from './transcribe.js';
 import { SONG_SCHEMA, syncSongs, songsHome, songDetail, parseLinkLines, slug, songSuggestions } from './songs.js';
 // Practice Hub Worker v1 (04.11.2026)
@@ -398,6 +398,7 @@ function deleteStudentStatements(id) {
     ['DELETE FROM lessons WHERE student_id = ?', [id]],
     ['DELETE FROM student_songs WHERE student_id = ?', [id]],
     ['DELETE FROM student_lessons WHERE student_id = ?', [id]],
+    ['DELETE FROM student_course_path WHERE student_id = ?', [id]],
     ['DELETE FROM cancellations WHERE student_id = ?', [id]],
     ['DELETE FROM worship_students WHERE student_id = ?', [id]],
     ['DELETE FROM students WHERE id = ?', [id]],
@@ -768,6 +769,8 @@ async function route(env, req, path, body) {
     // Vier Kurse: Schlagzeug (drums), Gitarre (guitar), Indie Gitarre (indie, seit 25.11.2026), Funk Gitarre (funk, seit 26.11.2026). Ohne Angabe nach Instrument des Schülers.
     const sid = who.role === 'teacher' ? (str(body.student_id, 64) || null) : who.studentId;
     let course = COURSES.includes(body.course) ? body.course : null;
+    const path = sid ? await s.first('SELECT course FROM student_course_path WHERE student_id = ?', sid) : null;
+    if (!course && path && COURSES.includes(path.course)) course = path.course;
     if (!course && sid) {
       const st = await s.first('SELECT instrument FROM students WHERE id = ?', sid); course = st && /^Gitarre$/.test(st.instrument || '') ? 'guitar' : 'drums';
       // Gitarrenschüler ohne Lektionen im Gitarren Kurs starten im Zusatzkurs mit den meisten Lektionen (Indie oder Funk, z. B. Otis eigenes Profil)
@@ -776,7 +779,7 @@ async function route(env, req, path, body) {
         if (r && !r.g && (r.i || r.f)) course = (r.f || 0) > (r.i || 0) ? 'funk' : 'indie';
       }
     }
-    return courseData(s, course || 'drums', sid, who.role === 'teacher');
+    return { ...(await courseData(s, course || 'drums', sid, who.role === 'teacher')), path: path ? path.course : null };
   }
   // Songform Spiel (23.11.2026): alle Song Bausteine mit Noten auf einmal, nur lesen, für jede angemeldete Rolle (wie /api/song)
   if (path === '/api/game/parts') {
@@ -1151,7 +1154,21 @@ async function route(env, req, path, body) {
         await s.run(`INSERT INTO student_lessons (student_id, lesson_id, status, assigned_at, done_at) VALUES (?, ?, ?, ?, ?)
           ON CONFLICT(student_id, lesson_id) DO UPDATE SET status = excluded.status, done_at = excluded.done_at`, sid, lid, body.status, now(), body.status === 'fertig' ? now() : null);
       } else await s.run('DELETE FROM student_lessons WHERE student_id = ? AND lesson_id = ?', sid, lid);
-      return { ok: true };
+      let next = null;
+      if (body.status === 'fertig') {
+        const p = await s.first('SELECT p.course FROM student_course_path p JOIN course_lessons cl ON cl.course = p.course WHERE p.student_id = ? AND cl.id = ?', sid, lid);
+        if (p) next = await pathAdvance(s, sid, p.course, now());
+      }
+      return { ok: true, next };
+    }
+    case '/api/t/course/path': { // Kurs als Weg setzen (course) oder beenden (course leer)
+      const sid = String(body.student_id || '');
+      if (!(await s.first('SELECT id FROM students WHERE id = ?', sid))) throw new HttpError(404, 'Schüler nicht gefunden.');
+      if (!body.course) { await s.run('DELETE FROM student_course_path WHERE student_id = ?', sid); return { ok: true, path: null }; }
+      if (!COURSES.includes(body.course)) throw new HttpError(400, 'Unbekannter Kurs.');
+      await s.run(`INSERT INTO student_course_path (student_id, course, set_at) VALUES (?, ?, ?) ON CONFLICT(student_id) DO UPDATE SET course = excluded.course, set_at = excluded.set_at`, sid, body.course, now());
+      const next = await pathAdvance(s, sid, body.course, now());
+      return { ok: true, path: body.course, next };
     }
     case '/api/t/student/streak': {
       // Zieltage pro Woche für die Serie (1 bis 7)
