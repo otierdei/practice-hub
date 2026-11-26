@@ -50,6 +50,10 @@ const ok = (c, m) => { n++; if (!c) { console.error('FEHLER Schritt ' + n + ': '
   await p.evaluate(() => { const b = document.querySelector('[data-act=preview]'); b.click(); }); await p.waitForTimeout(800);
   ok(/Scratches und Akzente/.test(await p.textContent('body')), 'Schüleransicht in der Stunde zeigt die Kurs Aufgabe');
   if (out) { await p.setViewportSize({ width: 390, height: 844 }); await p.evaluate(() => render()); await p.waitForTimeout(300); await p.screenshot({ path: `${out}-stunde-kurs-390.png` }); }
+  // ph-v139: Songs unter dem Level aufgebbar, Reihenfolge eigenes Level, eins drüber, dann darunter; Vorschläge bleiben bei Level und eins drüber
+  const order = await p.evaluate(() => { const keep = S.songs; S.songs = { songs: ['1', '2a', '3', '4', '5'].map((l) => ({ id: 'x' + l, title: 'Song ' + l, level: l, dv: 1 })) }; const f = { student: { instrument: 'Schlagzeug' }, level_set: { level: '3' } };
+    const a = levelSongs(f, true).map((x) => x.level).join(','), b = levelSongs(f).map((x) => x.level).join(','); S.songs = keep; return [a, b]; });
+  ok(order[0] === '3,4,2a,1' && order[1] === '3,4', 'Aufgeben zeigt auch Songs unter dem Level (3,4,2a,1), Vorschläge nur 3 und 4: ' + order.join(' | '));
   ok(!errs.length, 'keine Konsolenfehler ' + errs.join(' | '));
   await b.close();
 })().catch((e) => { console.error(e); process.exit(1); });

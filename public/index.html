@@ -310,11 +310,11 @@ details.card summary{cursor:pointer;font-family:var(--display);font-size:1.08rem
 </head>
 <body>
 <div id="app"><div class="wrap"><p class="muted">Lädt …</p></div></div>
-<script src="notation.js?v=138"></script>
-<script src="guitar.js?v=138"></script>
-<script src="roadmap.js?v=138"></script>
-<script src="progress.js?v=138"></script>
-<script src="transpose.js?v=138"></script>
+<script src="notation.js?v=139"></script>
+<script src="guitar.js?v=139"></script>
+<script src="roadmap.js?v=139"></script>
+<script src="progress.js?v=139"></script>
+<script src="transpose.js?v=139"></script>
 <script>
 'use strict';
 // ---------- Grundlagen ----------
@@ -873,11 +873,13 @@ function autoLevel(file) {
 }
 const studentLevel = (file) => (file && file.level_set && file.level_set.level) || autoLevel(file);
 // Songs zum Aufgeben: Level des Schülers und eins drüber, nur mit Video für sein Instrument
-function levelSongs(file) {
+// withLower (ph-v139, Otis Wunsch): beim Aufgeben auch alle Songs unter dem Level, sortiert: eigenes Level, eins drüber, dann absteigend darunter
+function levelSongs(file, withLower = false) {
   const l = studentLevel(file), st = file.student, i = LVL.indexOf(l);
   if (i < 0) return null;
-  const ok = new Set([LVL[i], LVL[i + 1]].filter(Boolean));
-  return (S.songs ? S.songs.songs : []).filter((x) => x.level && ok.has(x.level) && (isGuitarOnly(st) ? x.gv : isDual(st) ? x.gv || x.dv : x.dv));
+  const lv = withLower ? LVL.slice(0, i + 2) : [LVL[i], LVL[i + 1]].filter(Boolean);
+  const rank = (x) => { const j = LVL.indexOf(x.level); return j === i ? 0 : j === i + 1 ? 1 : 2 + (i - j); };
+  return (S.songs ? S.songs.songs : []).filter((x) => x.level && lv.includes(x.level) && (isGuitarOnly(st) ? x.gv : isDual(st) ? x.gv || x.dv : x.dv)).sort((a, b) => rank(a) - rank(b) || a.title.localeCompare(b.title));
 }
 function levelBadgeHTML(file) {
   if (isGuitarOnly(file.student)) return '';
@@ -1260,8 +1262,8 @@ function lessonView() {
         <section class="card"><h3>Hausaufgaben</h3><div class="list" data-sort="asg">${open.length ? open.map((a, i) => { const on = L.close_assignments.includes(a.id); return `<div class="item" data-sort-id="${a.id}">${grip(i + 1, open.length + L.new_assignments.length > 1)}<span class="t"><button class="link" data-act="asgDetail" data-id="${a.id}"><b>${esc(a.title || a.free_text)}</b></button><br><span class="muted small">${practicedFor(a, f.sessions)}${a.target_bpm ? ' · Ziel ' + a.target_bpm : ''}</span><br>${assignBadges(a)}</span><button class="check ${on ? 'on' : ''}" data-act="toggleClose" data-id="${a.id}" aria-pressed="${on}" aria-label="Als erledigt markieren">${on ? '✓' : ''}</button></div>`; }).join('') : ''}${L.new_assignments.map((a, i) => newAsgRow(a, i, open.length + i + 1)).join('')}${!open.length && !L.new_assignments.length ? '<p class="muted">Keine offenen Hausaufgaben.</p>' : ''}</div>
           <form id="assignForm" class="col">
             ${!gOnly && (S.exercises || []).some((e) => e.category === 'Aufwärmen') ? `<details id="warmBox" ${S.warmOpen ? 'open' : ''}><summary class="small muted">Aufwärmen mit einem Tipp</summary><div class="row" style="gap:6px;margin-top:6px">${S.exercises.filter((e) => e.category === 'Aufwärmen').map((e) => `<button type="button" class="chip" data-act="warmAdd" data-id="${e.id}">${esc(e.title)}</button>`).join('')}</div></details>` : ''}
-            <div class="row" style="flex-wrap:nowrap;align-items:flex-end"><div class="field" style="flex:1"><label for="a_song">Song</label><input id="a_song" list="a_songs" placeholder="Song suchen" autocomplete="off"><datalist id="a_songs">${(() => { const ls = levelSongs(f); return (ls && !S.allSongs ? ls : (S.songs ? S.songs.songs : [])).map((x) => `<option value="${esc(x.title)}">${x.level ? 'Level ' + esc(x.level) : ''}</option>`).join(''); })()}</datalist></div>${isGuitarOnly(S.file.student) ? '' : `<div style="width:170px">${versionField('a', 'Original')}</div>`}</div>
-            ${(() => { const ls = levelSongs(f); if (!ls) return '<p class="small muted" id="a_lvlHint">Noch kein Level: alle Songs zur Auswahl. Level oben antippen und setzen.</p>'; return `<p class="small muted row" id="a_lvlHint" style="gap:8px;align-items:center">${S.allSongs ? 'Alle Songs zur Auswahl.' : `${ls.length} Songs für Level ${esc(studentLevel(f))} und eins drüber, mit Video.`} <button type="button" class="btn small" data-act="allSongs">${S.allSongs ? 'Nur passende' : 'Alle zeigen'}</button></p>`; })()}
+            <div class="row" style="flex-wrap:nowrap;align-items:flex-end"><div class="field" style="flex:1"><label for="a_song">Song</label><input id="a_song" list="a_songs" placeholder="Song suchen" autocomplete="off"><datalist id="a_songs">${(() => { const ls = levelSongs(f, true); return (ls && !S.allSongs ? ls : (S.songs ? S.songs.songs : [])).map((x) => `<option value="${esc(x.title)}">${x.level ? 'Level ' + esc(x.level) : ''}</option>`).join(''); })()}</datalist></div>${isGuitarOnly(S.file.student) ? '' : `<div style="width:170px">${versionField('a', 'Original')}</div>`}</div>
+            ${(() => { const ls = levelSongs(f, true); if (!ls) return '<p class="small muted" id="a_lvlHint">Noch kein Level: alle Songs zur Auswahl. Level oben antippen und setzen.</p>'; return `<p class="small muted row" id="a_lvlHint" style="gap:8px;align-items:center">${S.allSongs ? 'Alle Songs zur Auswahl.' : `${ls.length} Songs bis Level ${esc(studentLevel(f))} und eins drüber, mit Video.`} <button type="button" class="btn small" data-act="allSongs">${S.allSongs ? 'Nur passende' : 'Alle zeigen'}</button></p>`; })()}
             ${doneSongsHTML(S.file)}
             <div id="a_partBox"></div>
             <div class="field"><label for="a_ex">Aus der Bibliothek</label><select id="a_ex"><option value="">Freie Aufgabe</option>${exOpts}</select></div>
