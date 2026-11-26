@@ -42,6 +42,13 @@ const ok = (c, m) => { n++; if (!c) { console.error('FEHLER Schritt ' + n + ': '
   const sp = await b.newPage({ viewport: { width: 390, height: 844 }, deviceScaleFactor: 2 }); sp.on('pageerror', (e) => errs.push(e.message));
   await sp.goto(APP + '/#c=' + code); await sp.waitForFunction(() => typeof S !== 'undefined' && S.role === 'student' && S.course, null, { timeout: 8000 });
   ok(await sp.evaluate(() => S.course.course) === 'funk', 'Schüler startet im Weg Kurs Funk');
+  await sp.evaluate(async () => { S.stuCourseKey = 'indie'; S.course = await api('/api/course', { course: 'indie' }); S.overlay = null; render(); }); await sp.waitForTimeout(300);
+  ok(/Funk Gitarre · Level 1 · Lektion 2/.test(await sp.textContent('body')) && /Scratches und Akzente/.test(await sp.textContent('body')), 'Aufgabe erscheint bei Deine Aufgaben, auch wenn gerade Indie offen ist');
+  if (out) await sp.screenshot({ path: `${out}-schueler-aufgaben-390.png`, fullPage: true });
+  await sp.click('.lesson-task [data-act=courseLesson]'); await sp.waitForTimeout(400);
+  const h1s = await sp.locator('h1').allTextContents(); console.log(h1s, await sp.evaluate(() => [S.course.course, S.lessonId, typeof S.overlay === 'function' && S.overlay.name])); ok(h1s.some((x) => /Scratches/.test(x)) && await sp.evaluate(() => S.course.course) === 'funk', 'Lektion öffnen lädt den Funk Kurs');
+  await p.evaluate(() => { const b = document.querySelector('[data-act=preview]'); b.click(); }); await p.waitForTimeout(800);
+  ok(/Scratches und Akzente/.test(await p.textContent('body')), 'Schüleransicht in der Stunde zeigt die Kurs Aufgabe');
   if (out) { await p.setViewportSize({ width: 390, height: 844 }); await p.evaluate(() => render()); await p.waitForTimeout(300); await p.screenshot({ path: `${out}-stunde-kurs-390.png` }); }
   ok(!errs.length, 'keine Konsolenfehler ' + errs.join(' | '));
   await b.close();

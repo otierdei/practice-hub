@@ -310,11 +310,11 @@ details.card summary{cursor:pointer;font-family:var(--display);font-size:1.08rem
 </head>
 <body>
 <div id="app"><div class="wrap"><p class="muted">Lädt …</p></div></div>
-<script src="notation.js?v=137"></script>
-<script src="guitar.js?v=137"></script>
-<script src="roadmap.js?v=137"></script>
-<script src="progress.js?v=137"></script>
-<script src="transpose.js?v=137"></script>
+<script src="notation.js?v=138"></script>
+<script src="guitar.js?v=138"></script>
+<script src="roadmap.js?v=138"></script>
+<script src="progress.js?v=138"></script>
+<script src="transpose.js?v=138"></script>
 <script>
 'use strict';
 // ---------- Grundlagen ----------
@@ -1561,10 +1561,12 @@ function levelCard(c) {
     <span class="bar"><span style="width:${pct}%"></span></span><span class="small muted">${lv.complete ? 'Alle Level geschafft!' : lv.done + ' von ' + lv.total + ' Lektionen geschafft'}</span></span></button>`;
 }
 function openLessonCards() {
-  const c = S.course; if (!c || S.preview) return '';
-  return c.lessons.filter((l) => c.progress[l.id] && c.progress[l.id].status === 'offen').map((l) => `<section class="card task lesson-task"><div class="row" style="flex-wrap:nowrap;align-items:center;gap:14px">
-    <span class="task-icon" aria-hidden="true"><b>${l.num}</b></span><div class="col" style="gap:2px;flex:1;min-width:0"><span class="small muted">Lektion ${l.num} · Level ${l.level}</span><b class="task-title">${esc(l.title)}</b><span class="muted small">${lessonSummary(l)}</span></div></div>
-    <button class="btn primary" data-act="courseLesson" data-id="${l.id}">Lektion öffnen</button></section>`).join('');
+  // Seit ph-v138 aus den Home Daten: aufgegebene Lektionen aller Kurse, auch in der Schüleransicht
+  const d = stuData(); const ls = (d && d.open_lessons) || [];
+  const sum = (l) => [l.videos ? l.videos + ' Video' + (l.videos > 1 ? 's' : '') : '', l.songs ? l.songs + ' Song' + (l.songs > 1 ? 's' : '') : ''].filter(Boolean).join(' · ') || 'Mit Oti in der Stunde';
+  return ls.map((l) => `<section class="card task lesson-task"><div class="row" style="flex-wrap:nowrap;align-items:center;gap:14px">
+    <span class="task-icon" aria-hidden="true"><b>${l.num}</b></span><div class="col" style="gap:2px;flex:1;min-width:0"><span class="small muted">${esc(COURSE_NAMES[l.course] || 'Kurs')} · Level ${l.level} · Lektion ${l.num}</span><b class="task-title">${esc(l.title)}</b><span class="muted small">${sum(l)}</span></div></div>
+    <button class="btn primary" data-act="courseLesson" data-id="${l.id}" data-course="${l.course}">Lektion öffnen</button></section>`).join('');
 }
 function lessonSummary(l) { l = { ...l, items: l.items.filter((i) => i.kind !== 'material') }; const v = l.items.filter((i) => i.kind === 'video').length, so = l.items.filter((i) => i.kind === 'song').length; return [v ? v + ' Video' + (v > 1 ? 's' : '') : '', so ? so + ' Song' + (so > 1 ? 's' : '') : ''].filter(Boolean).join(' · ') || 'Mit Oti in der Stunde'; }
 // Kurse (seit 26.11.2026 vier): Gitarrenschüler wechseln zwischen Gitarre, Indie Gitarre und Funk Gitarre, Oti in der Akte ebenso
@@ -3041,7 +3043,11 @@ document.addEventListener('click', async (ev) => {
         const m = (d.missions || []).find((x) => x.id === S.missionId), st = m && m.steps.find((x) => x.assignment_id === id); if (st) st.reported = done;
         openOverlay(missionView); if (done) toast('Gemeldet. Oti hakt in der Stunde ab.'); break;
       }
-      case 'courseLesson': S.lessonId = id; S.lessonFrom = S.overlay; openOverlay(courseLessonView); break;
+      case 'courseLesson': {
+        const k = el.dataset.course;
+        if (k && (!S.course || S.course.course !== k)) { if (S.preview) S.course = await api('/api/course', { student_id: stuData().student.id, course: k }); else { S.stuCourseKey = k; S.course = await api('/api/course', { course: k }); } }
+        S.lessonId = id; S.lessonFrom = S.overlay; openOverlay(courseLessonView); break;
+      }
       case 'clAdd': S.clEdit = { level: Number(el.dataset.level) }; S.clBack = courseView; openOverlay(courseLessonForm); break;
       case 'clEdit': { const l = courseOf().lessons.find((x) => x.id === id); S.clEdit = { id: l.id, title: l.title, body: l.body, level: l.level, num: l.num }; S.clBack = courseLessonView; openOverlay(courseLessonForm); break; }
       case 'clCancel': openOverlay(S.clBack || courseView); break;
