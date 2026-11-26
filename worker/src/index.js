@@ -204,6 +204,14 @@ async function lessonLive(s, studentId) {
 function myBeats(s, studentId) {
   return s.all('SELECT b.id, b.song_id, b.title, b.notation, b.created_at, b.updated_at, sg.title AS song_title, o.part_id, o.exercise_id, o.approved_at FROM student_beats b LEFT JOIN songs sg ON sg.id = b.song_id LEFT JOIN student_beat_official o ON o.beat_id = b.id WHERE b.student_id = ? ORDER BY b.updated_at DESC LIMIT 100', studentId);
 }
+// Aufgegebene Kurslektionen aller Kurse (ph-v138): Schüler "Deine Aufgaben", Schüleransicht und seit ph-v140 die Hausaufgaben Liste in der Stunde
+function openLessons(s, sid) {
+  return s.all(`SELECT cl.id, cl.course, cl.level, cl.num, cl.title,
+      (SELECT COUNT(*) FROM lesson_items i WHERE i.lesson_id = cl.id AND i.kind = 'video') AS videos,
+      (SELECT COUNT(*) FROM lesson_items i WHERE i.lesson_id = cl.id AND i.kind = 'song') AS songs
+    FROM student_lessons sl JOIN course_lessons cl ON cl.id = sl.lesson_id WHERE sl.student_id = ? AND sl.status = 'offen' ORDER BY sl.assigned_at, cl.level, cl.num`, sid);
+}
+
 async function studentView(s, studentId, role) {
   const st = await s.first('SELECT id, first_name, birth_year, is_minor, weekday, lesson_time, lesson_minutes, level, instrument FROM students WHERE id = ?', studentId);
   if (!st) throw new HttpError(404, 'Schüler nicht gefunden.');
@@ -229,11 +237,7 @@ async function studentView(s, studentId, role) {
   const pp = await s.first('SELECT days, hour FROM student_push_prefs WHERE student_id = ?', st.id);
   const push = { prefs: pp ? { days: JSON.parse(pp.days), hour: pp.hour } : DEFAULT_PREFS, subs: (await s.first('SELECT COUNT(*) AS n FROM student_push_subs WHERE student_id = ?', st.id)).n };
   const lvRow = await s.first('SELECT level FROM student_level WHERE student_id = ?', studentId);
-  // Aufgegebene Kurslektionen aller Kurse (ph-v138): erscheinen bei "Deine Aufgaben", egal welcher Kurs gerade offen ist, auch in der Schüleransicht
-  const open_lessons = await s.all(`SELECT cl.id, cl.course, cl.level, cl.num, cl.title,
-      (SELECT COUNT(*) FROM lesson_items i WHERE i.lesson_id = cl.id AND i.kind = 'video') AS videos,
-      (SELECT COUNT(*) FROM lesson_items i WHERE i.lesson_id = cl.id AND i.kind = 'song') AS songs
-    FROM student_lessons sl JOIN course_lessons cl ON cl.id = sl.lesson_id WHERE sl.student_id = ? AND sl.status = 'offen' ORDER BY sl.assigned_at, cl.level, cl.num`, studentId);
+  const open_lessons = await openLessons(s, studentId);
   return { open_lessons, level: lvRow ? lvRow.level : null, game_time, streak_days, push, role, app: app || null, icon: instrIcon(st.instrument), changes, missions: mis, student: st, assignments, sessions, goals, lessons, my_beats, lesson_live: live, consent: consent ? consent.given_at : null, consentVersion: CONSENT_VERSION, canGoal: role === 'student' && canSetGoals(st) };
 }
 
@@ -339,7 +343,7 @@ async function teacherStudent(s, id) {
   const lv = await s.first('SELECT level, set_at FROM student_level WHERE student_id = ?', id);
   const assessed = await s.first('SELECT at FROM student_assessment WHERE student_id = ?', id);
   const known_songs = await s.all('SELECT song_id, version, at FROM student_known_songs WHERE student_id = ?', id);
-  return { level_set: lv || null, assessed: assessed ? assessed.at : null, known_songs, student: st, streak_days: await streakDays(s, st.id), lessons, assignments, sessions, goals, access, consents, worship, cancellations, beats, changes, games, game_time, app: app || null, missions: mis };
+  return { open_lessons: await openLessons(s, st.id), level_set: lv || null, assessed: assessed ? assessed.at : null, known_songs, student: st, streak_days: await streakDays(s, st.id), lessons, assignments, sessions, goals, access, consents, worship, cancellations, beats, changes, games, game_time, app: app || null, missions: mis };
 }
 
 async function saveStudent(s, who, b) {

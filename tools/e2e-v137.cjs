@@ -28,6 +28,9 @@ const ok = (c, m) => { n++; if (!c) { console.error('FEHLER Schritt ' + n + ': '
   const c = await p.evaluate(() => S.file.course); const l11 = c.lessons.find((l) => l.level === 1 && l.num === 1).id, l12 = c.lessons.find((l) => l.level === 1 && l.num === 2).id;
   ok(c.path === 'funk' && /Läuft als Weg/.test(await p.textContent('#lessonCourse')), 'Ganzer Kurs läuft als Weg');
   ok(c.progress[l11] && c.progress[l11].status === 'offen', 'Lektion 1.1 automatisch aufgegeben');
+  const rows = await p.locator('.lc-row').allTextContents();
+  ok(rows.length === 2 && rows.some((t) => /16tel zählen/.test(t) && /Kurs Funk Gitarre · Level 1/.test(t)), 'ph-v140: aufgegebene Kurslektionen stehen in der Hausaufgaben Liste der Stunde');
+  if (out) await p.locator('.lesson-grid section.card').first().screenshot({ path: `${out}-hausaufgaben-1440.png` });
   if (out) await p.screenshot({ path: `${out}-stunde-kurs-1440.png` });
   await p.click(`#lessonCourse [data-act=lcState][data-id="${l11}"]`); await p.waitForTimeout(500);
   const c2 = await p.evaluate(() => S.file.course);
@@ -36,19 +39,22 @@ const ok = (c, m) => { n++; if (!c) { console.error('FEHLER Schritt ' + n + ': '
   await p.evaluate(() => { for (const d of document.querySelectorAll('#lessonCourse details')) d.open = true; });
   await p.click(`#lessonCourse [data-act=lcState][data-id="${l21}"]`); await p.waitForTimeout(500);
   const c3 = await p.evaluate(() => S.file.course);
-  ok(c3.progress[l21].status === 'fertig' && Object.values(c3.progress).filter((x) => x.status === 'offen').length === 1, 'Extra Lektion 2.1 geschafft, nichts doppelt aufgegeben');
+  await p.click('.lc-row [data-act=lcDone]'); await p.waitForTimeout(600);
+  const c4 = await p.evaluate(() => [S.file.course.progress, S.file.open_lessons.map((x) => x.num + ':' + x.level)]);
+  ok(c4[0][l12].status === 'fertig' && c4[1].join() === '3:1', 'Haken in der Hausaufgaben Liste: 1.2 geschafft, 1.3 automatisch aufgegeben: ' + c4[1].join());
+  ok(c3.progress[l21].status === 'fertig' && true, 'Extra Lektion 2.1 geschafft, nichts doppelt aufgegeben');
   // Schüler sieht es in Dein Weg
   const { code } = await api(t, '/api/t/access/create', { student_id: id, role: 'student' });
   const sp = await b.newPage({ viewport: { width: 390, height: 844 }, deviceScaleFactor: 2 }); sp.on('pageerror', (e) => errs.push(e.message));
   await sp.goto(APP + '/#c=' + code); await sp.waitForFunction(() => typeof S !== 'undefined' && S.role === 'student' && S.course, null, { timeout: 8000 });
   ok(await sp.evaluate(() => S.course.course) === 'funk', 'Schüler startet im Weg Kurs Funk');
   await sp.evaluate(async () => { S.stuCourseKey = 'indie'; S.course = await api('/api/course', { course: 'indie' }); S.overlay = null; render(); }); await sp.waitForTimeout(300);
-  ok(/Funk Gitarre · Level 1 · Lektion 2/.test(await sp.textContent('body')) && /Scratches und Akzente/.test(await sp.textContent('body')), 'Aufgabe erscheint bei Deine Aufgaben, auch wenn gerade Indie offen ist');
+  ok(/Funk Gitarre · Level 1 · Lektion 3/.test(await sp.textContent('body')) && /Erster Song: Get Lucky/.test(await sp.textContent('body')), 'Aufgabe erscheint bei Deine Aufgaben, auch wenn gerade Indie offen ist');
   if (out) await sp.screenshot({ path: `${out}-schueler-aufgaben-390.png`, fullPage: true });
   await sp.click('.lesson-task [data-act=courseLesson]'); await sp.waitForTimeout(400);
-  const h1s = await sp.locator('h1').allTextContents(); console.log(h1s, await sp.evaluate(() => [S.course.course, S.lessonId, typeof S.overlay === 'function' && S.overlay.name])); ok(h1s.some((x) => /Scratches/.test(x)) && await sp.evaluate(() => S.course.course) === 'funk', 'Lektion öffnen lädt den Funk Kurs');
+  const h1s = await sp.locator('h1').allTextContents(); console.log(h1s, await sp.evaluate(() => [S.course.course, S.lessonId, typeof S.overlay === 'function' && S.overlay.name])); ok(h1s.some((x) => /Get Lucky/.test(x)) && await sp.evaluate(() => S.course.course) === 'funk', 'Lektion öffnen lädt den Funk Kurs');
   await p.evaluate(() => { const b = document.querySelector('[data-act=preview]'); b.click(); }); await p.waitForTimeout(800);
-  ok(/Scratches und Akzente/.test(await p.textContent('body')), 'Schüleransicht in der Stunde zeigt die Kurs Aufgabe');
+  ok(/Erster Song: Get Lucky/.test(await p.textContent('body')), 'Schüleransicht in der Stunde zeigt die Kurs Aufgabe');
   if (out) { await p.setViewportSize({ width: 390, height: 844 }); await p.evaluate(() => render()); await p.waitForTimeout(300); await p.screenshot({ path: `${out}-stunde-kurs-390.png` }); }
   // ph-v139: Songs unter dem Level aufgebbar, Reihenfolge eigenes Level, eins drüber, dann darunter; Vorschläge bleiben bei Level und eins drüber
   const order = await p.evaluate(() => { const keep = S.songs; S.songs = { songs: ['1', '2a', '3', '4', '5'].map((l) => ({ id: 'x' + l, title: 'Song ' + l, level: l, dv: 1 })) }; const f = { student: { instrument: 'Schlagzeug' }, level_set: { level: '3' } };
