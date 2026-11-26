@@ -310,11 +310,11 @@ details.card summary{cursor:pointer;font-family:var(--display);font-size:1.08rem
 </head>
 <body>
 <div id="app"><div class="wrap"><p class="muted">Lädt …</p></div></div>
-<script src="notation.js?v=133"></script>
-<script src="guitar.js?v=133"></script>
-<script src="roadmap.js?v=133"></script>
-<script src="progress.js?v=133"></script>
-<script src="transpose.js?v=133"></script>
+<script src="notation.js?v=134"></script>
+<script src="guitar.js?v=134"></script>
+<script src="roadmap.js?v=134"></script>
+<script src="progress.js?v=134"></script>
+<script src="transpose.js?v=134"></script>
 <script>
 'use strict';
 // ---------- Grundlagen ----------
@@ -673,7 +673,7 @@ function teacherView() {
     html = songsTab(true);
   } else if (t === 'bibliothek') {
     const ex = S.exercises || [];
-    html = `<div class="row between"><h1>Bibliothek</h1><div class="row"><button class="btn primary small" data-act="course" data-course="drums">Schlagzeug Kurs</button><button class="btn primary small" data-act="course" data-course="guitar">Gitarren Kurs</button><button class="btn primary small" data-act="course" data-course="indie">Indie Kurs</button><button class="btn primary small" data-act="missions">Missionen</button><button class="btn primary small" data-act="newExercise">Übung anlegen</button></div></div>
+    html = `<div class="row between"><h1>Bibliothek</h1><div class="row"><button class="btn primary small" data-act="course" data-course="drums">Schlagzeug Kurs</button><button class="btn primary small" data-act="course" data-course="guitar">Gitarren Kurs</button><button class="btn primary small" data-act="course" data-course="indie">Indie Kurs</button><button class="btn primary small" data-act="course" data-course="funk">Funk Kurs</button><button class="btn primary small" data-act="missions">Missionen</button><button class="btn primary small" data-act="newExercise">Übung anlegen</button></div></div>
     ${ex.length ? `<div class="field"><label for="libQ" class="hidden">Bibliothek durchsuchen</label><input id="libQ" type="search" placeholder="Suchen: Titel, Kategorie, Hinweis" value="${esc(S.libQ || '')}" autocomplete="off"></div>
     <div class="row" style="gap:6px" id="libCats">${libCatsHTML(ex)}</div><div class="col" style="gap:12px" id="libList">${libListHTML(ex)}</div>`
       : `<div class="empty">Noch keine Übungen. Lege Grooves, Fills, Rudiments oder Worship Songs mit Link oder Buchseite an.</div>`}`;
@@ -1539,17 +1539,17 @@ function openLessonCards() {
     <button class="btn primary" data-act="courseLesson" data-id="${l.id}">Lektion öffnen</button></section>`).join('');
 }
 function lessonSummary(l) { l = { ...l, items: l.items.filter((i) => i.kind !== 'material') }; const v = l.items.filter((i) => i.kind === 'video').length, so = l.items.filter((i) => i.kind === 'song').length; return [v ? v + ' Video' + (v > 1 ? 's' : '') : '', so ? so + ' Song' + (so > 1 ? 's' : '') : ''].filter(Boolean).join(' · ') || 'Mit Oti in der Stunde'; }
-// Kurse (seit 25.11.2026 drei): Gitarrenschüler wechseln zwischen Gitarre und Indie Gitarre, Oti in der Akte ebenso
-const COURSE_NAMES = { drums: 'Schlagzeug Kurs', guitar: 'Gitarren Kurs', indie: 'Indie Gitarre' };
+// Kurse (seit 26.11.2026 vier): Gitarrenschüler wechseln zwischen Gitarre, Indie Gitarre und Funk Gitarre, Oti in der Akte ebenso
+const COURSE_NAMES = { drums: 'Schlagzeug Kurs', guitar: 'Gitarren Kurs', indie: 'Indie Gitarre', funk: 'Funk Gitarre' };
 function courseChoices() {
   const st = S.role === 'teacher' ? (S.fileCourseOpen && S.file ? S.file.student : null) : stuData() && stuData().student;
   if (!st) return [];
   const g = /Gitarre/.test(st.instrument || ''), d = !st.instrument || /Schlagzeug/.test(st.instrument);
-  return [...(d ? ['drums'] : []), ...(g ? ['guitar', 'indie'] : [])];
+  return [...(d ? ['drums'] : []), ...(g ? ['guitar', 'indie', 'funk'] : [])];
 }
 function courseSwitch(c) {
   const ch = courseChoices(); if (ch.length < 2) return '';
-  return `<div class="row" style="gap:6px">${ch.map((k) => `<button class="chip" data-act="courseSwitch" data-v="${k}" aria-pressed="${c.course === k}">${{ drums: 'Schlagzeug', guitar: 'Gitarre', indie: 'Indie Gitarre' }[k]}</button>`).join('')}</div>`;
+  return `<div class="row" style="gap:6px">${ch.map((k) => `<button class="chip" data-act="courseSwitch" data-v="${k}" aria-pressed="${c.course === k}">${{ drums: 'Schlagzeug', guitar: 'Gitarre', indie: 'Indie Gitarre', funk: 'Funk Gitarre' }[k]}</button>`).join('')}</div>`;
 }
 function courseOf() { return S.role === 'teacher' && S.fileCourseOpen && S.file ? S.file.course : S.course; }
 function courseView() {

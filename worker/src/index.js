@@ -14,7 +14,7 @@ const DAY = 86400000;
 const TOKEN_DAYS = 180;
 const CODE_ALPHABET = 'ABCDEFGHJKMNPQRSTUVWXYZ23456789';
 const CONSENT_VERSION = 'v1 04.11.2026';
-const COURSES = ['drums', 'guitar', 'indie'];
+const COURSES = ['drums', 'guitar', 'indie', 'funk'];
 
 // ---------- kleine Helfer ----------
 const now = () => new Date().toISOString();
@@ -765,15 +765,15 @@ async function route(env, req, path, body) {
   }
   if (path === '/api/songs') return songsHome(s, who);
   if (path === '/api/course') {
-    // Drei Kurse: Schlagzeug (drums), Gitarre (guitar), Indie Gitarre (indie, seit 25.11.2026). Ohne Angabe nach Instrument des Schülers.
+    // Vier Kurse: Schlagzeug (drums), Gitarre (guitar), Indie Gitarre (indie, seit 25.11.2026), Funk Gitarre (funk, seit 26.11.2026). Ohne Angabe nach Instrument des Schülers.
     const sid = who.role === 'teacher' ? (str(body.student_id, 64) || null) : who.studentId;
     let course = COURSES.includes(body.course) ? body.course : null;
     if (!course && sid) {
       const st = await s.first('SELECT instrument FROM students WHERE id = ?', sid); course = st && /^Gitarre$/.test(st.instrument || '') ? 'guitar' : 'drums';
-      // Gitarrenschüler nur mit Indie Lektionen (z. B. Otis eigenes Profil) starten im Indie Kurs
+      // Gitarrenschüler ohne Lektionen im Gitarren Kurs starten im Zusatzkurs mit den meisten Lektionen (Indie oder Funk, z. B. Otis eigenes Profil)
       if (course === 'guitar') {
-        const r = await s.first(`SELECT SUM(cl.course = 'indie') AS i, SUM(cl.course = 'guitar') AS g FROM student_lessons sl JOIN course_lessons cl ON cl.id = sl.lesson_id WHERE sl.student_id = ?`, sid);
-        if (r && r.i && !r.g) course = 'indie';
+        const r = await s.first(`SELECT SUM(cl.course = 'indie') AS i, SUM(cl.course = 'funk') AS f, SUM(cl.course = 'guitar') AS g FROM student_lessons sl JOIN course_lessons cl ON cl.id = sl.lesson_id WHERE sl.student_id = ?`, sid);
+        if (r && !r.g && (r.i || r.f)) course = (r.f || 0) > (r.i || 0) ? 'funk' : 'indie';
       }
     }
     return courseData(s, course || 'drums', sid, who.role === 'teacher');
