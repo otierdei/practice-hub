@@ -1348,6 +1348,34 @@ test('Kurs Indie Gitarre: Import, dritter Kurs, Gitarrenschüler wählen ihn', a
   assert.equal((await w.call('/api/t/course/level/add', { course: 'indie', name: 'Extra' }, w.t)).data.level, 7);
 });
 
+test('Kurs Funk Gitarre: Import, vierter Kurs, Gitarrenschüler mit Funk Lektionen starten im Funk Kurs', async () => {
+  const fs = await import('node:fs');
+  const w = await world();
+  const indie = JSON.parse(fs.readFileSync(new URL('../../tools/kurse/indie-gitarre.json', import.meta.url)));
+  const funk = JSON.parse(fs.readFileSync(new URL('../../tools/kurse/funk-gitarre.json', import.meta.url)));
+  assert.equal(funk.course, 'funk');
+  assert.equal((await w.call('/api/t/course/import', indie, w.t)).status, 200);
+  assert.equal((await w.call('/api/t/course/import', funk, w.t)).status, 200);
+  const c = (await w.call('/api/course', { course: 'funk' }, w.t)).data;
+  assert.equal(c.course, 'funk'); assert.equal(c.levels.length, 6); assert.equal(c.lessons.length, 17);
+  assert.equal(c.levels[0].name, 'Funk Starter');
+  assert.equal((await w.call('/api/course', { course: 'indie' }, w.t)).data.lessons.length, 17, 'Funk Import ändert den Indie Kurs nicht');
+  assert.equal((await w.call('/api/t/course/import', funk, w.t)).status, 409, 'zweiter Import ohne replace abgelehnt');
+  // Jede Lektion hat Ziel, jedes Video eine YouTube Adresse
+  for (const l of funk.lessons) {
+    assert.ok(/^Ziel: /.test(l.body), 'Ziel in ' + l.title);
+    for (const it of l.items.filter((i) => i.kind === 'video')) assert.match(it.url, /^https:\/\/www\.youtube\.com\/watch\?v=[\w-]{11}$/);
+  }
+  assert.ok(!JSON.stringify(funk).match(/[\u2013\u2014]/), 'keine Gedankenstriche');
+  // Schüler sieht keine Lehrer Hinweise
+  assert.ok(!JSON.stringify((await w.call('/api/course', { course: 'funk' }, w.tb)).data).includes('Lehrer Hinweis'));
+  // Gitarrenprofil mit nur Funk Lektionen startet im Funk Kurs
+  const g = (await w.call('/api/t/self/open', { instrument: 'guitar' }, w.t)).data;
+  const f = c.lessons.filter((l) => l.level === 1);
+  for (const l of f) assert.equal((await w.call('/api/t/course/assign', { student_id: 'self-guitar', lesson_id: l.id, status: 'offen' }, w.t)).status, 200);
+  assert.equal((await w.call('/api/course', {}, g.token)).data.course, 'funk', 'mehr Funk als Indie Lektionen');
+});
+
 test('Mein Üben: Oti bekommt eigene Profile Gitarre (Indie Kurs) und Drums, versteckt in Liste und Neu', async () => {
   const fs = await import('node:fs');
   const w = await world();

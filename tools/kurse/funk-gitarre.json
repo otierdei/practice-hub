@@ -1,0 +1,174 @@
+{
+ "course": "funk",
+ "levels": [
+  { "level": 1, "name": "Funk Starter" },
+  { "level": 2, "name": "Funk Akkorde" },
+  { "level": 3, "name": "Riffs und Doppelgriffe" },
+  { "level": 4, "name": "Neo Soul und Gospel" },
+  { "level": 5, "name": "In der Band" },
+  { "level": 6, "name": "Sound und Projekt" }
+ ],
+ "lessons": [
+  {
+   "level": 1, "num": 1,
+   "title": "16tel zählen und der Funk Anschlag",
+   "body": "Ziel: Die rechte Hand läuft durchgehend in 16teln, ab auf ab auf, auch wenn du nicht triffst.\nSo übst du: Erst laut zählen (1 e und a), dann alle Saiten abgedämpft mitschlagen. Metronom auf 70 BPM, locker aus dem Handgelenk.\nFertig, wenn: Du eine Minute lang 16tel auf 90 BPM ohne Stocken schlägst und dabei zählst.",
+   "items": [
+    { "kind": "video", "title": "16tel zählen im Funk (JustinGuitar)", "url": "https://www.youtube.com/watch?v=np3SwTiOjpc" },
+    { "kind": "video", "title": "Funk Anschlag: Technik und Bewegung (JustinGuitar)", "url": "https://www.youtube.com/watch?v=hKFwe3BgFUI" },
+    { "kind": "material", "title": "Lehrer Hinweis", "notes": "JustinGuitar Funk Kurs Teil 1 und 2. Englisch. Dünnes Plektrum hilft beim Scratchen." }
+   ]
+  },
+  {
+   "level": 1, "num": 2,
+   "title": "Scratches und Akzente",
+   "body": "Ziel: Abgedämpfte Schläge (Scratches) und klingende Akkorde (Hits) im Wechsel, die Hand läuft dabei weiter.\nSo übst du: Mit der linken Hand nur Druck geben, wenn ein Hit kommt, sonst locker auflegen. Erst die Muster aus Video 1, dann die Grooves aus Video 2.\nFertig, wenn: Zwei Grooves aus Video 2 auf 85 BPM sauber laufen.",
+   "items": [
+    { "kind": "video", "title": "Hits in die Scratches setzen (JustinGuitar)", "url": "https://www.youtube.com/watch?v=Hk4Wfc5BfNE" },
+    { "kind": "video", "title": "Funk Grooves mit Hits und Scratches (JustinGuitar)", "url": "https://www.youtube.com/watch?v=r6JKyahHvGg" }
+   ]
+  },
+  {
+   "level": 1, "num": 3,
+   "title": "Erster Song: Get Lucky",
+   "body": "Ziel: Nile Rodgers Rhythmus mit vier Akkorden, die Hand läuft in 16teln.\nSo übst du: Erst das Zupfmuster auf Bm, dann der Anschlag, dann die ganze Folge Bm, D, F#m, E. Langsam beginnen, das Original hat etwa 116 BPM.\nFertig, wenn: Du eine Minute mit dem Original mitspielst, ohne rauszufallen.",
+   "items": [
+    { "kind": "video", "title": "Get Lucky, Daft Punk und Nile Rodgers (Eric Blackmon Guitar)", "url": "https://www.youtube.com/watch?v=5ReLGLwMUqU" },
+    { "kind": "song", "title": "Get Lucky", "song_title": "Get Lucky" },
+    { "kind": "material", "title": "Lehrer Hinweis", "notes": "Transkript am 26.11.2026 über chordu geprüft: sauber, Akkorde Bm, D, F#m, E (plus G#m Variante)." }
+   ]
+  },
+  {
+   "level": 2, "num": 1,
+   "title": "E9, der Funk Akkord, und Reinrutschen",
+   "body": "Ziel: Den E9 Griff (und seine Verschiebungen) sicher greifen und von einem Bund darunter hineinrutschen.\nSo übst du: E9 in drei Lagen verschieben (D9, E9, G9). Dann jeden Hit mit einem kurzen Rutscher von unten spielen.\nFertig, wenn: Ein Groove aus Lektion 1.2 mit E9 und Rutschern auf 85 BPM läuft.",
+   "items": [
+    { "kind": "video", "title": "E9 ist DER Funk Akkord (JustinGuitar)", "url": "https://www.youtube.com/watch?v=mF_LazDrYxQ" },
+    { "kind": "video", "title": "In Akkorde reinrutschen (JustinGuitar)", "url": "https://www.youtube.com/watch?v=7TXaC5vBFE4" }
+   ]
+  },
+  {
+   "level": 2, "num": 2,
+   "title": "Moll 7 Akkorde und Platz lassen",
+   "body": "Ziel: Kleine Moll 7 Griffe auf den hohen Saiten, dazu kurze und lange Töne bewusst einsetzen.\nSo übst du: Pro Tag eine Variante aus Video 1. Dann denselben Groove einmal kurz (staccato) und einmal klingend spielen und den Unterschied hören.\nFertig, wenn: Du einen eigenen Zwei Takte Groove mit Pausen spielst, der bewusst Platz lässt.",
+   "items": [
+    { "kind": "video", "title": "Funky Moll 7 Akkorde und Varianten (JustinGuitar)", "url": "https://www.youtube.com/watch?v=YC85xzYc06Q" },
+    { "kind": "video", "title": "Platz, Klingen lassen und Staccato (JustinGuitar)", "url": "https://www.youtube.com/watch?v=NDZKzN-Nhjs" },
+    { "kind": "material", "title": "Lehrer Hinweis", "notes": "Platz lassen ist die wichtigste Brücke zum Lobpreis: Keys und Bass brauchen Raum." }
+   ]
+  },
+  {
+   "level": 2, "num": 3,
+   "title": "Song: Good Times",
+   "body": "Ziel: Der Klassiker von Chic mit kleinen Akkordformen und viel Groove.\nSo übst du: Die zwei Akkorde einzeln, dann den Rhythmus mit Scratches, dann mit dem Original.\nFertig, wenn: Zwei Minuten mit dem Original ohne Stopp laufen.",
+   "items": [
+    { "kind": "video", "title": "Good Times, Chic (JustinGuitar)", "url": "https://www.youtube.com/watch?v=cxiE9BG2qy0" },
+    { "kind": "song", "title": "Good Times", "song_title": "Good Times" }
+   ]
+  },
+  {
+   "level": 3, "num": 1,
+   "title": "Einzeltöne im Funk",
+   "body": "Ziel: Kurze Riffs aus Einzeltönen, abgedämpft und im 16tel Raster gespielt.\nSo übst du: Die rechte Hand läuft weiter wie bei Akkorden. Ein Riff aus dem Video pro Woche, zuerst auf 70 BPM.\nFertig, wenn: Zwei Riffs aus dem Video im Tempo sitzen.",
+   "items": [
+    { "kind": "video", "title": "Funky Einzeltöne und Grooves (JustinGuitar)", "url": "https://www.youtube.com/watch?v=BlZsjpngIzY" }
+   ]
+  },
+  {
+   "level": 3, "num": 2,
+   "title": "Doppelgriffe",
+   "body": "Ziel: Zwei Töne gleichzeitig (Double Stops) als Füller zwischen Akkorden, typisch für Funk, Soul und Gospel.\nSo übst du: Die Formen aus dem Video in einer Tonart, dann zwischen zwei Akkorden einer Lobpreis Folge einbauen.\nFertig, wenn: Du in einer Akkordfolge aus dem Unterricht zwei Doppelgriff Füller sauber einsetzt.",
+   "items": [
+    { "kind": "video", "title": "Doppelgriffe für Funk, Soul und Jazz (Nick Granville, Guitar Daily #14)", "url": "https://www.youtube.com/watch?v=2VHuiZON6c4" },
+    { "kind": "material", "title": "Lehrer Hinweis", "notes": "Transkript und Länge nicht geprüft (YouTube blockiert). Oti schaut das Video vor dem Aufgeben an." }
+   ]
+  },
+  {
+   "level": 3, "num": 3,
+   "title": "Song: Play That Funky Music",
+   "body": "Ziel: Das bekannte Riff aus Einzeltönen plus der 16tel Groove der zweiten Gitarre.\nSo übst du: Erst das Riff, dann den Groove, dann im Wechsel mit dem Original.\nFertig, wenn: Riff und Groove mit dem Original laufen.",
+   "items": [
+    { "kind": "video", "title": "Play That Funky Music, Wild Cherry (Jon MacLennan)", "url": "https://www.youtube.com/watch?v=LoEKw7_4fjA" },
+    { "kind": "song", "title": "Play That Funky Music", "song_title": "Play That Funky Music" },
+    { "kind": "material", "title": "Lehrer Hinweis", "notes": "Transkript nicht geprüft (YouTube blockiert), Jon MacLennan ist ein sauberer Lehrkanal. Liedtext: Refrain mit \"white boy\", sonst harmlos." }
+   ]
+  },
+  {
+   "level": 4, "num": 1,
+   "title": "Neo Soul Verzierungen",
+   "body": "Ziel: Akkorde mit Hammer on und Pull off verzieren, der weiche Gospel und Neo Soul Klang.\nSo übst du: Eine einfache Folge aus dem Lobpreis nehmen und Schritt für Schritt wie im Video anreichern: erst 7er Töne, dann Verzierungen.\nFertig, wenn: Du eine Lobpreis Folge mit drei verschiedenen Verzierungen spielst.",
+   "items": [
+    { "kind": "video", "title": "Neo Soul aus einfachen Akkorden aufbauen (Paul Davids)", "url": "https://www.youtube.com/watch?v=8Xp8sHotqzU" },
+    { "kind": "material", "title": "Lehrer Hinweis", "notes": "Titel, Länge und Transkript nicht geprüft (YouTube blockiert). Paul Davids ist schon im Indie Kurs. Oti schaut vorher." }
+   ]
+  },
+  {
+   "level": 4, "num": 2,
+   "title": "Melodisch begleiten im Lobpreis",
+   "body": "Ziel: Wissen, was du im Lobpreis spielst, wenn Keys und Akustikgitarre schon da sind: kleine Formen, Melodie Töne, Platz.\nSo übst du: Ein Sonntags Lied nehmen und die Ideen aus dem Video auf Strophe und Refrain verteilen.\nFertig, wenn: Du für ein Sonntags Lied einen eigenen E Gitarren Part hast, der nicht mit den Keys kollidiert.",
+   "items": [
+    { "kind": "video", "title": "Melodische Rhythmusgitarre im Lobpreis", "url": "https://www.youtube.com/watch?v=tAikdS8Kda8" },
+    { "kind": "material", "title": "Lehrer Hinweis", "notes": "Kanal und Transkript nicht geprüft (YouTube blockiert). Oti schaut das Video vor dem Aufgeben an." }
+   ]
+  },
+  {
+   "level": 4, "num": 3,
+   "title": "Worship Song: Goodbye Yesterday",
+   "body": "Ziel: Funk und Gospel Gitarre in einem modernen Lobpreislied.\nSo übst du: Erst die Lead Gitarre aus dem Tutorial in Teilen, dann mit dem Live Video von Elevation Rhythm vergleichen.\nFertig, wenn: Strophe und Refrain mit dem Original laufen.",
+   "items": [
+    { "kind": "video", "title": "Goodbye Yesterday, Elevation Rhythm (Live Guitar Cam, Elevation Worship Resources)", "url": "https://www.youtube.com/watch?v=kFII6sOq0uA" },
+    { "kind": "video", "title": "Goodbye Yesterday, Lead Gitarre in Standard Stimmung (Tutorial)", "url": "https://www.youtube.com/watch?v=cYFu_R_pdho" },
+    { "kind": "song", "title": "Goodbye Yesterday", "song_title": "Goodbye Yesterday" },
+    { "kind": "material", "title": "Lehrer Hinweis", "notes": "Live Cam ohne Sprache, offizieller Kanal. Tutorial nicht per Transkript geprüft." }
+   ]
+  },
+  {
+   "level": 5, "num": 1,
+   "title": "Rechte Hand und Pocket",
+   "body": "Ziel: Die schnelle, lockere rechte Hand von Cory Wong und das Spielen in der Tasche (im Groove mit Drums und Bass).\nSo übst du: Die Übung aus Video 1 täglich 5 Minuten mit Metronom. Dann zu einem Drumloop spielen und nur auf die Kick hören.\nFertig, wenn: Du 16tel auf 100 BPM zwei Minuten locker durchhältst.",
+   "items": [
+    { "kind": "video", "title": "Cory Wong: Rhythmus der Anschlagshand (JamTrack)", "url": "https://www.youtube.com/watch?v=2iMaBoeWhv4" },
+    { "kind": "video", "title": "Cory Wong: im Pocket bleiben", "url": "https://www.youtube.com/watch?v=wL3wGvZ46mc" },
+    { "kind": "material", "title": "Lehrer Hinweis", "notes": "Transkripte nicht geprüft (YouTube blockiert). Cory Wong selbst erklärt, Oti schaut vorher." }
+   ]
+  },
+  {
+   "level": 5, "num": 2,
+   "title": "Song: Darwin Derby",
+   "body": "Ziel: Ein moderner Funk Song von Vulfpeck, erklärt von Cory Wong selbst.\nSo übst du: Teil für Teil wie im Video, jeden Teil mit Loop. Tempo erst runter, dann Original.\nFertig, wenn: Der Hauptgroove im Originaltempo sitzt.",
+   "items": [
+    { "kind": "video", "title": "Cory Wong erklärt Darwin Derby, Vulfpeck (Reverb)", "url": "https://www.youtube.com/watch?v=i14pnaRzflU" },
+    { "kind": "song", "title": "Darwin Derby", "song_title": "Darwin Derby" },
+    { "kind": "material", "title": "Lehrer Hinweis", "notes": "Instrumental, kein Liedtext. Transkript nicht geprüft." }
+   ]
+  },
+  {
+   "level": 5, "num": 3,
+   "title": "Worship Song: Praise",
+   "body": "Ziel: Ein groovendes Lobpreislied mit Band, Riff im Refrain, 16tel Gefühl in der Strophe.\nSo übst du: Tutorial Teil für Teil, dann das offizielle Playthrough als Vorbild. Mit Schlagzeug oder Click spielen, nie ohne.\nFertig, wenn: Du Praise im Lobpreis mitspielen kannst.",
+   "items": [
+    { "kind": "video", "title": "Praise, Elevation Worship (offizielles E Gitarren Playthrough)", "url": "https://www.youtube.com/watch?v=qoUZw5vc08Q" },
+    { "kind": "video", "title": "Praise, E Gitarren Tutorial mit Tabs (A, 127 BPM)", "url": "https://www.youtube.com/watch?v=o3X60iiqrzo" },
+    { "kind": "song", "title": "Praise", "song_title": "Praise" }
+   ]
+  },
+  {
+   "level": 6, "num": 1,
+   "title": "Funk Sound: clean, Kompressor, Auto Wah",
+   "body": "Ziel: Der typische Funk Klang: ganz clean, Kompressor für gleichmäßige Lautstärke, Auto Wah als Farbe.\nSo übst du: Am Amp oder Helix: keine Verzerrung, Kompressor mit langsamem Attack, Single Coil in Stellung 2 oder 4. Einen Groove aus Level 2 einmal ohne und einmal mit Kompressor aufnehmen und vergleichen.\nFertig, wenn: Du einen eigenen Funk Sound gespeichert hast und erklären kannst, was der Kompressor macht.",
+   "items": [
+    { "kind": "video", "title": "Wong Compressor, Wampler und Cory Wong (Produktvideo)", "url": "https://www.youtube.com/watch?v=yhnQD6agAjo" },
+    { "kind": "video", "title": "Envelope Filter und Auto Wah erklärt", "url": "https://www.youtube.com/watch?v=YqXb_8-KnOA" },
+    { "kind": "material", "title": "Lehrer Hinweis", "notes": "Kein Transkript geprüft, Oti schaut beide Videos vor dem Aufgeben an. Video 1 ist Werbung für ein Pedal, nur als Klangbeispiel." }
+   ]
+  },
+  {
+   "level": 6, "num": 2,
+   "title": "Projekt: Funk Song mit einem Schlagzeugschüler",
+   "body": "Ziel: Ein Song aus diesem Kurs mit einem Schlagzeugschüler zusammen, nach derselben Roadmap.\nSo übst du: Song in der App öffnen, Roadmap, Gitarre und Schlagzeug sehen dieselben Takte. Einzählen auf 2 Takte stellen. Gitarre hört auf die Hi Hat, nicht auf sich selbst.\nFertig, wenn: Ihr den Song einmal ohne Stopp zusammen spielt. Urkunde Funk Gitarre.",
+   "items": [
+    { "kind": "text", "title": "Tipp", "notes": "Praise oder Good Times eignen sich gut. Teil mit Loop üben, bis der Übergang sitzt, dann den ganzen Song." }
+   ]
+  }
+ ]
+}

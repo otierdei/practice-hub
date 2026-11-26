@@ -99,7 +99,7 @@ export function currentLevel(levels, lessons, progress) {
 }
 
 export async function courseImport(s, b, now, uid) {
-  const course = ['drums', 'guitar', 'indie'].includes(b.course) ? b.course : 'drums';
+  const course = ['drums', 'guitar', 'indie', 'funk'].includes(b.course) ? b.course : 'drums';
   const have = await s.first('SELECT COUNT(*) AS n FROM course_lessons WHERE course = ?', course);
   if (have.n && !b.replace) throw Object.assign(new Error('Der Kurs hat schon Lektionen.'), { status: 409 });
   const stmts = [];
