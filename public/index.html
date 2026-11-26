@@ -310,11 +310,11 @@ details.card summary{cursor:pointer;font-family:var(--display);font-size:1.08rem
 </head>
 <body>
 <div id="app"><div class="wrap"><p class="muted">Lädt …</p></div></div>
-<script src="notation.js?v=134"></script>
-<script src="guitar.js?v=134"></script>
-<script src="roadmap.js?v=134"></script>
-<script src="progress.js?v=134"></script>
-<script src="transpose.js?v=134"></script>
+<script src="notation.js?v=135"></script>
+<script src="guitar.js?v=135"></script>
+<script src="roadmap.js?v=135"></script>
+<script src="progress.js?v=135"></script>
+<script src="transpose.js?v=135"></script>
 <script>
 'use strict';
 // ---------- Grundlagen ----------
@@ -673,7 +673,7 @@ function teacherView() {
     html = songsTab(true);
   } else if (t === 'bibliothek') {
     const ex = S.exercises || [];
-    html = `<div class="row between"><h1>Bibliothek</h1><div class="row"><button class="btn primary small" data-act="course" data-course="drums">Schlagzeug Kurs</button><button class="btn primary small" data-act="course" data-course="guitar">Gitarren Kurs</button><button class="btn primary small" data-act="course" data-course="indie">Indie Kurs</button><button class="btn primary small" data-act="course" data-course="funk">Funk Kurs</button><button class="btn primary small" data-act="missions">Missionen</button><button class="btn primary small" data-act="newExercise">Übung anlegen</button></div></div>
+    html = `<div class="row between"><h1>Bibliothek</h1><div class="row"><button class="btn primary small" data-act="course" data-course="guitar">Gitarre</button><button class="btn primary small" data-act="course" data-course="drums">Drums</button><button class="btn primary small" data-act="missions">Missionen</button><button class="btn primary small" data-act="newExercise">Übung anlegen</button></div></div>
     ${ex.length ? `<div class="field"><label for="libQ" class="hidden">Bibliothek durchsuchen</label><input id="libQ" type="search" placeholder="Suchen: Titel, Kategorie, Hinweis" value="${esc(S.libQ || '')}" autocomplete="off"></div>
     <div class="row" style="gap:6px" id="libCats">${libCatsHTML(ex)}</div><div class="col" style="gap:12px" id="libList">${libListHTML(ex)}</div>`
       : `<div class="empty">Noch keine Übungen. Lege Grooves, Fills, Rudiments oder Worship Songs mit Link oder Buchseite an.</div>`}`;
@@ -1541,15 +1541,25 @@ function openLessonCards() {
 function lessonSummary(l) { l = { ...l, items: l.items.filter((i) => i.kind !== 'material') }; const v = l.items.filter((i) => i.kind === 'video').length, so = l.items.filter((i) => i.kind === 'song').length; return [v ? v + ' Video' + (v > 1 ? 's' : '') : '', so ? so + ' Song' + (so > 1 ? 's' : '') : ''].filter(Boolean).join(' · ') || 'Mit Oti in der Stunde'; }
 // Kurse (seit 26.11.2026 vier): Gitarrenschüler wechseln zwischen Gitarre, Indie Gitarre und Funk Gitarre, Oti in der Akte ebenso
 const COURSE_NAMES = { drums: 'Schlagzeug Kurs', guitar: 'Gitarren Kurs', indie: 'Indie Gitarre', funk: 'Funk Gitarre' };
+// Seit 26.11.2026 (ph-v135) nach Instrument geordnet: Reiter Gitarre und Drums, darunter die Unterkurse
+const COURSE_FAMILIES = { guitar: ['guitar', 'indie', 'funk'], drums: ['drums'] };
+const COURSE_SUB = { guitar: 'Grundkurs', indie: 'Indie', funk: 'Funk', drums: 'Grundkurs' };
+const courseFamily = (k) => (COURSE_FAMILIES.drums.includes(k) ? 'drums' : 'guitar');
 function courseChoices() {
+  if (S.role === 'teacher' && !S.fileCourseOpen) return COURSE_FAMILIES[courseFamily(S.courseKey || 'drums')];
   const st = S.role === 'teacher' ? (S.fileCourseOpen && S.file ? S.file.student : null) : stuData() && stuData().student;
   if (!st) return [];
   const g = /Gitarre/.test(st.instrument || ''), d = !st.instrument || /Schlagzeug/.test(st.instrument);
-  return [...(d ? ['drums'] : []), ...(g ? ['guitar', 'indie', 'funk'] : [])];
+  return [...(d ? COURSE_FAMILIES.drums : []), ...(g ? COURSE_FAMILIES.guitar : [])];
 }
 function courseSwitch(c) {
-  const ch = courseChoices(); if (ch.length < 2) return '';
-  return `<div class="row" style="gap:6px">${ch.map((k) => `<button class="chip" data-act="courseSwitch" data-v="${k}" aria-pressed="${c.course === k}">${{ drums: 'Schlagzeug', guitar: 'Gitarre', indie: 'Indie Gitarre', funk: 'Funk Gitarre' }[k]}</button>`).join('')}</div>`;
+  const ch = courseChoices(); if (!ch.length) return '';
+  const fams = ['drums', 'guitar'].filter((f) => ch.some((k) => courseFamily(k) === f));
+  return fams.map((f) => {
+    const ks = ch.filter((k) => courseFamily(k) === f), here = courseFamily(c.course) === f;
+    const chips = ks.length > 1 || fams.length > 1 ? `<div class="row" style="gap:6px">${ks.map((k) => `<button class="chip" data-act="courseSwitch" data-v="${k}" aria-pressed="${c.course === k}">${COURSE_SUB[k]}</button>`).join('')}</div>` : '';
+    return chips ? `<div class="col" style="gap:6px"><span class="small muted"${here ? '' : ' style="opacity:.7"'}>${f === 'guitar' ? 'Gitarre' : 'Drums'}</span>${chips}</div>` : '';
+  }).join('');
 }
 function courseOf() { return S.role === 'teacher' && S.fileCourseOpen && S.file ? S.file.course : S.course; }
 function courseView() {
@@ -3025,7 +3035,7 @@ document.addEventListener('click', async (ev) => {
         const r = await api('/api/my/push/prefs', p); S.data.push = { ...(S.data.push || {}), prefs: r.prefs }; render(); break; }
       case 'courseSwitch': { const k = el.dataset.v;
         if (S.role === 'teacher' && S.fileCourseOpen && S.file) S.file.course = await api('/api/course', { student_id: S.file.student.id, course: k });
-        else { S.stuCourseKey = k; S.course = await api('/api/course', { course: k }); }
+        else { if (S.role === 'teacher') S.courseKey = k; else S.stuCourseKey = k; S.course = await api('/api/course', { course: k }); }
         openOverlay(courseView); break; }
       case 'calOff': S.calOff = Math.min(0, (S.calOff || 0) + Number(el.dataset.v)); render(); break;
       case 'streakDays': { const v = Number(el.dataset.v); await api('/api/t/student/streak', { id: S.file.student.id, days: v }); S.file.streak_days = v; openOverlay(studentFileView); toast('Serie: ' + v + ' Tage pro Woche'); break; }
