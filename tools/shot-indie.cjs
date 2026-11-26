@@ -18,7 +18,7 @@ const APP = 'http://localhost:8080', out = process.argv[2];
   const lessonBtn = p.locator('[data-act=courseLesson]').first(); if (await lessonBtn.count()) { await lessonBtn.click(); await p.waitForTimeout(400); await p.screenshot({ path: `${out}-noel-lektion-390.png`, fullPage: true }); }
   const tp = await b.newPage({ viewport: { width: 1440, height: 900 } }); tp.on('pageerror', (e) => errs.push(e.message));
   await tp.goto(APP); await tp.fill('#code', 'LEHRER2345XY'); await tp.press('#code', 'Enter'); await tp.waitForFunction(() => typeof S !== 'undefined' && S.role === 'teacher');
-  await tp.click('nav [data-tab=bibliothek]').catch(() => {}); await tp.waitForTimeout(400); await tp.click('[data-act=course][data-course=indie]'); await tp.waitForTimeout(500);
+  await tp.click('nav [data-tab=bibliothek]').catch(() => {}); await tp.waitForTimeout(400); await tp.click('[data-act=course][data-course=guitar]'); await tp.waitForTimeout(300); await tp.click('[data-act=courseSwitch][data-v=indie]'); await tp.waitForTimeout(500);
   await tp.screenshot({ path: `${out}-lehrer-indie-1440.png`, fullPage: true });
   console.log('Fehler:', errs.length ? errs : 'keine'); await b.close();
 })().catch((e) => { console.error(e); process.exit(1); });

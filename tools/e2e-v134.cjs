@@ -19,7 +19,7 @@ const ok = (c, m) => { n++; if (!c) { console.error('FEHLER Schritt ' + n + ': '
   ok(await p.evaluate(() => S.course && S.course.course) === 'funk', 'Schüler nur mit Funk Lektionen startet im Funk Kurs');
   await p.evaluate(() => { S.overlay = null; openOverlay(courseView); }); await p.waitForTimeout(300);
   const chips = await p.locator('[data-act=courseSwitch]').allTextContents();
-  ok(chips.join('|') === 'Gitarre|Indie Gitarre|Funk Gitarre', 'Umschalter zeigt Gitarre, Indie Gitarre, Funk Gitarre');
+  ok(chips.join('|') === 'Grundkurs|Indie|Funk' && /Gitarre/.test(await p.textContent('.sheet')), 'Reiter Gitarre mit Unterkursen Grundkurs, Indie, Funk');
   ok(await p.locator('[data-act=courseSwitch][data-v=funk][aria-pressed=true]').count() === 1, 'Funk ist ausgewählt');
   ok(/Funk Starter/.test(await p.textContent('body')), 'Level 1 heißt Funk Starter');
   if (out) await p.screenshot({ path: `${out}-schueler-funk-390.png`, fullPage: true });
@@ -33,8 +33,13 @@ const ok = (c, m) => { n++; if (!c) { console.error('FEHLER Schritt ' + n + ': '
   const tp = await b.newPage({ viewport: { width: 1440, height: 900 } }); tp.on('pageerror', (e) => errs.push(e.message)); await tp.route('https://i.ytimg.com/**', yt);
   await tp.goto(APP); await tp.fill('#code', 'LEHRER2345XY'); await tp.press('#code', 'Enter'); await tp.waitForFunction(() => typeof S !== 'undefined' && S.role === 'teacher' && S.data);
   await tp.click('nav [data-tab=bibliothek]').catch(() => {}); await tp.waitForTimeout(400);
-  ok(await tp.locator('[data-act=course][data-course=funk]').count() === 1, 'Bibliothek hat Knopf Funk Kurs');
-  await tp.click('[data-act=course][data-course=funk]'); await tp.waitForTimeout(500);
+  ok(await tp.locator('[data-act=course]').allTextContents().then((t) => t.join('|')) === 'Gitarre|Drums', 'Bibliothek hat nur zwei Knöpfe: Gitarre und Drums');
+  await tp.click('[data-act=course][data-course=drums]'); await tp.waitForTimeout(400);
+  ok(await tp.locator('[data-act=courseSwitch]').count() === 0, 'Drums ohne Unterkurs Chips (nur Grundkurs)');
+  await tp.click('[data-act=courseBack]').catch(() => {}); await tp.waitForTimeout(300);
+  await tp.click('[data-act=course][data-course=guitar]'); await tp.waitForTimeout(400);
+  ok((await tp.locator('[data-act=courseSwitch]').allTextContents()).join('|') === 'Grundkurs|Indie|Funk', 'Gitarre zeigt Unterkurse');
+  await tp.click('[data-act=courseSwitch][data-v=funk]'); await tp.waitForTimeout(500);
   const body = await tp.textContent('body');
   ok(/Funk Starter/.test(body) && /Sound und Projekt/.test(body) && /Get Lucky/.test(body), 'Lehreransicht zeigt alle Level und Songs');
   if (out) await tp.screenshot({ path: `${out}-lehrer-funk-1440.png`, fullPage: true });
