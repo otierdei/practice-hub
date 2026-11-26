@@ -1376,6 +1376,32 @@ test('Kurs Funk Gitarre: Import, vierter Kurs, Gitarrenschüler mit Funk Lektion
   assert.equal((await w.call('/api/course', {}, g.token)).data.course, 'funk', 'mehr Funk als Indie Lektionen');
 });
 
+test('Kurs als Weg: ganzen Kurs aufgeben, nach Geschafft kommt die nächste Lektion', async () => {
+  const fs = await import('node:fs');
+  const w = await world();
+  await w.call('/api/t/course/import', JSON.parse(fs.readFileSync(new URL('../../tools/kurse/funk-gitarre.json', import.meta.url))), w.t);
+  await w.call('/api/t/self/open', { instrument: 'guitar' }, w.t);
+  const sid = 'self-guitar';
+  assert.equal((await w.call('/api/t/course/path', { student_id: sid, course: 'funk' }, w.ta)).status, 403, 'nur Lehrer');
+  assert.equal((await w.call('/api/t/course/path', { student_id: sid, course: 'quatsch' }, w.t)).status, 400);
+  const r = (await w.call('/api/t/course/path', { student_id: sid, course: 'funk' }, w.t)).data;
+  let c = (await w.call('/api/course', { student_id: sid }, w.t)).data;
+  assert.equal(c.course, 'funk', 'Weg bestimmt den Standardkurs'); assert.equal(c.path, 'funk');
+  const l1 = c.lessons.find((l) => l.level === 1 && l.num === 1), l2 = c.lessons.find((l) => l.level === 1 && l.num === 2);
+  assert.equal(r.next, l1.id); assert.equal(c.progress[l1.id].status, 'offen');
+  // Zweites Setzen gibt nichts doppelt auf
+  assert.equal((await w.call('/api/t/course/path', { student_id: sid, course: 'funk' }, w.t)).data.next, null);
+  const a = (await w.call('/api/t/course/assign', { student_id: sid, lesson_id: l1.id, status: 'fertig' }, w.t)).data;
+  assert.equal(a.next, l2.id, 'nächste Lektion automatisch');
+  c = (await w.call('/api/course', { student_id: sid }, w.t)).data;
+  assert.equal(c.progress[l2.id].status, 'offen');
+  // Weg beenden: nichts mehr automatisch, Aufgegebenes bleibt
+  await w.call('/api/t/course/path', { student_id: sid, course: null }, w.t);
+  assert.equal((await w.call('/api/t/course/assign', { student_id: sid, lesson_id: l2.id, status: 'fertig' }, w.t)).data.next, null);
+  c = (await w.call('/api/course', { student_id: sid, course: 'funk' }, w.t)).data;
+  assert.equal(c.path, null); assert.equal(Object.values(c.progress).filter((p) => p.status === 'offen').length, 0);
+});
+
 test('Mein Üben: Oti bekommt eigene Profile Gitarre (Indie Kurs) und Drums, versteckt in Liste und Neu', async () => {
   const fs = await import('node:fs');
   const w = await world();

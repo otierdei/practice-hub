@@ -57,6 +57,11 @@ CREATE TABLE IF NOT EXISTS student_lessons (
   done_at TEXT,
   PRIMARY KEY (student_id, lesson_id)
 );
+CREATE TABLE IF NOT EXISTS student_course_path (
+  student_id TEXT PRIMARY KEY, -- Kurs als Weg (ph-v137): nach "Geschafft" wird die nächste Lektion automatisch aufgegeben
+  course TEXT NOT NULL,
+  set_at TEXT NOT NULL
+);
 CREATE INDEX IF NOT EXISTS i_course_lessons ON course_lessons(course, num);
 CREATE INDEX IF NOT EXISTS i_lesson_items ON lesson_items(lesson_id, sort);
 `;
@@ -121,4 +126,13 @@ export async function courseImport(s, b, now, uid) {
   }
   for (let i = 0; i < stmts.length; i += 90) await s.batch(stmts.slice(i, i + 90));
   return { lessons: n };
+}
+
+// Kurs als Weg (ph-v137): die erste noch nicht geschaffte Lektion in Kursreihenfolge aufgeben (falls sie nicht schon offen ist)
+export async function pathAdvance(s, sid, course, now) {
+  const next = await s.first(`SELECT cl.id, sl.status FROM course_lessons cl LEFT JOIN student_lessons sl ON sl.lesson_id = cl.id AND sl.student_id = ? WHERE cl.course = ? AND (sl.status IS NULL OR sl.status != 'fertig') ORDER BY cl.level, cl.num LIMIT 1`, sid, course);
+  if (!next || next.status === 'offen') return null;
+  await s.run(`INSERT INTO student_lessons (student_id, lesson_id, status, assigned_at, done_at) VALUES (?, ?, 'offen', ?, NULL)
+    ON CONFLICT(student_id, lesson_id) DO UPDATE SET status = 'offen', done_at = NULL`, sid, next.id, now);
+  return next.id;
 }

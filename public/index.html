@@ -310,11 +310,11 @@ details.card summary{cursor:pointer;font-family:var(--display);font-size:1.08rem
 </head>
 <body>
 <div id="app"><div class="wrap"><p class="muted">Lädt …</p></div></div>
-<script src="notation.js?v=136"></script>
-<script src="guitar.js?v=136"></script>
-<script src="roadmap.js?v=136"></script>
-<script src="progress.js?v=136"></script>
-<script src="transpose.js?v=136"></script>
+<script src="notation.js?v=137"></script>
+<script src="guitar.js?v=137"></script>
+<script src="roadmap.js?v=137"></script>
+<script src="progress.js?v=137"></script>
+<script src="transpose.js?v=137"></script>
 <script>
 'use strict';
 // ---------- Grundlagen ----------
@@ -1254,6 +1254,7 @@ function lessonView() {
     <p class="small muted row" style="gap:8px;align-items:center;margin:-8px 0 0">${S.lessonLive && S.lessonLive > new Date().toISOString() ? 'Unterrichtsmodus beim Schüler an: Üben zählt nicht. <button class="btn small" data-act="teacherLive" data-v="0">Aus</button>' : 'Unterrichtsmodus beim Schüler aus. <button class="btn small" data-act="teacherLive" data-v="1">An</button>'}</p>
     <p class="muted" id="lessonPractice" style="margin:-8px 0 0">Geübt seit ${last ? 'der letzten Stunde' : '7 Tagen'}: <b style="color:var(--ink)">${total} min</b> an <b style="color:var(--ink)">${days} von 7 Tagen</b></p>
     ${st.profile_note ? `<details class="card"><summary>Steckbrief</summary><p style="white-space:pre-line">${esc(st.profile_note)}</p></details>` : ''}
+    ${lessonCourseCard(f)}
     <div class="lesson-grid">
       <div class="col" style="gap:16px">
         <section class="card"><h3>Hausaufgaben</h3><div class="list" data-sort="asg">${open.length ? open.map((a, i) => { const on = L.close_assignments.includes(a.id); return `<div class="item" data-sort-id="${a.id}">${grip(i + 1, open.length + L.new_assignments.length > 1)}<span class="t"><button class="link" data-act="asgDetail" data-id="${a.id}"><b>${esc(a.title || a.free_text)}</b></button><br><span class="muted small">${practicedFor(a, f.sessions)}${a.target_bpm ? ' · Ziel ' + a.target_bpm : ''}</span><br>${assignBadges(a)}</span><button class="check ${on ? 'on' : ''}" data-act="toggleClose" data-id="${a.id}" aria-pressed="${on}" aria-label="Als erledigt markieren">${on ? '✓' : ''}</button></div>`; }).join('') : ''}${L.new_assignments.map((a, i) => newAsgRow(a, i, open.length + i + 1)).join('')}${!open.length && !L.new_assignments.length ? '<p class="muted">Keine offenen Hausaufgaben.</p>' : ''}</div>
@@ -1293,6 +1294,33 @@ function lessonView() {
         </section>
       </div>
     </div></div>`;
+}
+
+document.addEventListener('toggle', (ev) => { if (ev.target.id === 'lessonCourse') S.lcBox = ev.target.open; const k = ev.target.dataset && ev.target.dataset.lc; if (k) (S.lcOpen = S.lcOpen || {})[k] = ev.target.open; }, true);
+// Kurs direkt in der Stunde (ph-v137, Otis Wunsch): Unterkurs wählen, Lektionen aufgeben, ganzen Kurs als Weg aufgeben
+function lessonCourseCard(f) {
+  const c = f.course, st = f.student; if (!c) return '';
+  const g = /Gitarre/.test(st.instrument || ''), d = !st.instrument || /Schlagzeug/.test(st.instrument);
+  const ch = [...(d ? COURSE_FAMILIES.drums : []), ...(g ? COURSE_FAMILIES.guitar : [])];
+  const fams = ['drums', 'guitar'].filter((x) => ch.some((k) => courseFamily(k) === x));
+  const chips = ch.length > 1 ? fams.map((fa) => `<div class="col" style="gap:6px">${fams.length > 1 ? `<span class="small muted">${fa === 'guitar' ? 'Gitarre' : 'Drums'}</span>` : ''}<div class="row" style="gap:6px">${ch.filter((k) => courseFamily(k) === fa).map((k) => `<button class="chip" data-act="lcSwitch" data-v="${k}" aria-pressed="${c.course === k}">${COURSE_SUB[k]}</button>`).join('')}</div></div>`).join('') : '';
+  const st8 = (l) => (c.progress[l.id] ? c.progress[l.id].status : null);
+  const label = (k) => COURSE_NAMES[k] || k;
+  const onPath = c.path === c.course;
+  const pathRow = onPath
+    ? `<div class="row between" style="gap:8px"><span class="small"><b>Läuft als Weg.</b> <span class="muted">Nach „Geschafft“ wird die nächste Lektion automatisch aufgegeben.</span></span><button class="btn small" data-act="lcPath" data-v="">Weg beenden</button></div>`
+    : `<div class="row between" style="gap:8px"><span class="small muted">${c.path ? 'Aktueller Weg: ' + esc(label(c.path)) + '. ' : ''}Ganzer Kurs: immer die nächste Lektion ist dran.</span><button class="btn small primary" data-act="lcPath" data-v="${c.course}">Ganzen Kurs aufgeben</button></div>`;
+  const cur = c.level ? c.level.level : null;
+  const lv = c.levels.filter((l) => c.lessons.some((x) => x.level === l.level)).map((l) => {
+    const ls = c.lessons.filter((x) => x.level === l.level);
+    const done = ls.filter((x) => st8(x) === 'fertig').length;
+    const isOpen = S.lcOpen && (c.course + '_' + l.level) in S.lcOpen ? S.lcOpen[c.course + '_' + l.level] : l.level === cur;
+    return `<details data-lc="${c.course}_${l.level}"${isOpen ? ' open' : ''}><summary style="font-family:var(--body);font-size:1rem"><b>Level ${l.level} · ${esc(l.name)}</b> <span class="small muted">${done} von ${ls.length}</span></summary><div class="list">${ls.map((x) => { const s8 = st8(x);
+      return `<div class="item"><span class="lesson-dot ${s8 || ''}" aria-label="${s8 === 'fertig' ? 'geschafft' : s8 === 'offen' ? 'aufgegeben' : 'noch nicht dran'}">${s8 === 'fertig' ? '✓' : x.num}</span><span class="t" style="flex:1;text-align:left">${esc(x.title)}${s8 === 'offen' ? ' <span class="pill">aufgegeben</span>' : ''}</span><button class="btn small${s8 === 'offen' ? ' primary' : ''}" data-act="lcState" data-id="${x.id}">${s8 === 'fertig' ? 'Zurücksetzen' : s8 === 'offen' ? 'Geschafft' : 'Aufgeben'}</button></div>`; }).join('')}</div></details>`;
+  }).join('');
+  const openNow = c.lessons.filter((x) => st8(x) === 'offen').map((x) => x.level + '.' + x.num);
+  return `<details class="card col" id="lessonCourse" style="gap:10px"${S.lcBox ? ' open' : ''}><summary class="row between" style="gap:8px;cursor:pointer"><span>Kurs · ${esc(label(c.course))}${c.level ? ' · Level ' + c.level.level + ' ' + esc(c.level.name) : ''}</span><span class="small muted" style="font-family:var(--body)">${onPath ? 'läuft als Weg' + (openNow.length ? ', ' : '') : ''}${openNow.length ? 'aufgegeben: ' + openNow.join(', ') : onPath ? '' : 'antippen zum Aufgeben'}</span></summary>
+    <div class="col" style="gap:10px;margin-top:10px">${chips}${c.lessons.length ? pathRow + lv : '<p class="small muted">Dieser Kurs hat noch keine Lektionen.</p>'}</div></details>`;
 }
 
 // ---------- Schüler ----------
@@ -3020,6 +3048,22 @@ document.addEventListener('click', async (ev) => {
       case 'backToCourse': DrumNotation.stop(); S.exPlaying = null; if (S.lessonFrom === courseView) openOverlay(courseView); else closeOverlay(); break;
       case 'itemKind': S.itemKind = el.dataset.v; openOverlay(courseLessonView); break;
       case 'itemDelete': await api('/api/t/course/item/delete', { id }); await reloadCourse(); openOverlay(courseLessonView); break;
+      case 'lcSwitch': S.file.course = await api('/api/course', { student_id: S.file.student.id, course: el.dataset.v }); render(); break;
+      case 'lcState': {
+        const c = S.file.course, cur = c.progress[id] ? c.progress[id].status : null;
+        const next = cur === 'fertig' ? null : cur === 'offen' ? 'fertig' : 'offen';
+        const r = await api('/api/t/course/assign', { student_id: S.file.student.id, lesson_id: id, status: next });
+        S.file.course = await api('/api/course', { student_id: S.file.student.id, course: c.course });
+        const nl = r.next && S.file.course.lessons.find((l) => l.id === r.next);
+        render(); toast(next === 'offen' ? 'Aufgegeben' : next === 'fertig' ? (nl ? 'Geschafft. Neu aufgegeben: ' + nl.title : 'Geschafft') : 'Zurückgesetzt'); break;
+      }
+      case 'lcPath': {
+        const k = el.dataset.v || '', c = S.file.course;
+        const r = await api('/api/t/course/path', { student_id: S.file.student.id, course: k || null });
+        S.file.course = await api('/api/course', { student_id: S.file.student.id, course: c.course });
+        const nl = r.next && S.file.course.lessons.find((l) => l.id === r.next);
+        render(); toast(k ? COURSE_NAMES[k] + ' als Weg aufgegeben' + (nl ? ': ' + nl.title + ' ist dran' : '') : 'Weg beendet, aufgegebene Lektionen bleiben'); break;
+      }
       case 'lessonState': {
         const c = S.file.course, cur = c.progress[id] ? c.progress[id].status : null;
         const next = cur === 'fertig' ? null : cur === 'offen' ? 'fertig' : 'offen';
