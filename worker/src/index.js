@@ -218,7 +218,7 @@ async function studentView(s, studentId, role) {
   const since = new Date(Date.now() - 370 * DAY).toISOString();
   const [assignments, sessions, goals, lessons, consent] = await Promise.all([
     s.all(`SELECT a.id, a.exercise_id, a.free_text, CASE WHEN ap.part_id IS NULL AND sb.bpm IS NOT NULL THEN sb.bpm ELSE a.target_bpm END AS target_bpm, sb.bpm AS song_bpm, a.start_bpm, a.minutes_per_day, a.due_date, a.status, a.done_at, a.created_at,
-             COALESCE(e.title, psg.title || ': ' || sp.title) AS title, e.category, e.source_type, COALESCE(e.url, sp.url) AS url, e.book_ref, COALESCE(sp.notes, e.notes) AS exercise_notes, COALESCE(spn.notation, e.notation) AS notation, c.student_done_at, x.song_id, x.version AS song_version, ap.part_id
+             COALESCE(e.title, psg.title || ': ' || sp.title) AS title, e.category, e.source_type, COALESCE(e.url, sp.url) AS url, e.book_ref, COALESCE(sp.notes, e.notes) AS exercise_notes, COALESCE(spn.notation, e.notation) AS notation, c.student_done_at, (SELECT 1 FROM assignment_review rv WHERE rv.assignment_id = a.id) AS review, x.song_id, x.version AS song_version, ap.part_id
            FROM assignments a LEFT JOIN exercises e ON e.id = a.exercise_id LEFT JOIN assignment_checks c ON c.assignment_id = a.id LEFT JOIN assignment_songs x ON x.assignment_id = a.id LEFT JOIN assignment_order o ON o.assignment_id = a.id LEFT JOIN assignment_parts ap ON ap.assignment_id = a.id LEFT JOIN song_parts sp ON sp.id = ap.part_id LEFT JOIN songs psg ON psg.id = sp.song_id LEFT JOIN song_part_notation spn ON spn.part_id = ap.part_id LEFT JOIN (SELECT s0.id AS song_id, COALESCE((SELECT bpm FROM song_meta WHERE song_id = s0.id), (SELECT MAX(bpm) FROM song_files WHERE song_id = s0.id)) AS bpm FROM songs s0) sb ON sb.song_id = x.song_id
            WHERE a.student_id = ? AND (a.status = 'offen' OR a.done_at > ?) ORDER BY (o.sort IS NULL) DESC, o.sort, a.created_at DESC`, studentId, new Date(Date.now() - 21 * DAY).toISOString()),
     s.all(`SELECT id, client_id, assignment_id, exercise_id, started_at, local_date, seconds, bpm_reached, feeling, note
@@ -321,7 +321,7 @@ async function teacherStudent(s, id) {
   if (!st) throw new HttpError(404, 'Schüler nicht gefunden.');
   const [lessons, assignments, sessions, goals, access, consents] = await Promise.all([
     s.all('SELECT * FROM lessons WHERE student_id = ? ORDER BY date DESC', id),
-    s.all(`SELECT a.*, CASE WHEN ap.part_id IS NULL AND sb.bpm IS NOT NULL THEN sb.bpm ELSE a.target_bpm END AS eff_target, sb.bpm AS song_bpm, COALESCE(e.title, psg.title || ': ' || sp.title) AS title, e.category, e.source_type, COALESCE(e.url, sp.url) AS url, e.book_ref, COALESCE(spn.notation, e.notation) AS notation, e.archived AS ex_archived, c.student_done_at, x.song_id, x.version AS song_version, ap.part_id, sp.title AS part_title FROM assignments a LEFT JOIN exercises e ON e.id = a.exercise_id
+    s.all(`SELECT a.*, CASE WHEN ap.part_id IS NULL AND sb.bpm IS NOT NULL THEN sb.bpm ELSE a.target_bpm END AS eff_target, sb.bpm AS song_bpm, COALESCE(e.title, psg.title || ': ' || sp.title) AS title, e.category, e.source_type, COALESCE(e.url, sp.url) AS url, e.book_ref, COALESCE(spn.notation, e.notation) AS notation, e.archived AS ex_archived, c.student_done_at, (SELECT 1 FROM assignment_review rv WHERE rv.assignment_id = a.id) AS review, x.song_id, x.version AS song_version, ap.part_id, sp.title AS part_title FROM assignments a LEFT JOIN exercises e ON e.id = a.exercise_id
            LEFT JOIN assignment_checks c ON c.assignment_id = a.id LEFT JOIN assignment_songs x ON x.assignment_id = a.id LEFT JOIN assignment_order o ON o.assignment_id = a.id LEFT JOIN assignment_parts ap ON ap.assignment_id = a.id LEFT JOIN song_parts sp ON sp.id = ap.part_id LEFT JOIN songs psg ON psg.id = sp.song_id LEFT JOIN song_part_notation spn ON spn.part_id = ap.part_id LEFT JOIN (SELECT s0.id AS song_id, COALESCE((SELECT bpm FROM song_meta WHERE song_id = s0.id), (SELECT MAX(bpm) FROM song_files WHERE song_id = s0.id)) AS bpm FROM songs s0) sb ON sb.song_id = x.song_id
            WHERE a.student_id = ? ORDER BY (o.sort IS NULL) DESC, o.sort, a.created_at DESC LIMIT 200`, id),
     s.all('SELECT id, assignment_id, exercise_id, started_at, local_date, seconds, bpm_reached, feeling, note FROM practice_sessions WHERE student_id = ? ORDER BY started_at DESC LIMIT 400', id),
@@ -388,6 +388,7 @@ function deleteStudentStatements(id) {
     ...missionDeleteStudentStatements(id),
     ['DELETE FROM news_seen WHERE student_id = ?', [id]],
     ['DELETE FROM assignment_songs WHERE assignment_id IN (SELECT id FROM assignments WHERE student_id = ?)', [id]],
+    ['DELETE FROM assignment_review WHERE assignment_id IN (SELECT id FROM assignments WHERE student_id = ?)', [id]],
     ['DELETE FROM assignment_checks WHERE assignment_id IN (SELECT id FROM assignments WHERE student_id = ?)', [id]],
     ['DELETE FROM assignment_order WHERE assignment_id IN (SELECT id FROM assignments WHERE student_id = ?)', [id]],
     ['DELETE FROM student_beat_official WHERE beat_id IN (SELECT id FROM student_beats WHERE student_id = ?)', [id]],
@@ -745,6 +746,49 @@ async function finishLesson(s, who, b) {
 }
 
 // ---------- Aufräumen (täglich) ----------
+// Wiederholungshausaufgaben (ph-v141, Otis Wunsch): ein abgeschlossener Song kommt 6 Wochen nach dem Abschluss als Wiederholung,
+// danach alle 3 Monate nach der letzten Wiederholung. Höchstens eine offene Wiederholung pro Schüler, die am längsten fällige zuerst.
+// Nicht, wenn der Song schon offen ist. Läuft täglich im Cron und ist im Test direkt aufrufbar.
+export const REVIEW_FIRST_DAYS = 42, REVIEW_NEXT_DAYS = 91;
+export async function scheduleReviews(env, nowMs = Date.now()) {
+  const s = store(env), t = new Date(nowMs).toISOString(); let created = 0;
+  const studs = await s.all("SELECT id FROM students WHERE status = 'aktiv'");
+  for (const st of studs) {
+    if ((await s.first("SELECT COUNT(*) AS n FROM assignments a JOIN assignment_review r ON r.assignment_id = a.id WHERE a.student_id = ? AND a.status = 'offen'", st.id)).n) continue;
+    const rows = await s.all(`SELECT x.song_id, x.version, a.target_bpm, a.minutes_per_day, a.done_at, a.status, (r.assignment_id IS NOT NULL) AS is_review
+      FROM assignments a JOIN assignment_songs x ON x.assignment_id = a.id LEFT JOIN assignment_parts ap ON ap.assignment_id = a.id LEFT JOIN assignment_review r ON r.assignment_id = a.id
+      WHERE a.student_id = ? AND ap.part_id IS NULL`, st.id);
+    const by = new Map();
+    for (const r of rows) {
+      const e = by.get(r.song_id) || { song_id: r.song_id, open: false, done: null, review: null, src: null };
+      if (r.status === 'offen') e.open = true;
+      if (r.status === 'erledigt' && r.done_at) {
+        if (r.is_review) { if (!e.review || r.done_at > e.review) e.review = r.done_at; }
+        else if (!e.done || r.done_at > e.done) { e.done = r.done_at; e.src = r; }
+      }
+      by.set(r.song_id, e);
+    }
+    let best = null;
+    for (const e of by.values()) {
+      if (e.open || !e.done) continue;
+      const due = e.review && e.review > e.done ? Date.parse(e.review) + REVIEW_NEXT_DAYS * DAY : Date.parse(e.done) + REVIEW_FIRST_DAYS * DAY;
+      if (due <= nowMs && (!best || due < best.due)) best = { ...e, due };
+    }
+    if (!best) continue;
+    const song = await s.first('SELECT id, title FROM songs WHERE id = ?', best.song_id);
+    if (!song) continue;
+    const aid = uid(), v = best.src.version;
+    await s.batch([
+      ['INSERT INTO assignments (id, student_id, lesson_id, exercise_id, free_text, target_bpm, start_bpm, minutes_per_day, due_date, status, created_at) VALUES (?, ?, NULL, NULL, ?, ?, NULL, ?, NULL, ?, ?)',
+        [aid, st.id, str(song.title + (v ? ' (' + v + ')' : ''), 300), best.src.target_bpm, best.src.minutes_per_day, 'offen', t]],
+      ['INSERT INTO assignment_songs (assignment_id, song_id, version) VALUES (?, ?, ?)', [aid, song.id, v]],
+      ['INSERT INTO assignment_review (assignment_id, song_id, created_at) VALUES (?, ?, ?)', [aid, song.id, t]],
+    ]);
+    created++;
+  }
+  return created;
+}
+
 export async function cleanup(env) {
   const s = store(env);
   const yearAgo = new Date(Date.now() - 365 * DAY).toISOString();
@@ -1451,6 +1495,7 @@ async function route(env, req, path, body) {
         ['DELETE FROM assignment_checks WHERE assignment_id = ?', [a.id]],
         ['DELETE FROM assignment_order WHERE assignment_id = ?', [a.id]],
         ['DELETE FROM assignment_songs WHERE assignment_id = ?', [a.id]],
+        ['DELETE FROM assignment_review WHERE assignment_id = ?', [a.id]],
         ['DELETE FROM assignments WHERE id = ?', [a.id]],
         logRow(who, 'delete', 'assignments', a.id, 'Hausaufgabe entfernt' + (a.free_text ? ': ' + a.free_text.slice(0, 60) : '')),
       ]);
@@ -1523,8 +1568,8 @@ export default {
     }
   },
   async scheduled(event, env, ctx) {
-    // Stündlich: Übe Erinnerungen an Schüler. Täglich 03:17 UTC: Aufräumen und Song Abgleich.
+    // Stündlich: Übe Erinnerungen an Schüler. Täglich 03:17 UTC: Aufräumen, Wiederholungshausaufgaben, Song Abgleich.
     if (event && event.cron === '7 * * * *') { ctx.waitUntil(ensureSchema(env).then(() => sendStudentReminders(env)).catch((e) => console.log('Erinnerungen:', e.message))); return; }
-    ctx.waitUntil(ensureSchema(env).then(() => cleanup(env)).then(() => syncSongs(env).catch((e) => console.log('Song Abgleich:', e.message))));
+    ctx.waitUntil(ensureSchema(env).then(() => cleanup(env)).then(() => scheduleReviews(env).catch((e) => console.log('Wiederholungen:', e.message))).then(() => syncSongs(env).catch((e) => console.log('Song Abgleich:', e.message))));
   },
 };

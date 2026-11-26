@@ -1405,6 +1405,42 @@ test('Kurs als Weg: ganzen Kurs aufgeben, nach Geschafft kommt die nächste Lekt
   assert.equal(c.path, null); assert.equal(Object.values(c.progress).filter((p) => p.status === 'offen').length, 0);
 });
 
+test('Wiederholung: abgeschlossener Song kommt nach 6 Wochen, dann alle 3 Monate, höchstens eine offen', async () => {
+  const w = await world();
+  const { scheduleReviews } = await import('../src/index.js');
+  const DAY = 864e5, t0 = Date.parse('2026-01-05T10:00:00Z');
+  const sid = (await w.call('/api/t/student/save', { first_name: 'Rev', birth_year: 2005, weekday: 2, lesson_time: '16:00', instrument: 'Schlagzeug' }, w.t)).data.id;
+  const songs = [];
+  for (const title of ['Alpha Song', 'Beta Song']) { const id = crypto.randomUUID(); w.env.DB.raw.prepare("INSERT INTO songs (id, title, updated_at) VALUES (?, ?, ?)").run(id, title, new Date(t0).toISOString()); songs.push(id); }
+  // Zwei abgeschlossene Songs: Alpha vor 50 Tagen, Beta vor 45 Tagen
+  const done = async (song, daysAgo, version) => { const aid = crypto.randomUUID(); w.env.DB.raw.prepare("INSERT INTO assignments (id, student_id, free_text, target_bpm, minutes_per_day, status, done_at, created_at) VALUES (?, ?, 'x', 120, 10, 'erledigt', ?, ?)").run(aid, sid, new Date(t0 - daysAgo * DAY).toISOString(), new Date(t0 - (daysAgo + 14) * DAY).toISOString()); w.env.DB.raw.prepare('INSERT INTO assignment_songs (assignment_id, song_id, version) VALUES (?, ?, ?)').run(aid, song, version); };
+  await done(songs[0], 50, 'Original'); await done(songs[1], 45, 'Easy');
+  assert.equal(await scheduleReviews(w.env, t0 - 10 * DAY), 0, 'vor 6 Wochen nichts');
+  assert.equal(await scheduleReviews(w.env, t0), 1, 'eine Wiederholung');
+  assert.equal(await scheduleReviews(w.env, t0), 0, 'höchstens eine offen');
+  let f = (await w.call('/api/t/student', { id: sid }, w.t)).data;
+  const rv = f.assignments.filter((a) => a.review);
+  assert.equal(rv.length, 1); assert.equal(rv[0].song_id, songs[0], 'die am längsten fällige zuerst'); assert.equal(rv[0].free_text, 'Alpha Song (Original)'); assert.equal(rv[0].target_bpm, 120);
+  // Schüler sieht die Markierung
+  const home = (await w.call('/api/t/preview', { id: sid }, w.t)).data;
+  assert.ok(home.assignments.find((a) => a.id === rv[0].id).review);
+  // Wiederholung erledigt: dann kommt Beta, Alpha erst 3 Monate nach der Wiederholung
+  w.env.DB.raw.prepare("UPDATE assignments SET status = 'erledigt', done_at = ? WHERE id = ?").run(new Date(t0 + DAY).toISOString(), rv[0].id);
+  assert.equal(await scheduleReviews(w.env, t0 + 2 * DAY), 1);
+  f = (await w.call('/api/t/student', { id: sid }, w.t)).data;
+  const open = f.assignments.filter((a) => a.review && a.status === 'offen');
+  assert.equal(open.length, 1); assert.equal(open[0].song_id, songs[1]); assert.equal(open[0].song_version, 'Easy');
+  w.env.DB.raw.prepare("UPDATE assignments SET status = 'erledigt', done_at = ? WHERE id = ?").run(new Date(t0 + 3 * DAY).toISOString(), open[0].id);
+  assert.equal(await scheduleReviews(w.env, t0 + 60 * DAY), 0, 'Alpha noch nicht wieder fällig');
+  assert.equal(await scheduleReviews(w.env, t0 + 93 * DAY), 1, 'Alpha 3 Monate nach der Wiederholung');
+  // Song schon offen: keine Wiederholung
+  w.env.DB.raw.prepare("UPDATE assignments SET status = 'erledigt', done_at = ? WHERE status = 'offen' AND student_id = ?").run(new Date(t0 + 94 * DAY).toISOString(), sid);
+  const oid = crypto.randomUUID(); w.env.DB.raw.prepare("INSERT INTO assignments (id, student_id, free_text, status, created_at) VALUES (?, ?, 'Beta Song', 'offen', ?)").run(oid, sid, new Date(t0).toISOString()); w.env.DB.raw.prepare('INSERT INTO assignment_songs (assignment_id, song_id, version) VALUES (?, ?, NULL)').run(oid, songs[1]);
+  assert.equal(await scheduleReviews(w.env, t0 + 200 * DAY), 1, 'Alpha wieder, Beta ist offen und wird übersprungen');
+  f = (await w.call('/api/t/student', { id: sid }, w.t)).data;
+  assert.equal(f.assignments.filter((a) => a.review && a.status === 'offen')[0].song_id, songs[0]);
+});
+
 test('Mein Üben: Oti bekommt eigene Profile Gitarre (Indie Kurs) und Drums, versteckt in Liste und Neu', async () => {
   const fs = await import('node:fs');
   const w = await world();
