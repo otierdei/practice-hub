@@ -33,7 +33,7 @@ const ok = (c, m) => { n++; if (!c) { console.error('FEHLER Schritt ' + n + ': '
   const tp = await b.newPage({ viewport: { width: 1440, height: 900 } }); tp.on('pageerror', (e) => errs.push(e.message)); await tp.route('https://i.ytimg.com/**', yt);
   await tp.goto(APP); await tp.fill('#code', 'LEHRER2345XY'); await tp.press('#code', 'Enter'); await tp.waitForFunction(() => typeof S !== 'undefined' && S.role === 'teacher' && S.data);
   await tp.click('nav [data-tab=bibliothek]').catch(() => {}); await tp.waitForTimeout(400);
-  ok(await tp.locator('[data-act=course]').allTextContents().then((t) => t.join('|')) === 'Gitarre|Drums', 'Bibliothek hat nur zwei Knöpfe: Gitarre und Drums');
+  ok(await tp.locator('[data-act=course]').allTextContents().then((t) => t.join('|')) === 'Kurs Gitarre|Kurs Drums', 'Bibliothek hat nur zwei Knöpfe: Kurs Gitarre und Kurs Drums');
   await tp.click('[data-act=course][data-course=drums]'); await tp.waitForTimeout(400);
   ok(await tp.locator('[data-act=courseSwitch]').count() === 0, 'Drums ohne Unterkurs Chips (nur Grundkurs)');
   await tp.click('[data-act=courseBack]').catch(() => {}); await tp.waitForTimeout(300);
