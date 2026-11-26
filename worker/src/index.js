@@ -229,7 +229,12 @@ async function studentView(s, studentId, role) {
   const pp = await s.first('SELECT days, hour FROM student_push_prefs WHERE student_id = ?', st.id);
   const push = { prefs: pp ? { days: JSON.parse(pp.days), hour: pp.hour } : DEFAULT_PREFS, subs: (await s.first('SELECT COUNT(*) AS n FROM student_push_subs WHERE student_id = ?', st.id)).n };
   const lvRow = await s.first('SELECT level FROM student_level WHERE student_id = ?', studentId);
-  return { level: lvRow ? lvRow.level : null, game_time, streak_days, push, role, app: app || null, icon: instrIcon(st.instrument), changes, missions: mis, student: st, assignments, sessions, goals, lessons, my_beats, lesson_live: live, consent: consent ? consent.given_at : null, consentVersion: CONSENT_VERSION, canGoal: role === 'student' && canSetGoals(st) };
+  // Aufgegebene Kurslektionen aller Kurse (ph-v138): erscheinen bei "Deine Aufgaben", egal welcher Kurs gerade offen ist, auch in der Schüleransicht
+  const open_lessons = await s.all(`SELECT cl.id, cl.course, cl.level, cl.num, cl.title,
+      (SELECT COUNT(*) FROM lesson_items i WHERE i.lesson_id = cl.id AND i.kind = 'video') AS videos,
+      (SELECT COUNT(*) FROM lesson_items i WHERE i.lesson_id = cl.id AND i.kind = 'song') AS songs
+    FROM student_lessons sl JOIN course_lessons cl ON cl.id = sl.lesson_id WHERE sl.student_id = ? AND sl.status = 'offen' ORDER BY sl.assigned_at, cl.level, cl.num`, studentId);
+  return { open_lessons, level: lvRow ? lvRow.level : null, game_time, streak_days, push, role, app: app || null, icon: instrIcon(st.instrument), changes, missions: mis, student: st, assignments, sessions, goals, lessons, my_beats, lesson_live: live, consent: consent ? consent.given_at : null, consentVersion: CONSENT_VERSION, canGoal: role === 'student' && canSetGoals(st) };
 }
 
 // Alle Schüler dürfen eigene Ziele eintragen (Altersgrenze auf Otis Wunsch entfernt)

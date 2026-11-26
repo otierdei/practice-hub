@@ -1395,6 +1395,9 @@ test('Kurs als Weg: ganzen Kurs aufgeben, nach Geschafft kommt die nächste Lekt
   assert.equal(a.next, l2.id, 'nächste Lektion automatisch');
   c = (await w.call('/api/course', { student_id: sid }, w.t)).data;
   assert.equal(c.progress[l2.id].status, 'offen');
+  const home = (await w.call('/api/t/preview', { id: sid }, w.t)).data;
+  assert.deepEqual(home.open_lessons.map((x) => [x.course, x.title]), [['funk', l2.title]], 'Home Daten enthalten die offene Kurslektion');
+  assert.equal(home.open_lessons[0].videos, 2);
   // Weg beenden: nichts mehr automatisch, Aufgegebenes bleibt
   await w.call('/api/t/course/path', { student_id: sid, course: null }, w.t);
   assert.equal((await w.call('/api/t/course/assign', { student_id: sid, lesson_id: l2.id, status: 'fertig' }, w.t)).data.next, null);
