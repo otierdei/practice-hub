@@ -62,6 +62,11 @@ CREATE TABLE IF NOT EXISTS assignment_songs (
   song_id TEXT NOT NULL,
   version TEXT
 );
+CREATE TABLE IF NOT EXISTS assignment_review (
+  assignment_id TEXT PRIMARY KEY, -- Wiederholungshausaufgabe (ph-v141): automatisch aus einem abgeschlossenen Song
+  song_id TEXT NOT NULL,
+  created_at TEXT NOT NULL
+);
 CREATE INDEX IF NOT EXISTS i_song_links ON song_links(song_id, sort);
 CREATE INDEX IF NOT EXISTS i_assignment_songs ON assignment_songs(song_id);
 CREATE INDEX IF NOT EXISTS i_song_files ON song_files(song_id);

@@ -310,11 +310,11 @@ details.card summary{cursor:pointer;font-family:var(--display);font-size:1.08rem
 </head>
 <body>
 <div id="app"><div class="wrap"><p class="muted">Lädt …</p></div></div>
-<script src="notation.js?v=140"></script>
-<script src="guitar.js?v=140"></script>
-<script src="roadmap.js?v=140"></script>
-<script src="progress.js?v=140"></script>
-<script src="transpose.js?v=140"></script>
+<script src="notation.js?v=141"></script>
+<script src="guitar.js?v=141"></script>
+<script src="roadmap.js?v=141"></script>
+<script src="progress.js?v=141"></script>
+<script src="transpose.js?v=141"></script>
 <script>
 'use strict';
 // ---------- Grundlagen ----------
@@ -848,7 +848,7 @@ async function openLesson(id) {
 }
 function assignBadges(a) {
   const weeks = Math.floor((Date.now() - new Date(a.created_at).getTime()) / (7 * 864e5));
-  return [a.student_done_at ? `<span class="pill ok">Schüler ✓ ${esc(fmtDate(a.student_done_at))}</span>` : '', weeks >= 1 ? `<span class="pill">${weeks === 1 ? 'seit 1 Woche' : 'seit ' + weeks + ' Wochen'} offen</span>` : ''].join('');
+  return [a.review ? '<span class="pill">Wiederholung</span>' : '', a.student_done_at ? `<span class="pill ok">Schüler ✓ ${esc(fmtDate(a.student_done_at))}</span>` : '', weeks >= 1 ? `<span class="pill">${weeks === 1 ? 'seit 1 Woche' : 'seit ' + weeks + ' Wochen'} offen</span>` : ''].join('');
 }
 // Hausaufgabe in der Stunde sofort speichern: gleich sortierbar, der Schüler sieht sie sofort
 // Liedpfad (Oti 25.11.2026): Level 1 bis 8, 2 geteilt in 2a (4/4) und 2b (6/8)
@@ -2257,7 +2257,7 @@ function assignmentCard(a, sessions, num) {
   const th = ytThumb(a.url), ms = msOfAssignment(stuData(), a.id);
   return `<section class="card task">${ms ? `<button class="ms-tag" data-act="missionOpen" data-id="${ms.id}">Mission · Schritt ${ms.done + 1} von ${ms.total}</button>` : ''}<div class="row" style="flex-wrap:nowrap;align-items:center;gap:14px">
     ${th ? `<button class="thumb" data-act="video" data-id="${a.id}" aria-label="Video ansehen: ${esc(a.title || a.free_text)}"><img src="${th}" alt="" loading="lazy" onerror="this.remove()"><span class="thumb-play">${PLAY}</span></button>` : `<span class="task-icon" aria-hidden="true">${taskIcon(a)}</span>`}
-    <div class="col" style="gap:4px;flex:1;min-width:0"><b class="task-title">${num ? `<span class="asg-num">${num}.</span> ` : ''}${esc(a.title || a.free_text)}${asgInstrPill(a, S.data && S.data.student)}</b><span class="muted small">${meta}</span></div>
+    <div class="col" style="gap:4px;flex:1;min-width:0"><b class="task-title">${num ? `<span class="asg-num">${num}.</span> ` : ''}${esc(a.title || a.free_text)}${asgInstrPill(a, S.data && S.data.student)}${a.review ? ' <span class="pill">Wiederholung</span>' : ''}</b><span class="muted small">${meta}</span></div>
     <button class="check" data-act="toggleDone" data-id="${a.id}" aria-pressed="false" aria-label="Als erledigt abhaken"></button></div>
     ${notationPreview(a.notation, 'Noten: ' + (a.title || ''))}
     ${a.song_id ? `<button class="btn" data-act="song" data-id="${esc(a.song_id)}" data-v="${esc(a.song_version || '')}">Song öffnen${a.song_version ? ' · ' + esc(a.song_version) : ''}</button>` : ''}
